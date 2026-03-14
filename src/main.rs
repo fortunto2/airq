@@ -346,42 +346,66 @@ async fn main() -> Result<()> {
         anyhow::bail!("Provide --city or --lat + --lon. Run airq --help for usage.")
     };
 
-    let (data, sources_msg) = match cli.provider {
+    // Per-source raw values for breakdown display
+    struct SourceBreakdown {
+        om_pm25: Option<f64>,
+        om_pm10: Option<f64>,
+        sc_pm25: Option<f64>,
+        sc_pm10: Option<f64>,
+        sensor_count: usize,
+    }
+
+    let (data, sources_msg, breakdown) = match cli.provider {
         Provider::All => {
             let (om_res, sc_res) = tokio::join!(
                 fetch_open_meteo(lat, lon),
                 airq::fetch_area_average(lat, lon, 5.0)
             );
             let mut data = om_res?;
-            let mut msg = "Sources: Open-Meteo only (no nearby sensors)".to_string();
-            
+            let om_pm25 = data.current.pm2_5;
+            let om_pm10 = data.current.pm10;
+            let mut sc_pm25 = None;
+            let mut sc_pm10 = None;
+            let mut sensor_count = 0;
+            let mut msg = "Open-Meteo only (no nearby sensors)".to_string();
+
             if let Ok(sc_data) = sc_res {
                 if sc_data.sensor_count > 0 {
-                    msg = format!("Sources: Open-Meteo + {} sensors (5km)", sc_data.sensor_count);
-                    
-                    if let Some(sc_pm25) = sc_data.pm2_5_median {
-                        let om_pm25 = data.current.pm2_5.unwrap_or(sc_pm25);
-                        data.current.pm2_5 = Some((om_pm25 + sc_pm25) / 2.0);
+                    sensor_count = sc_data.sensor_count;
+                    sc_pm25 = sc_data.pm2_5_median;
+                    sc_pm10 = sc_data.pm10_median;
+                    msg = format!(
+                        "Open-Meteo (model) + Sensor.Community ({} sensors, 5km median)",
+                        sensor_count
+                    );
+
+                    // Merge: average if both available
+                    if let (Some(om), Some(sc)) = (om_pm25, sc_pm25) {
+                        data.current.pm2_5 = Some((om + sc) / 2.0);
                     }
-                    if let Some(sc_pm10) = sc_data.pm10_median {
-                        let om_pm10 = data.current.pm10.unwrap_or(sc_pm10);
-                        data.current.pm10 = Some((om_pm10 + sc_pm10) / 2.0);
+                    if let (Some(om), Some(sc)) = (om_pm10, sc_pm10) {
+                        data.current.pm10 = Some((om + sc) / 2.0);
                     }
-                    
-                    // Recalculate AQI if we merged data
                     data.current.us_aqi = overall_aqi(&data.current).map(|v| v as f64);
                 }
             }
-            (data, msg)
+            let bd = SourceBreakdown { om_pm25, om_pm10, sc_pm25, sc_pm10, sensor_count };
+            (data, msg, Some(bd))
         }
-        Provider::OpenMeteo => {
-            (fetch_open_meteo(lat, lon).await?, "Sources: Open-Meteo".to_string())
-        }
+        Provider::OpenMeteo => (
+            fetch_open_meteo(lat, lon).await?,
+            "Open-Meteo".to_string(),
+            None,
+        ),
         Provider::SensorCommunity => {
             let sensor_id = cli
                 .sensor_id
                 .context("sensor-id is required for sensor-community provider")?;
-            (fetch_sensor_community(sensor_id).await?, format!("Sources: Sensor.Community (#{})", sensor_id))
+            (
+                fetch_sensor_community(sensor_id).await?,
+                format!("Sensor.Community (#{})", sensor_id),
+                None,
+            )
         }
     };
 
@@ -395,25 +419,62 @@ async fn main() -> Result<()> {
         "Air Quality for Coordinates: {}, {}",
         data.latitude, data.longitude
     );
-    println!("{}", sources_msg);
+    println!("Sources: {}", sources_msg);
     println!("--------------------------------------------------");
 
-    let show_pollutant = |name: &str, value: Option<f64>, unit: &str, get_status: fn(f64) -> airq::AqiCategory, show_na: bool| {
-        if let Some(v) = value {
-            let status = get_status(v);
-            let text = format!("{}: {} {}", name, v, unit);
-            println!("{}", status.colorize(&text));
-        } else if show_na {
-            println!("{}: N/A", name);
+    let show = |name: &str, val: Option<f64>, unit: &str, status_fn: fn(f64) -> airq::AqiCategory| {
+        if let Some(v) = val {
+            let cat = status_fn(v);
+            println!("{}", cat.colorize(&format!("{:<6}{:.1} {}", name, v, unit)));
         }
     };
 
-    show_pollutant("PM2.5", data.current.pm2_5, &data.current_units.pm2_5, get_pm25_status, true);
-    show_pollutant("PM10", data.current.pm10, &data.current_units.pm10, get_pm10_status, true);
-    show_pollutant("CO", data.current.carbon_monoxide, &data.current_units.carbon_monoxide, get_co_status, true);
-    show_pollutant("NO2", data.current.nitrogen_dioxide, &data.current_units.nitrogen_dioxide, get_no2_status, true);
-    show_pollutant("O3", data.current.ozone, &data.current_units.ozone, get_o3_status, false);
-    show_pollutant("SO2", data.current.sulphur_dioxide, &data.current_units.sulphur_dioxide, get_so2_status, false);
+    // PM2.5/PM10 with per-source breakdown
+    if let Some(ref bd) = breakdown {
+        if bd.sensor_count > 0 {
+            let fmt = |v: Option<f64>| {
+                v.map(|x| format!("{:.1}", x))
+                    .unwrap_or_else(|| "—".into())
+            };
+            if let Some(avg) = data.current.pm2_5 {
+                let cat = get_pm25_status(avg);
+                println!(
+                    "{}",
+                    cat.colorize(&format!(
+                        "PM2.5  {:.1} avg  ({} model, {} sensors) {}",
+                        avg,
+                        fmt(bd.om_pm25),
+                        fmt(bd.sc_pm25),
+                        &data.current_units.pm2_5
+                    ))
+                );
+            }
+            if let Some(avg) = data.current.pm10 {
+                let cat = get_pm10_status(avg);
+                println!(
+                    "{}",
+                    cat.colorize(&format!(
+                        "PM10   {:.1} avg  ({} model, {} sensors) {}",
+                        avg,
+                        fmt(bd.om_pm10),
+                        fmt(bd.sc_pm10),
+                        &data.current_units.pm10
+                    ))
+                );
+            }
+        } else {
+            show("PM2.5", data.current.pm2_5, &data.current_units.pm2_5, get_pm25_status);
+            show("PM10", data.current.pm10, &data.current_units.pm10, get_pm10_status);
+        }
+    } else {
+        show("PM2.5", data.current.pm2_5, &data.current_units.pm2_5, get_pm25_status);
+        show("PM10", data.current.pm10, &data.current_units.pm10, get_pm10_status);
+    }
+
+    show("CO", data.current.carbon_monoxide, &data.current_units.carbon_monoxide, get_co_status);
+    show("NO2", data.current.nitrogen_dioxide, &data.current_units.nitrogen_dioxide, get_no2_status);
+    show("O3", data.current.ozone, &data.current_units.ozone, get_o3_status);
+    show("SO2", data.current.sulphur_dioxide, &data.current_units.sulphur_dioxide, get_so2_status);
 
     if let Some(uv) = data.current.uv_index {
         let (emoji, label) = match uv {
