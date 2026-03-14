@@ -1,7 +1,7 @@
 use airq::{
-    fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby, geocode,
-    get_co_status, get_no2_status, get_pm10_status, get_pm25_status, overall_aqi, AqiCategory,
-    Provider,
+    AqiCategory, Provider, aggregate_history, fetch_history, fetch_open_meteo,
+    fetch_sensor_community, fetch_sensor_community_nearby, geocode, get_co_status,
+    get_major_cities, get_no2_status, get_pm10_status, get_pm25_status, overall_aqi, pm25_aqi,
 };
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -13,11 +13,11 @@ struct Cli {
     command: Option<Commands>,
 
     /// Latitude of the location
-    #[arg(long, required_unless_present = "city")]
+    #[arg(long)]
     lat: Option<f64>,
 
     /// Longitude of the location
-    #[arg(long, required_unless_present = "city")]
+    #[arg(long)]
     lon: Option<f64>,
 
     /// City name to resolve coordinates
@@ -57,13 +57,37 @@ enum Commands {
         #[arg(long, default_value_t = 10.0)]
         radius: f64,
     },
+    /// Show historical AQI data for a location
+    History {
+        /// City name to resolve coordinates
+        #[arg(long)]
+        city: String,
+        /// Number of past days to show
+        #[arg(long, default_value_t = 7)]
+        days: u32,
+    },
+    /// Show top cities by AQI in a country
+    Top {
+        /// Country name (e.g., turkey, russia, usa, germany, japan)
+        #[arg(long)]
+        country: String,
+        /// Number of cities to show
+        #[arg(long, default_value_t = 5)]
+        count: usize,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Some(Commands::Nearby { lat, lon, city, radius }) = cli.command {
+    if let Some(Commands::Nearby {
+        lat,
+        lon,
+        city,
+        radius,
+    }) = cli.command
+    {
         let (lat, lon) = if let Some(city_name) = city {
             let (lat, lon, resolved_name) = geocode(&city_name).await?;
             println!("Resolved city: {}", resolved_name);
@@ -73,7 +97,7 @@ async fn main() -> Result<()> {
         };
 
         let sensors = fetch_sensor_community_nearby(lat, lon, radius).await?;
-        
+
         if sensors.is_empty() {
             println!("No sensors found within {}km of {}, {}", radius, lat, lon);
         } else {
@@ -82,7 +106,91 @@ async fn main() -> Result<()> {
                 println!("- Sensor ID: {}", sensor.id);
             }
         }
-        
+
+        return Ok(());
+    }
+
+    if let Some(Commands::History { city, days }) = &cli.command {
+        let (lat, lon, resolved_name) = geocode(city).await?;
+        println!("{} — last {} days", resolved_name, days);
+
+        let history = fetch_history(lat, lon, *days).await?;
+        let daily_data = aggregate_history(&history.hourly);
+
+        for day in daily_data {
+            let pm25 = day.pm2_5.unwrap_or(0.0);
+            let aqi = pm25_aqi(pm25);
+            let cat = AqiCategory::from_aqi(aqi);
+
+            // Sparkline logic (0-5 blocks based on AQI 0-150+)
+            let blocks = match aqi {
+                0..=25 => 1,
+                26..=50 => 2,
+                51..=100 => 3,
+                101..=150 => 4,
+                _ => 5,
+            };
+            let sparkline = format!("{}{}", "█".repeat(blocks), "░".repeat(5 - blocks));
+
+            let text = format!(
+                "{}: {} {:.1} µg/m³ (AQI {} {})",
+                day.date,
+                sparkline,
+                pm25,
+                aqi,
+                cat.emoji()
+            );
+            println!("{}", cat.colorize(&text));
+        }
+        return Ok(());
+    }
+
+    if let Some(Commands::Top { country, count }) = &cli.command {
+        let cities = get_major_cities(country).unwrap_or(&[]);
+        if cities.is_empty() {
+            println!("No major cities found for country: {}", country);
+            return Ok(());
+        }
+
+        let futures = cities.iter().map(|city| async move {
+            if let Ok((lat, lon, resolved_name)) = geocode(city).await {
+                if let Ok(data) = fetch_open_meteo(lat, lon).await {
+                    let pm25 = data.current.pm2_5.unwrap_or(0.0);
+                    let aqi = overall_aqi(&data.current).unwrap_or(0);
+                    return Some((resolved_name, aqi, pm25));
+                }
+            }
+            None
+        });
+
+        let mut results: Vec<_> = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        // Sort by AQI descending
+        results.sort_by(|a, b| b.1.cmp(&a.1));
+
+        println!("# City              AQI  PM2.5");
+        for (i, (name, aqi, pm25)) in results.iter().take(*count).enumerate() {
+            let cat = AqiCategory::from_aqi(*aqi);
+
+            // Format city name to fixed width
+            let short_name = name.split(',').next().unwrap_or(name);
+            let padded_name = format!("{:width$}", short_name, width = 17);
+            let padded_aqi = format!("{:<4}", aqi);
+
+            let text = format!(
+                "{} {} {} {} {:.1}",
+                i + 1,
+                padded_name,
+                padded_aqi,
+                cat.emoji(),
+                pm25
+            );
+            println!("{}", cat.colorize(&text));
+        }
         return Ok(());
     }
 
