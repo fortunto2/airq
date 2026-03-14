@@ -5,87 +5,68 @@
 
 Check air quality from your terminal. Any city in the world, no API key needed.
 
-Two data providers:
-- **Open-Meteo** — global coverage, PM2.5, PM10, CO, NO2 (default)
-- **Sensor.Community** — citizen science sensors, real-time PM2.5/PM10
+By default merges two data sources for more accurate results:
+- **Open-Meteo** — global model (PM2.5, PM10, CO, NO2, O3, SO2, UV)
+- **Sensor.Community** — citizen science sensors (15,000+ real sensors worldwide)
 
 ## Install
 
-Homebrew (macOS/Linux):
-
 ```bash
-brew install fortunto2/tap/airq
+brew install fortunto2/tap/airq     # Homebrew
+cargo install airq                  # crates.io
 ```
 
-From crates.io:
+## Quick start
 
 ```bash
-cargo install airq
+airq --city gazipasa
 ```
 
-From source:
-
-```bash
-git clone https://github.com/fortunto2/airq
-cd airq && cargo install --path .
+```
+Resolved city: Gazipaşa, Türkiye
+Sources: Open-Meteo (model) + Sensor.Community (1 sensors, 5km median)
+--------------------------------------------------
+PM2.5  9.6 avg  (12.7 model, 6.5 sensors) μg/m³
+PM10   14.7 avg  (16.2 model, 13.1 sensors) μg/m³
+CO    159.0 μg/m³
+NO2   1.9 μg/m³
+O3    73.0 μg/m³
+SO2   1.1 μg/m³
+UV Index: 0 ☀️ (Low)
+--------------------------------------------------
+🟢 US AQI: 40 | EU AQI: 29 — Good
 ```
 
-## Usage
+## Commands
 
-### By city name (geocoding via Open-Meteo)
+### Any city in the world
 
 ```bash
 airq --city tokyo
 airq --city "new york"
-airq --city gazipasa
 airq --city berlin
-airq --city анталья     # unicode works
-```
-
-Any city, town, or village — resolved automatically via Open-Meteo geocoding API:
-
-```
-$ airq --city gazipasa
-Resolved city: Gazipaşa, Türkiye
-Air Quality for Coordinates: 36.3, 32.3
---------------------------------------------------
-PM2.5: 12.8 μg/m³    (green = good)
-PM10: 16.6 μg/m³     (green = good)
-CO: 160 μg/m³        (green = good)
-NO2: 2 μg/m³         (green = good)
+airq --city анталья
 ```
 
 ### By coordinates
 
 ```bash
-airq --lat 55.75 --lon 37.62          # Moscow
-airq --lat 36.27 --lon 32.30          # Gazipasa
+airq --lat 55.75 --lon 37.62
 ```
 
-### Sensor.Community (citizen science sensors)
-
-Real-time data from [sensor.community](https://sensor.community) network — 15,000+ sensors worldwide:
+### History (sparkline)
 
 ```bash
-# Use specific sensor by ID
-airq --city gazipasa --provider sensor-community --sensor-id 77955
-
-# Find nearby sensors
-airq nearby --lat 36.27 --lon 32.30
-```
-
-### History (last N days)
-
-```bash
-airq history --city gazipasa --days 7
+airq history --city istanbul --days 5
 ```
 
 ```
-Gazipaşa, Türkiye — last 7 days
-2026-03-07: ██░░░ 7.5 µg/m³ (AQI 31 🟢)
-2026-03-08: █░░░░ 3.5 µg/m³ (AQI 15 🟢)
-2026-03-09: █░░░░ 4.0 µg/m³ (AQI 16 🟢)
-...
+Istanbul, Türkiye — last 5 days
+2026-03-09: ██░░░ 10.9 µg/m³ (AQI 44 🟢)
+2026-03-10: ███░░ 20.7 µg/m³ (AQI 57 🟡)
+2026-03-11: ███░░ 21.5 µg/m³ (AQI 68 🟡)
+2026-03-12: ███░░ 17.3 µg/m³ (AQI 68 🟡)
+2026-03-13: ███░░ 20.3 µg/m³ (AQI 64 🟡)
 ```
 
 ### Top cities by AQI
@@ -98,58 +79,93 @@ airq top --country usa --json
 
 ```
 # City              AQI  PM2.5
-1 Bursa             132  🟠 48.1
-2 Izmir             111  🟠 39.5
-3 Ankara            99   🟡 35.1
-4 Istanbul          95   🟡 33.0
-5 Gazipasa          27   🟢 6.4
+1 Bursa             143  🟠 52.5
+2 Izmir             121  🟠 43.6
+3 Ankara            99   🟡 34.8
+4 Istanbul          98   🟡 34.6
+5 Antalya           72   🟡 22.0
 ```
 
-Supported countries: turkey, russia, usa, germany, japan.
+Countries: turkey, russia, usa, germany, japan.
+
+### Compare providers
+
+```bash
+airq compare --city berlin                       # area median (all sensors in 5km)
+airq compare --city gazipasa --sensor-id 77955   # specific sensor
+```
+
+```
+Berlin, Germany — Provider Comparison
+Sensor.Community: 143 sensors, 5km radius
+┌──────────┬───────────┬─────────────────┬─────────┐
+│ Metric   │ Open-Meteo│     Area Median │ Average │
+├──────────┼───────────┼─────────────────┼─────────┤
+│ PM2.5    │       4.2 │             6.8 │     5.5 │
+│ PM10     │       5.3 │            11.1 │     8.2 │
+│ US AQI   │        31 │       28 (calc) │      29 │
+└──────────┴───────────┴─────────────────┴─────────┘
+```
+
+### Single provider
+
+```bash
+airq --city berlin --provider open-meteo          # model only
+airq --city berlin --provider sensor-community --sensor-id 72203  # sensor only
+```
 
 ### JSON output
 
-All commands support `--json` for machine-readable output:
+All commands support `--json`:
 
 ```bash
 airq --city berlin --json
 airq history --city tokyo --days 7 --json
 airq top --country usa --json
+airq compare --city berlin --json
 ```
 
-```json
-{
-  "latitude": 52.5,
-  "longitude": 13.4,
-  "current": {
-    "pm2_5": 4.8,
-    "pm10": 5.9,
-    "carbon_monoxide": 192.0,
-    "nitrogen_dioxide": 14.9
-  }
-}
+### Find nearby sensors
+
+```bash
+airq nearby --city gazipasa --radius 10
 ```
 
-## Color coding (WHO thresholds)
+## How it works
 
-Output is color-coded based on WHO Air Quality Guidelines (2021):
+By default (`--provider all`), airq fetches both sources in parallel and averages PM2.5/PM10. Each value shows the breakdown:
 
-| Pollutant | Green (Good) | Yellow (Moderate) | Red (Poor) |
-|-----------|-------------|-------------------|------------|
-| PM2.5     | ≤ 15 µg/m³ | 15–35 µg/m³       | > 35 µg/m³ |
-| PM10      | ≤ 45 µg/m³ | 45–100 µg/m³      | > 100 µg/m³|
-| CO        | ≤ 4 mg/m³  | 4–10 mg/m³        | > 10 mg/m³ |
-| NO2       | ≤ 25 µg/m³ | 25–50 µg/m³       | > 50 µg/m³ |
+```
+PM2.5  4.9 avg  (4.2 model, 5.7 sensors) μg/m³
+```
+
+- **model** = Open-Meteo atmospheric reanalysis (global, ~11km grid)
+- **sensors** = median of all Sensor.Community sensors within 5km (filters outliers)
+
+If no sensors nearby, falls back to model only with a note.
+
+## AQI scale
+
+| AQI | Category | Color |
+|-----|----------|-------|
+| 0–50 | Good | 🟢 |
+| 51–100 | Moderate | 🟡 |
+| 101–150 | Unhealthy for Sensitive Groups | 🟠 |
+| 151–200 | Unhealthy | 🔴 |
+| 201–300 | Very Unhealthy | 🟣 |
+| 301–500 | Hazardous | 🟤 |
+
+US AQI from Open-Meteo API. EU AQI also shown. For sensor-only data, AQI calculated using EPA formula.
 
 ## Data sources
 
-- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — free, no key, global coverage
-- [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) — city name → coordinates
-- [Sensor.Community](https://sensor.community/) — citizen science, real-time sensors
+- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — free, no key, global
+- [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) — city → coordinates
+- [Sensor.Community](https://sensor.community/) — citizen science, 15,000+ real sensors
 
 ## Built with
 
-This project was created by [rust-code](https://github.com/fortunto2/rust-code) AI agent in autonomous BigHead mode — from `cargo init` to `cargo publish` without human edits.
+Created by [rust-code](https://github.com/fortunto2/rust-code) AI agent in autonomous BigHead mode.
 
 ## License
 
