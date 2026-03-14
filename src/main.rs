@@ -1,7 +1,7 @@
 use airq::{
     AqiCategory, Provider, aggregate_history, fetch_history, fetch_open_meteo,
     fetch_sensor_community, fetch_sensor_community_nearby, geocode, get_co_status,
-    get_major_cities, get_no2_status, get_pm10_status, get_pm25_status, overall_aqi, pm25_aqi,
+    get_major_cities, get_no2_status, get_pm10_status, get_pm25_status, get_so2_status, get_o3_status, overall_aqi, pm25_aqi,
 };
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -129,7 +129,7 @@ async fn main() -> Result<()> {
                         "date": d.date,
                         "pm2_5": d.pm2_5,
                         "pm10": d.pm10,
-                        "aqi": d.pm2_5.map(|v| pm25_aqi(v)),
+                        "aqi": d.us_aqi.map(|v| v.round() as u32).or_else(|| d.pm2_5.map(|v| pm25_aqi(v))),
                     })
                 })
                 .collect();
@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
         println!("{} — last {} days", resolved_name, days);
         for day in daily_data {
             let pm25 = day.pm2_5.unwrap_or(0.0);
-            let aqi = pm25_aqi(pm25);
+            let aqi = day.us_aqi.map(|v| v.round() as u32).unwrap_or_else(|| pm25_aqi(pm25));
             let cat = AqiCategory::from_aqi(aqi);
 
             // Sparkline logic (0-5 blocks based on AQI 0-150+)
@@ -302,11 +302,46 @@ async fn main() -> Result<()> {
         println!("NO2: N/A");
     }
 
+    if let Some(o3) = data.current.ozone {
+        let status = get_o3_status(o3);
+        let text = format!("O3: {} {}", o3, data.current_units.ozone);
+        println!("{}", status.colorize(&text));
+    }
+
+    if let Some(so2) = data.current.sulphur_dioxide {
+        let status = get_so2_status(so2);
+        let text = format!("SO2: {} {}", so2, data.current_units.sulphur_dioxide);
+        println!("{}", status.colorize(&text));
+    }
+
+    if let Some(uv) = data.current.uv_index {
+        let (emoji, label) = match uv {
+            v if v < 3.0 => ("☀️", "Low"),
+            v if v < 6.0 => ("🌤️", "Moderate"),
+            v if v < 8.0 => ("🌞", "High"),
+            v if v < 11.0 => ("🥵", "Very High"),
+            _ => ("🔥", "Extreme"),
+        };
+        println!("UV Index: {} {} ({})", uv, emoji, label);
+    }
+
     // Overall AQI
-    if let Some(aqi) = overall_aqi(&data.current) {
+    if let Some(api_aqi) = data.current.us_aqi {
+        let aqi = api_aqi.round() as u32;
         let cat = AqiCategory::from_aqi(aqi);
         println!("--------------------------------------------------");
-        let text = format!("AQI: {} — {}", aqi, cat.label());
+        
+        let mut text = format!("US AQI: {}", aqi);
+        if let Some(eu_aqi) = data.current.european_aqi {
+            text.push_str(&format!(" | EU AQI: {}", eu_aqi.round() as u32));
+        }
+        text.push_str(&format!(" — {}", cat.label()));
+        
+        println!("{} {}", cat.emoji(), cat.colorize(&text));
+    } else if let Some(aqi) = overall_aqi(&data.current) {
+        let cat = AqiCategory::from_aqi(aqi);
+        println!("--------------------------------------------------");
+        let text = format!("US AQI: {} — {}", aqi, cat.label());
         println!("{} {}", cat.emoji(), cat.colorize(&text));
     }
 
