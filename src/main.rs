@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::Colorize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -13,9 +13,13 @@ struct Args {
     /// Longitude of the location
     #[arg(long)]
     lon: f64,
+
+    /// Output raw JSON
+    #[arg(long)]
+    json: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct AirQualityResponse {
     latitude: f64,
     longitude: f64,
@@ -23,7 +27,7 @@ struct AirQualityResponse {
     current_units: CurrentUnits,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct CurrentData {
     pm2_5: Option<f64>,
     pm10: Option<f64>,
@@ -31,7 +35,7 @@ struct CurrentData {
     nitrogen_dioxide: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct CurrentUnits {
     pm2_5: String,
     pm10: String,
@@ -117,6 +121,12 @@ async fn main() -> Result<()> {
 
     let data = fetch_air_quality(args.lat, args.lon).await?;
 
+    if args.json {
+        let json_output = serde_json::to_string_pretty(&data)?;
+        println!("{}", json_output);
+        return Ok(());
+    }
+
     println!("Air Quality for Coordinates: {}, {}", data.latitude, data.longitude);
     println!("--------------------------------------------------");
 
@@ -193,5 +203,28 @@ mod tests {
         assert!(matches!(get_no2_status(35.0), Status::Moderate));
         assert!(matches!(get_no2_status(50.0), Status::Moderate));
         assert!(matches!(get_no2_status(60.0), Status::Poor));
+    }
+
+    #[test]
+    fn test_json_serialization() {
+        let data = AirQualityResponse {
+            latitude: 52.52,
+            longitude: 13.41,
+            current: CurrentData {
+                pm2_5: Some(10.0),
+                pm10: Some(20.0),
+                carbon_monoxide: Some(300.0),
+                nitrogen_dioxide: Some(15.0),
+            },
+            current_units: CurrentUnits {
+                pm2_5: "ug/m3".to_string(),
+                pm10: "ug/m3".to_string(),
+                carbon_monoxide: "ug/m3".to_string(),
+                nitrogen_dioxide: "ug/m3".to_string(),
+            },
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        assert!(json.contains("\"latitude\":52.52"));
+        assert!(json.contains("\"pm2_5\":10.0"));
     }
 }
