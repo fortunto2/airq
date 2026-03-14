@@ -1,6 +1,6 @@
 use airq::{
-    fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby, get_co_status,
-    get_no2_status, get_pm10_status, get_pm25_status, Provider,
+    fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby, geocode,
+    get_co_status, get_no2_status, get_pm10_status, get_pm25_status, Provider,
 };
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -19,7 +19,7 @@ struct Cli {
     #[arg(long, required_unless_present = "city")]
     lon: Option<f64>,
 
-    /// Preset city name (moscow, istanbul, gazipasa, berlin, tokyo)
+    /// City name to resolve coordinates
     #[arg(long)]
     city: Option<String>,
 
@@ -48,7 +48,7 @@ enum Commands {
         #[arg(long, required_unless_present = "city")]
         lon: Option<f64>,
 
-        /// Preset city name
+        /// City name to resolve coordinates
         #[arg(long)]
         city: Option<String>,
 
@@ -58,24 +58,15 @@ enum Commands {
     },
 }
 
-fn get_city_coords(city: &str) -> Option<(f64, f64)> {
-    match city.to_lowercase().as_str() {
-        "moscow" => Some((55.7558, 37.6173)),
-        "istanbul" => Some((41.0082, 28.9784)),
-        "gazipasa" => Some((36.2694, 32.3179)),
-        "berlin" => Some((52.5200, 13.4050)),
-        "tokyo" => Some((35.6762, 139.6503)),
-        _ => None,
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(Commands::Nearby { lat, lon, city, radius }) = cli.command {
         let (lat, lon) = if let Some(city_name) = city {
-            get_city_coords(&city_name).context(format!("Unknown city: {}", city_name))?
+            let (lat, lon, resolved_name) = geocode(&city_name).await?;
+            println!("Resolved city: {}", resolved_name);
+            (lat, lon)
         } else {
             (lat.unwrap(), lon.unwrap())
         };
@@ -95,7 +86,9 @@ async fn main() -> Result<()> {
     }
 
     let (lat, lon) = if let Some(city_name) = cli.city {
-        get_city_coords(&city_name).context(format!("Unknown city: {}", city_name))?
+        let (lat, lon, resolved_name) = geocode(&city_name).await?;
+        println!("Resolved city: {}", resolved_name);
+        (lat, lon)
     } else {
         (cli.lat.unwrap(), cli.lon.unwrap())
     };

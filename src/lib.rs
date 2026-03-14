@@ -30,6 +30,19 @@ pub struct CurrentUnits {
     pub nitrogen_dioxide: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeocodeResponse {
+    results: Option<Vec<GeocodeResult>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeocodeResult {
+    latitude: f64,
+    longitude: f64,
+    name: String,
+    country: Option<String>,
+}
+
 #[derive(clap::ValueEnum, Clone, Debug, Default, PartialEq)]
 pub enum Provider {
     #[default]
@@ -110,6 +123,29 @@ pub fn get_no2_status(value: f64) -> Status {
     } else {
         Status::Poor
     }
+}
+
+pub async fn geocode(city: &str) -> Result<(f64, f64, String)> {
+    let url = format!("https://geocoding-api.open-meteo.com/v1/search?name={}&count=1", city);
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to send request to Geocoding API")?
+        .json::<GeocodeResponse>()
+        .await
+        .context("Failed to parse JSON response")?;
+
+    let result = response
+        .results
+        .and_then(|mut r| r.pop())
+        .context(format!("City not found: {}", city))?;
+
+    let location_name = if let Some(country) = result.country {
+        format!("{}, {}", result.name, country)
+    } else {
+        result.name
+    };
+
+    Ok((result.latitude, result.longitude, location_name))
 }
 
 pub async fn fetch_open_meteo(lat: f64, lon: f64) -> Result<AirQualityResponse> {
