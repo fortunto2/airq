@@ -242,8 +242,10 @@ async fn main() -> Result<()> {
         let (lat, lon, resolved_name) = geocode(&city_name).await?;
         println!("Resolved city: {}", resolved_name);
         (lat, lon)
+    } else if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
+        (lat, lon)
     } else {
-        (cli.lat.unwrap(), cli.lon.unwrap())
+        anyhow::bail!("Provide --city or --lat + --lon. Run airq --help for usage.")
     };
 
     let data = match cli.provider {
