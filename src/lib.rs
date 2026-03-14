@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AirQualityResponse {
@@ -96,6 +97,47 @@ pub struct DailyAverage {
     pub pm2_5: Option<f64>,
     pub pm10: Option<f64>,
     pub us_aqi: Option<f64>,
+}
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct AppConfig {
+    pub default_city: Option<String>,
+    pub cities: Option<Vec<String>>,
+    pub sensor_id: Option<u64>,
+    pub radius: Option<f64>,
+}
+
+impl AppConfig {
+    pub fn load() -> Result<Self> {
+        let path = Self::path();
+        if path.exists() {
+            let content = std::fs::read_to_string(path)?;
+            let config: AppConfig = toml::from_str(&content)?;
+            Ok(config)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let path = Self::path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    pub fn path() -> PathBuf {
+        dirs::config_dir()
+            .map(|p| p.join("airq").join("config.toml"))
+            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".airq.toml"))
+    }
 }
 
 // ---------------------------------------------------------------------------

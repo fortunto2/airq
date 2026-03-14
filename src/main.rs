@@ -1,5 +1,5 @@
 use airq::{
-    AqiCategory, Provider, aggregate_history, fetch_history, fetch_open_meteo,
+    AppConfig, AqiCategory, Provider, aggregate_history, fetch_history, fetch_open_meteo,
     fetch_sensor_community, fetch_sensor_community_nearby, geocode, get_co_status,
     get_major_cities, get_no2_status, get_pm10_status, get_pm25_status, get_so2_status, get_o3_status, overall_aqi, pm25_aqi,
 };
@@ -53,10 +53,20 @@ struct Cli {
     /// Sensor ID for Sensor.Community provider
     #[arg(long)]
     sensor_id: Option<u64>,
+
+    /// Show all cities from config
+    #[arg(long)]
+    all: bool,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Initialize or update configuration
+    Init {
+        /// Default city to set
+        #[arg(long)]
+        city: Option<String>,
+    },
     /// Find nearby sensors from sensor.community
     Nearby {
         /// Latitude of the location
@@ -119,6 +129,30 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let config = AppConfig::load().unwrap_or_default();
+
+    if let Some(Commands::Init { city }) = &cli.command {
+        let mut new_config = AppConfig::load().unwrap_or_default();
+        
+        if let Some(c) = city {
+            new_config.default_city = Some(c.clone());
+            println!("Set default city to: {}", c);
+        } else {
+            use std::io::{self, Write};
+            print!("Enter default city: ");
+            io::stdout().flush()?;
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+            let input = input.trim();
+            if !input.is_empty() {
+                new_config.default_city = Some(input.to_string());
+                println!("Set default city to: {}", input);
+            }
+        }
+        
+        new_config.save()?;
+        return Ok(());
+    }
 
     if let Some(Commands::Nearby {
         lat,
@@ -354,14 +388,64 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let (lat, lon) = if let Some(city_name) = cli.city {
+    if cli.all {
+        let cities = config.cities.unwrap_or_default();
+        if cities.is_empty() {
+            println!("No cities configured. Run `airq init` or edit config.");
+            return Ok(());
+        }
+
+        let futures = cities.iter().map(|city| async move {
+            if let Ok((lat, lon, resolved_name)) = geocode(city).await {
+                if let Ok(data) = fetch_open_meteo(lat, lon).await {
+                    let pm25 = data.current.pm2_5.unwrap_or(0.0);
+                    let aqi = overall_aqi(&data.current).unwrap_or(0);
+                    return Some((resolved_name, aqi, pm25));
+                }
+            }
+            None
+        });
+
+        let mut results: Vec<_> = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        results.sort_by(|a, b| b.1.cmp(&a.1));
+
+        println!("# City              AQI  PM2.5");
+        for (i, (name, aqi, pm25)) in results.iter().enumerate() {
+            let cat = AqiCategory::from_aqi(*aqi);
+
+            // Format city name to fixed width
+            let short_name = name.split(',').next().unwrap_or(name);
+            let padded_name = format!("{:width$}", short_name, width = 17);
+            let padded_aqi = format!("{:<4}", aqi);
+
+            let text = format!(
+                "{} {} {} {} {:.1}",
+                i + 1,
+                padded_name,
+                padded_aqi,
+                cat.emoji(),
+                pm25
+            );
+            println!("{}", cat.colorize(&text));
+        }
+        return Ok(());
+    }
+
+    let (lat, lon) = if let Some(city_name) = cli.city.or(config.default_city) {
         let (lat, lon, resolved_name) = geocode(&city_name).await?;
         println!("Resolved city: {}", resolved_name);
         (lat, lon)
     } else if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
         (lat, lon)
     } else {
-        anyhow::bail!("Provide --city or --lat + --lon. Run airq --help for usage.")
+        use clap::CommandFactory;
+        Cli::command().print_help()?;
+        return Ok(());
     };
 
     // Per-source raw values for breakdown display
