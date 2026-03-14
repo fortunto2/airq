@@ -74,9 +74,12 @@ enum Commands {
         /// City name
         #[arg(long)]
         city: String,
-        /// Sensor ID from sensor.community
+        /// Sensor ID (single sensor) or omit for area average
         #[arg(long)]
-        sensor_id: u64,
+        sensor_id: Option<u64>,
+        /// Radius in km for area average (default 5)
+        #[arg(long, default_value_t = 5.0)]
+        radius: f64,
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -181,24 +184,34 @@ async fn main() -> Result<()> {
     if let Some(Commands::Compare {
         city,
         sensor_id,
+        radius,
         json,
     }) = &cli.command
     {
+        use airq::fetch_area_average;
         let (lat, lon, resolved_name) = geocode(city).await?;
 
-        // Fetch both in parallel
-        let (om_result, sc_result) = tokio::join!(
-            fetch_open_meteo(lat, lon),
-            fetch_sensor_community(*sensor_id)
-        );
-        let om = om_result.ok();
-        let sc = sc_result.ok();
-
+        // Fetch Open-Meteo
+        let om = fetch_open_meteo(lat, lon).await.ok();
         let om_pm25 = om.as_ref().and_then(|d| d.current.pm2_5);
         let om_pm10 = om.as_ref().and_then(|d| d.current.pm10);
         let om_aqi = om.as_ref().and_then(|d| d.current.us_aqi).map(|v| v.round() as u32);
-        let sc_pm25 = sc.as_ref().and_then(|d| d.current.pm2_5);
-        let sc_pm10 = sc.as_ref().and_then(|d| d.current.pm10);
+
+        // Fetch Sensor.Community: single sensor or area average
+        let (sc_pm25, sc_pm10, sc_label, sensor_info) = if let Some(sid) = sensor_id {
+            let sc = fetch_sensor_community(*sid).await.ok();
+            let pm25 = sc.as_ref().and_then(|d| d.current.pm2_5);
+            let pm10 = sc.as_ref().and_then(|d| d.current.pm10);
+            (pm25, pm10, format!("Sensor #{}", sid), String::new())
+        } else {
+            match fetch_area_average(lat, lon, *radius).await.ok() {
+                Some(a) if a.sensor_count > 0 => {
+                    let info = format!("{} sensors, {}km radius", a.sensor_count, radius);
+                    (a.pm2_5_median, a.pm10_median, "Area Median".into(), info)
+                }
+                _ => (None, None, "No sensors".into(), String::new()),
+            }
+        };
         let sc_aqi = sc_pm25.map(|v| pm25_aqi(v));
 
         let avg_pm25 = match (om_pm25, sc_pm25) {
@@ -232,8 +245,11 @@ async fn main() -> Result<()> {
         let fmt_u = |v: Option<u32>| v.map(|x| format!("{}", x)).unwrap_or_else(|| "N/A".into());
 
         println!("{} — Provider Comparison", resolved_name);
+        if !sensor_info.is_empty() {
+            println!("Sensor.Community: {}", sensor_info);
+        }
         println!("┌──────────┬───────────┬─────────────────┬─────────┐");
-        println!("│ Metric   │ Open-Meteo│ Sensor.Community│ Average │");
+        println!("│ Metric   │ Open-Meteo│ {:>15} │ Average │", sc_label);
         println!("├──────────┼───────────┼─────────────────┼─────────┤");
         println!("│ PM2.5    │ {:>9} │ {:>15} │ {:>7} │", fmt(om_pm25), fmt(sc_pm25), fmt(avg_pm25));
         println!("│ PM10     │ {:>9} │ {:>15} │ {:>7} │", fmt(om_pm10), fmt(sc_pm10), fmt(avg_pm10));
