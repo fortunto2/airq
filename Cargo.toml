@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "A command-line tool to check air quality (AQI, PM2.5, PM10) from Open-Meteo and Sensor.Community"
 license = "MIT"
-repository = "https://github.com/rustam/airq"
+repository = "https://github.com/fortunto2/airq"
 keywords = ["air-quality", "cli", "open-meteo", "sensor-community"]
 categories = ["command-line-utilities"]
 
