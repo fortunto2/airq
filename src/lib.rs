@@ -15,6 +15,11 @@ pub struct CurrentData {
     pub pm10: Option<f64>,
     pub carbon_monoxide: Option<f64>,
     pub nitrogen_dioxide: Option<f64>,
+    pub ozone: Option<f64>,
+    pub sulphur_dioxide: Option<f64>,
+    pub uv_index: Option<f64>,
+    pub us_aqi: Option<f64>,
+    pub european_aqi: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -28,6 +33,9 @@ pub struct CurrentUnits {
     pub pm10: String,
     pub carbon_monoxide: String,
     pub nitrogen_dioxide: String,
+    pub ozone: String,
+    pub sulphur_dioxide: String,
+    pub uv_index: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,6 +86,7 @@ pub struct HourlyData {
     pub time: Vec<String>,
     pub pm2_5: Vec<Option<f64>>,
     pub pm10: Vec<Option<f64>>,
+    pub us_aqi: Option<Vec<Option<f64>>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -85,6 +94,7 @@ pub struct DailyAverage {
     pub date: String,
     pub pm2_5: Option<f64>,
     pub pm10: Option<f64>,
+    pub us_aqi: Option<f64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +253,28 @@ pub fn get_no2_status(value: f64) -> AqiCategory {
     }
 }
 
+pub fn get_so2_status(value: f64) -> AqiCategory {
+    // SO2: WHO 24h guideline 40 µg/m³
+    if value <= 40.0 {
+        AqiCategory::Good
+    } else if value <= 80.0 {
+        AqiCategory::Moderate
+    } else {
+        AqiCategory::Unhealthy
+    }
+}
+
+pub fn get_o3_status(value: f64) -> AqiCategory {
+    // O3: WHO 8h guideline 100 µg/m³
+    if value <= 100.0 {
+        AqiCategory::Good
+    } else if value <= 160.0 {
+        AqiCategory::Moderate
+    } else {
+        AqiCategory::Unhealthy
+    }
+}
+
 pub async fn geocode(city: &str) -> Result<(f64, f64, String)> {
     let url = format!(
         "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1",
@@ -271,7 +303,7 @@ pub async fn geocode(city: &str) -> Result<(f64, f64, String)> {
 
 pub async fn fetch_open_meteo(lat: f64, lon: f64) -> Result<AirQualityResponse> {
     let url = format!(
-        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide&timezone=auto",
+        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,uv_index,us_aqi,european_aqi&timezone=auto",
         lat, lon
     );
 
@@ -325,12 +357,20 @@ pub async fn fetch_sensor_community(sensor_id: u64) -> Result<AirQualityResponse
             pm10,
             carbon_monoxide: None,
             nitrogen_dioxide: None,
+            ozone: None,
+            sulphur_dioxide: None,
+            uv_index: None,
+            us_aqi: None,
+            european_aqi: None,
         },
         current_units: CurrentUnits {
             pm2_5: "µg/m³".to_string(),
             pm10: "µg/m³".to_string(),
             carbon_monoxide: "".to_string(),
             nitrogen_dioxide: "".to_string(),
+            ozone: "".to_string(),
+            sulphur_dioxide: "".to_string(),
+            uv_index: "".to_string(),
         },
     })
 }
@@ -366,7 +406,7 @@ pub async fn fetch_sensor_community_nearby(
 
 pub async fn fetch_history(lat: f64, lon: f64, days: u32) -> Result<HistoryResponse> {
     let url = format!(
-        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&hourly=pm2_5,pm10&past_days={}&forecast_days=0&timezone=auto",
+        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&hourly=pm2_5,pm10,us_aqi&past_days={}&forecast_days=0&timezone=auto",
         lat, lon, days
     );
 
@@ -381,12 +421,12 @@ pub async fn fetch_history(lat: f64, lon: f64, days: u32) -> Result<HistoryRespo
 }
 
 pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
-    let mut daily_map: std::collections::BTreeMap<String, (f64, usize, f64, usize)> =
+    let mut daily_map: std::collections::BTreeMap<String, (f64, usize, f64, usize, f64, usize)> =
         std::collections::BTreeMap::new();
 
     for (i, time) in hourly.time.iter().enumerate() {
         let date = time.split('T').next().unwrap_or(time).to_string();
-        let entry = daily_map.entry(date).or_insert((0.0, 0, 0.0, 0));
+        let entry = daily_map.entry(date).or_insert((0.0, 0, 0.0, 0, 0.0, 0));
 
         if let Some(pm25) = hourly.pm2_5.get(i).and_then(|v| *v) {
             entry.0 += pm25;
@@ -396,12 +436,18 @@ pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
             entry.2 += pm10;
             entry.3 += 1;
         }
+        if let Some(us_aqi_vec) = &hourly.us_aqi {
+            if let Some(us_aqi) = us_aqi_vec.get(i).and_then(|v| *v) {
+                entry.4 += us_aqi;
+                entry.5 += 1;
+            }
+        }
     }
 
     daily_map
         .into_iter()
         .map(
-            |(date, (pm25_sum, pm25_count, pm10_sum, pm10_count))| DailyAverage {
+            |(date, (pm25_sum, pm25_count, pm10_sum, pm10_count, us_aqi_sum, us_aqi_count))| DailyAverage {
                 date,
                 pm2_5: if pm25_count > 0 {
                     Some(pm25_sum / pm25_count as f64)
@@ -410,6 +456,11 @@ pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
                 },
                 pm10: if pm10_count > 0 {
                     Some(pm10_sum / pm10_count as f64)
+                } else {
+                    None
+                },
+                us_aqi: if us_aqi_count > 0 {
+                    Some(us_aqi_sum / us_aqi_count as f64)
                 } else {
                     None
                 },
@@ -519,6 +570,11 @@ mod tests {
             pm10: Some(54.0),  // AQI 50
             carbon_monoxide: None,
             nitrogen_dioxide: None,
+            ozone: None,
+            sulphur_dioxide: None,
+            uv_index: None,
+            us_aqi: None,
+            european_aqi: None,
         };
         assert_eq!(overall_aqi(&data), Some(100)); // max of 100, 50
     }
@@ -530,6 +586,11 @@ mod tests {
             pm10: None,
             carbon_monoxide: Some(100.0),
             nitrogen_dioxide: None,
+            ozone: None,
+            sulphur_dioxide: None,
+            uv_index: None,
+            us_aqi: None,
+            european_aqi: None,
         };
         assert_eq!(overall_aqi(&data), None); // no PM data = no AQI
     }
@@ -596,12 +657,20 @@ mod tests {
                 pm10: Some(20.0),
                 carbon_monoxide: Some(300.0),
                 nitrogen_dioxide: Some(15.0),
+                ozone: None,
+                sulphur_dioxide: None,
+                uv_index: None,
+                us_aqi: None,
+                european_aqi: None,
             },
             current_units: CurrentUnits {
                 pm2_5: "ug/m3".to_string(),
                 pm10: "ug/m3".to_string(),
                 carbon_monoxide: "ug/m3".to_string(),
                 nitrogen_dioxide: "ug/m3".to_string(),
+                ozone: "ug/m3".to_string(),
+                sulphur_dioxide: "ug/m3".to_string(),
+                uv_index: "".to_string(),
             },
         };
         let json = serde_json::to_string(&data).unwrap();
@@ -619,6 +688,7 @@ mod tests {
             ],
             pm2_5: vec![Some(10.0), Some(20.0), Some(5.0)],
             pm10: vec![Some(15.0), None, Some(10.0)],
+            us_aqi: None,
         };
 
         let daily = aggregate_history(&hourly);
