@@ -65,6 +65,9 @@ enum Commands {
         /// Number of past days to show
         #[arg(long, default_value_t = 7)]
         days: u32,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Show top cities by AQI in a country
     Top {
@@ -74,6 +77,9 @@ enum Commands {
         /// Number of cities to show
         #[arg(long, default_value_t = 5)]
         count: usize,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -110,13 +116,28 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some(Commands::History { city, days }) = &cli.command {
+    if let Some(Commands::History { city, days, json }) = &cli.command {
         let (lat, lon, resolved_name) = geocode(city).await?;
-        println!("{} — last {} days", resolved_name, days);
-
         let history = fetch_history(lat, lon, *days).await?;
         let daily_data = aggregate_history(&history.hourly);
 
+        if *json {
+            let json_data: Vec<serde_json::Value> = daily_data
+                .iter()
+                .map(|d| {
+                    serde_json::json!({
+                        "date": d.date,
+                        "pm2_5": d.pm2_5,
+                        "pm10": d.pm10,
+                        "aqi": d.pm2_5.map(|v| pm25_aqi(v)),
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&json_data)?);
+            return Ok(());
+        }
+
+        println!("{} — last {} days", resolved_name, days);
         for day in daily_data {
             let pm25 = day.pm2_5.unwrap_or(0.0);
             let aqi = pm25_aqi(pm25);
@@ -145,7 +166,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some(Commands::Top { country, count }) = &cli.command {
+    if let Some(Commands::Top {
+        country,
+        count,
+        json,
+    }) = &cli.command
+    {
         let cities = get_major_cities(country).unwrap_or(&[]);
         if cities.is_empty() {
             println!("No major cities found for country: {}", country);
@@ -169,8 +195,26 @@ async fn main() -> Result<()> {
             .flatten()
             .collect();
 
-        // Sort by AQI descending
         results.sort_by(|a, b| b.1.cmp(&a.1));
+
+        if *json {
+            let json_data: Vec<serde_json::Value> = results
+                .iter()
+                .take(*count)
+                .enumerate()
+                .map(|(i, (name, aqi, pm25))| {
+                    serde_json::json!({
+                        "rank": i + 1,
+                        "city": name,
+                        "aqi": aqi,
+                        "pm2_5": pm25,
+                        "category": AqiCategory::from_aqi(*aqi).label(),
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&json_data)?);
+            return Ok(());
+        }
 
         println!("# City              AQI  PM2.5");
         for (i, (name, aqi, pm25)) in results.iter().take(*count).enumerate() {

@@ -74,10 +74,47 @@ airq --city gazipasa --provider sensor-community --sensor-id 77955
 airq nearby --lat 36.27 --lon 32.30
 ```
 
+### History (last N days)
+
+```bash
+airq history --city gazipasa --days 7
+```
+
+```
+Gazipaşa, Türkiye — last 7 days
+2026-03-07: ██░░░ 7.5 µg/m³ (AQI 31 🟢)
+2026-03-08: █░░░░ 3.5 µg/m³ (AQI 15 🟢)
+2026-03-09: █░░░░ 4.0 µg/m³ (AQI 16 🟢)
+...
+```
+
+### Top cities by AQI
+
+```bash
+airq top --country turkey
+airq top --country russia --count 10
+airq top --country usa --json
+```
+
+```
+# City              AQI  PM2.5
+1 Bursa             132  🟠 48.1
+2 Izmir             111  🟠 39.5
+3 Ankara            99   🟡 35.1
+4 Istanbul          95   🟡 33.0
+5 Gazipasa          27   🟢 6.4
+```
+
+Supported countries: turkey, russia, usa, germany, japan.
+
 ### JSON output
+
+All commands support `--json` for machine-readable output:
 
 ```bash
 airq --city berlin --json
+airq history --city tokyo --days 7 --json
+airq top --country usa --json
 ```
 
 ```json
