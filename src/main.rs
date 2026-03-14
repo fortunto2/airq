@@ -1,6 +1,7 @@
 use airq::{
     fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby, geocode,
-    get_co_status, get_no2_status, get_pm10_status, get_pm25_status, Provider,
+    get_co_status, get_no2_status, get_pm10_status, get_pm25_status, overall_aqi, AqiCategory,
+    Provider,
 };
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -145,6 +146,14 @@ async fn main() -> Result<()> {
         println!("{}", status.colorize(&text));
     } else {
         println!("NO2: N/A");
+    }
+
+    // Overall AQI
+    if let Some(aqi) = overall_aqi(&data.current) {
+        let cat = AqiCategory::from_aqi(aqi);
+        println!("--------------------------------------------------");
+        let text = format!("AQI: {} — {}", aqi, cat.label());
+        println!("{} {}", cat.emoji(), cat.colorize(&text));
     }
 
     Ok(())

@@ -68,61 +68,148 @@ struct SensorLocation {
     longitude: String,
 }
 
-pub enum Status {
-    Good,
-    Moderate,
-    Poor,
+// ---------------------------------------------------------------------------
+// AQI calculation (US EPA formula)
+// ---------------------------------------------------------------------------
+
+/// AQI breakpoints: (C_low, C_high, AQI_low, AQI_high)
+const PM25_BREAKPOINTS: &[(f64, f64, u32, u32)] = &[
+    (0.0, 12.0, 0, 50),       // Good
+    (12.1, 35.4, 51, 100),     // Moderate
+    (35.5, 55.4, 101, 150),    // Unhealthy for Sensitive
+    (55.5, 150.4, 151, 200),   // Unhealthy
+    (150.5, 250.4, 201, 300),  // Very Unhealthy
+    (250.5, 500.4, 301, 500),  // Hazardous
+];
+
+const PM10_BREAKPOINTS: &[(f64, f64, u32, u32)] = &[
+    (0.0, 54.0, 0, 50),
+    (55.0, 154.0, 51, 100),
+    (155.0, 254.0, 101, 150),
+    (255.0, 354.0, 151, 200),
+    (355.0, 424.0, 201, 300),
+    (425.0, 604.0, 301, 500),
+];
+
+/// Calculate AQI from concentration using EPA linear interpolation.
+pub fn calculate_aqi(value: f64, breakpoints: &[(f64, f64, u32, u32)]) -> u32 {
+    for &(c_low, c_high, aqi_low, aqi_high) in breakpoints {
+        if value >= c_low && value <= c_high {
+            let aqi = ((aqi_high as f64 - aqi_low as f64) / (c_high - c_low))
+                * (value - c_low)
+                + aqi_low as f64;
+            return aqi.round() as u32;
+        }
+    }
+    // Beyond max breakpoint
+    500
 }
 
-impl Status {
+/// Calculate PM2.5 AQI.
+pub fn pm25_aqi(value: f64) -> u32 {
+    calculate_aqi(value, PM25_BREAKPOINTS)
+}
+
+/// Calculate PM10 AQI.
+pub fn pm10_aqi(value: f64) -> u32 {
+    calculate_aqi(value, PM10_BREAKPOINTS)
+}
+
+/// Overall AQI = max of individual pollutant AQIs (EPA standard).
+pub fn overall_aqi(data: &CurrentData) -> Option<u32> {
+    let mut max_aqi = None;
+    if let Some(pm25) = data.pm2_5 {
+        max_aqi = Some(pm25_aqi(pm25));
+    }
+    if let Some(pm10) = data.pm10 {
+        let aqi = pm10_aqi(pm10);
+        max_aqi = Some(max_aqi.map_or(aqi, |m: u32| m.max(aqi)));
+    }
+    max_aqi
+}
+
+// ---------------------------------------------------------------------------
+// AQI categories + colors
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, PartialEq)]
+pub enum AqiCategory {
+    Good,                    // 0–50
+    Moderate,                // 51–100
+    UnhealthySensitive,      // 101–150
+    Unhealthy,               // 151–200
+    VeryUnhealthy,           // 201–300
+    Hazardous,               // 301–500
+}
+
+impl AqiCategory {
+    pub fn from_aqi(aqi: u32) -> Self {
+        match aqi {
+            0..=50 => Self::Good,
+            51..=100 => Self::Moderate,
+            101..=150 => Self::UnhealthySensitive,
+            151..=200 => Self::Unhealthy,
+            201..=300 => Self::VeryUnhealthy,
+            _ => Self::Hazardous,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Good => "Good",
+            Self::Moderate => "Moderate",
+            Self::UnhealthySensitive => "Unhealthy for Sensitive Groups",
+            Self::Unhealthy => "Unhealthy",
+            Self::VeryUnhealthy => "Very Unhealthy",
+            Self::Hazardous => "Hazardous",
+        }
+    }
+
+    pub fn emoji(&self) -> &'static str {
+        match self {
+            Self::Good => "🟢",
+            Self::Moderate => "🟡",
+            Self::UnhealthySensitive => "🟠",
+            Self::Unhealthy => "🔴",
+            Self::VeryUnhealthy => "🟣",
+            Self::Hazardous => "🟤",
+        }
+    }
+
     pub fn colorize(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         match self {
-            Status::Good => text.green(),
-            Status::Moderate => text.yellow(),
-            Status::Poor => text.red(),
+            Self::Good => text.green(),
+            Self::Moderate => text.yellow(),
+            Self::UnhealthySensitive => text.truecolor(255, 165, 0), // orange
+            Self::Unhealthy => text.red(),
+            Self::VeryUnhealthy => text.purple(),
+            Self::Hazardous => text.truecolor(128, 0, 0), // dark red
         }
     }
 }
 
-pub fn get_pm25_status(value: f64) -> Status {
-    if value <= 15.0 {
-        Status::Good
-    } else if value <= 35.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
+/// Legacy status functions (now based on AQI)
+pub fn get_pm25_status(value: f64) -> AqiCategory {
+    AqiCategory::from_aqi(pm25_aqi(value))
 }
 
-pub fn get_pm10_status(value: f64) -> Status {
-    if value <= 45.0 {
-        Status::Good
-    } else if value <= 100.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
+pub fn get_pm10_status(value: f64) -> AqiCategory {
+    AqiCategory::from_aqi(pm10_aqi(value))
 }
 
-pub fn get_co_status(value: f64) -> Status {
-    if value <= 4000.0 {
-        Status::Good
-    } else if value <= 10000.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
+pub fn get_co_status(value: f64) -> AqiCategory {
+    // CO: WHO 24h guideline 4mg/m³ = 4000 µg/m³
+    if value <= 4000.0 { AqiCategory::Good }
+    else if value <= 10000.0 { AqiCategory::Moderate }
+    else { AqiCategory::Unhealthy }
 }
 
-pub fn get_no2_status(value: f64) -> Status {
-    if value <= 25.0 {
-        Status::Good
-    } else if value <= 50.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
+pub fn get_no2_status(value: f64) -> AqiCategory {
+    // NO2: WHO 24h guideline 25 µg/m³
+    if value <= 25.0 { AqiCategory::Good }
+    else if value <= 50.0 { AqiCategory::Moderate }
+    else { AqiCategory::Unhealthy }
 }
 
 pub async fn geocode(city: &str) -> Result<(f64, f64, String)> {
@@ -228,40 +315,104 @@ pub async fn fetch_sensor_community_nearby(lat: f64, lon: f64, radius: f64) -> R
 mod tests {
     use super::*;
 
+    // --- AQI calculation tests ---
+
+    #[test]
+    fn test_pm25_aqi_good() {
+        assert_eq!(pm25_aqi(0.0), 0);
+        assert_eq!(pm25_aqi(12.0), 50);
+    }
+
+    #[test]
+    fn test_pm25_aqi_moderate() {
+        assert_eq!(pm25_aqi(12.1), 51);
+        assert_eq!(pm25_aqi(35.4), 100);
+    }
+
+    #[test]
+    fn test_pm25_aqi_unhealthy() {
+        assert_eq!(pm25_aqi(55.5), 151);
+        assert!(pm25_aqi(150.4) <= 200);
+    }
+
+    #[test]
+    fn test_pm25_aqi_beyond_max() {
+        assert_eq!(pm25_aqi(999.0), 500);
+    }
+
+    #[test]
+    fn test_pm10_aqi() {
+        assert_eq!(pm10_aqi(0.0), 0);
+        assert_eq!(pm10_aqi(54.0), 50);
+        assert_eq!(pm10_aqi(55.0), 51);
+    }
+
+    #[test]
+    fn test_overall_aqi() {
+        let data = CurrentData {
+            pm2_5: Some(35.4),  // AQI 100
+            pm10: Some(54.0),   // AQI 50
+            carbon_monoxide: None,
+            nitrogen_dioxide: None,
+        };
+        assert_eq!(overall_aqi(&data), Some(100)); // max of 100, 50
+    }
+
+    #[test]
+    fn test_overall_aqi_none() {
+        let data = CurrentData {
+            pm2_5: None,
+            pm10: None,
+            carbon_monoxide: Some(100.0),
+            nitrogen_dioxide: None,
+        };
+        assert_eq!(overall_aqi(&data), None); // no PM data = no AQI
+    }
+
+    #[test]
+    fn test_aqi_category() {
+        assert_eq!(AqiCategory::from_aqi(25), AqiCategory::Good);
+        assert_eq!(AqiCategory::from_aqi(75), AqiCategory::Moderate);
+        assert_eq!(AqiCategory::from_aqi(125), AqiCategory::UnhealthySensitive);
+        assert_eq!(AqiCategory::from_aqi(175), AqiCategory::Unhealthy);
+        assert_eq!(AqiCategory::from_aqi(250), AqiCategory::VeryUnhealthy);
+        assert_eq!(AqiCategory::from_aqi(400), AqiCategory::Hazardous);
+    }
+
+    #[test]
+    fn test_aqi_category_labels() {
+        assert_eq!(AqiCategory::Good.label(), "Good");
+        assert_eq!(AqiCategory::Hazardous.label(), "Hazardous");
+    }
+
+    // --- Legacy status tests ---
+
     #[test]
     fn test_pm25_status() {
-        assert!(matches!(get_pm25_status(10.0), Status::Good));
-        assert!(matches!(get_pm25_status(15.0), Status::Good));
-        assert!(matches!(get_pm25_status(20.0), Status::Moderate));
-        assert!(matches!(get_pm25_status(35.0), Status::Moderate));
-        assert!(matches!(get_pm25_status(40.0), Status::Poor));
+        assert!(matches!(get_pm25_status(10.0), AqiCategory::Good));
+        assert!(matches!(get_pm25_status(20.0), AqiCategory::Moderate));
+        assert!(matches!(get_pm25_status(40.0), AqiCategory::Unhealthy | AqiCategory::UnhealthySensitive));
     }
 
     #[test]
     fn test_pm10_status() {
-        assert!(matches!(get_pm10_status(30.0), Status::Good));
-        assert!(matches!(get_pm10_status(45.0), Status::Good));
-        assert!(matches!(get_pm10_status(60.0), Status::Moderate));
-        assert!(matches!(get_pm10_status(100.0), Status::Moderate));
-        assert!(matches!(get_pm10_status(120.0), Status::Poor));
+        assert!(matches!(get_pm10_status(30.0), AqiCategory::Good));
+        assert!(matches!(get_pm10_status(60.0), AqiCategory::Moderate));
+        assert!(matches!(get_pm10_status(200.0), AqiCategory::UnhealthySensitive));
     }
 
     #[test]
     fn test_co_status() {
-        assert!(matches!(get_co_status(2000.0), Status::Good));
-        assert!(matches!(get_co_status(4000.0), Status::Good));
-        assert!(matches!(get_co_status(6000.0), Status::Moderate));
-        assert!(matches!(get_co_status(10000.0), Status::Moderate));
-        assert!(matches!(get_co_status(12000.0), Status::Poor));
+        assert!(matches!(get_co_status(2000.0), AqiCategory::Good));
+        assert!(matches!(get_co_status(6000.0), AqiCategory::Moderate));
+        assert!(matches!(get_co_status(12000.0), AqiCategory::Unhealthy));
     }
 
     #[test]
     fn test_no2_status() {
-        assert!(matches!(get_no2_status(15.0), Status::Good));
-        assert!(matches!(get_no2_status(25.0), Status::Good));
-        assert!(matches!(get_no2_status(35.0), Status::Moderate));
-        assert!(matches!(get_no2_status(50.0), Status::Moderate));
-        assert!(matches!(get_no2_status(60.0), Status::Poor));
+        assert!(matches!(get_no2_status(15.0), AqiCategory::Good));
+        assert!(matches!(get_no2_status(35.0), AqiCategory::Moderate));
+        assert!(matches!(get_no2_status(60.0), AqiCategory::Unhealthy));
     }
 
     #[test]
