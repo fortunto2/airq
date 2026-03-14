@@ -1,6 +1,6 @@
 [package]
 name = "airq"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "A command-line tool to check air quality (AQI, PM2.5, PM10) from Open-Meteo and Sensor.Community"
 license = "MIT"

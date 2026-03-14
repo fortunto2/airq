@@ -11,8 +11,23 @@ Two data providers:
 
 ## Install
 
+Homebrew (macOS/Linux):
+
+```bash
+brew install fortunto2/tap/airq
+```
+
+From crates.io:
+
 ```bash
 cargo install airq
+```
+
+From source:
+
+```bash
+git clone https://github.com/fortunto2/airq
+cd airq && cargo install --path .
 ```
 
 ## Usage
