@@ -385,7 +385,12 @@ pub async fn fetch_sensor_community_nearby(
         lat, lon, radius
     );
 
-    let response = reqwest::get(&url)
+    let response = reqwest::Client::builder()
+        .user_agent("airq/0.5")
+        .build()
+        .context("client")?
+        .get(&url)
+        .send()
         .await
         .context("Failed to send request to Sensor.Community API")?
         .json::<Vec<serde_json::Value>>()
@@ -402,6 +407,91 @@ pub async fn fetch_sensor_community_nearby(
     }
 
     Ok(sensors.into_iter().map(|id| SensorInfo { id }).collect())
+}
+
+/// Area average from Sensor.Community — aggregates all sensors within radius.
+/// Uses median to filter outliers (broken sensors, indoor sensors).
+pub async fn fetch_area_average(lat: f64, lon: f64, radius_km: f64) -> Result<AreaAverage> {
+    // sensor.community uses = in path segment, reqwest URL-encodes it.
+    // Use Client::get(String) which doesn't re-parse the URL.
+    let url = format!(
+        "https://data.sensor.community/airrohr/v1/filter/area={},{},{}",
+        lat, lon, radius_km
+    );
+    let text = reqwest::Client::builder()
+        .user_agent("airq/0.5")
+        .build()
+        .context("client")?
+        .get(&url)
+        .send()
+        .await
+        .context("Sensor.Community area API failed")?
+        .text()
+        .await
+        .context("Read response")?;
+    let response: Vec<serde_json::Value> =
+        serde_json::from_str(&text).context("Parse area JSON")?;
+
+    let mut pm25_vals = Vec::new();
+    let mut pm10_vals = Vec::new();
+    let mut sensors = std::collections::HashSet::new();
+
+    for entry in &response {
+        if let Some(sid) = entry.get("sensor").and_then(|s| s.get("id")).and_then(|v| v.as_u64()) {
+            sensors.insert(sid);
+        }
+        for v in entry
+            .get("sensordatavalues")
+            .and_then(|a| a.as_array())
+            .unwrap_or(&Vec::new())
+        {
+            let vtype = v.get("value_type").and_then(|t| t.as_str()).unwrap_or("");
+            let val = v
+                .get("value")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok());
+            if let Some(val) = val {
+                if val > 0.0 && val < 1000.0 {
+                    // filter obvious outliers
+                    match vtype {
+                        "P2" => pm25_vals.push(val),
+                        "P1" => pm10_vals.push(val),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(AreaAverage {
+        sensor_count: sensors.len(),
+        pm2_5_median: median(&mut pm25_vals),
+        pm10_median: median(&mut pm10_vals),
+        pm2_5_readings: pm25_vals.len(),
+        pm10_readings: pm10_vals.len(),
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct AreaAverage {
+    pub sensor_count: usize,
+    pub pm2_5_median: Option<f64>,
+    pub pm10_median: Option<f64>,
+    pub pm2_5_readings: usize,
+    pub pm10_readings: usize,
+}
+
+fn median(vals: &mut Vec<f64>) -> Option<f64> {
+    if vals.is_empty() {
+        return None;
+    }
+    vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let mid = vals.len() / 2;
+    if vals.len() % 2 == 0 {
+        Some((vals[mid - 1] + vals[mid]) / 2.0)
+    } else {
+        Some(vals[mid])
+    }
 }
 
 pub async fn fetch_history(lat: f64, lon: f64, days: u32) -> Result<HistoryResponse> {
