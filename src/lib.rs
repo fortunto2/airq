@@ -111,15 +111,20 @@ const PM10_BREAKPOINTS: &[(f64, f64, u32, u32)] = &[
 ];
 
 /// Calculate AQI from concentration using EPA linear interpolation.
+/// Clamped: negative → 0, beyond max breakpoint → last bracket's AQI_high.
 pub fn calculate_aqi(value: f64, breakpoints: &[(f64, f64, u32, u32)]) -> u32 {
+    if value <= 0.0 {
+        return 0;
+    }
     for &(c_low, c_high, aqi_low, aqi_high) in breakpoints {
-        if value >= c_low && value <= c_high {
-            let aqi = ((aqi_high as f64 - aqi_low as f64) / (c_high - c_low)) * (value - c_low)
+        if value <= c_high {
+            let aqi = ((aqi_high as f64 - aqi_low as f64) / (c_high - c_low))
+                * (value - c_low).max(0.0)
                 + aqi_low as f64;
-            return aqi.round() as u32;
+            return (aqi.round() as u32).min(500);
         }
     }
-    // Beyond max breakpoint
+    // Beyond max breakpoint — cap at 500
     500
 }
 
