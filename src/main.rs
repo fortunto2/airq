@@ -29,7 +29,7 @@ struct Cli {
     json: bool,
 
     /// Data provider
-    #[arg(long, value_enum, default_value_t = Provider::OpenMeteo)]
+    #[arg(long, value_enum, default_value_t = Provider::All)]
     provider: Provider,
 
     /// Sensor ID for Sensor.Community provider
