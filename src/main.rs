@@ -17,6 +17,14 @@ struct Args {
     /// Output raw JSON
     #[arg(long)]
     json: bool,
+
+    /// Data provider
+    #[arg(long, value_enum, default_value_t = Provider::OpenMeteo)]
+    provider: Provider,
+
+    /// Sensor ID for Sensor.Community provider
+    #[arg(long)]
+    sensor_id: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -41,6 +49,31 @@ struct CurrentUnits {
     pm10: String,
     carbon_monoxide: String,
     nitrogen_dioxide: String,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, Default, PartialEq)]
+enum Provider {
+    #[default]
+    OpenMeteo,
+    SensorCommunity,
+}
+
+#[derive(Debug, Deserialize)]
+struct SensorCommunityResponse {
+    sensordatavalues: Vec<SensorDataValue>,
+    location: SensorLocation,
+}
+
+#[derive(Debug, Deserialize)]
+struct SensorDataValue {
+    value: String,
+    value_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SensorLocation {
+    latitude: String,
+    longitude: String,
 }
 
 enum Status {
@@ -99,7 +132,7 @@ fn get_no2_status(value: f64) -> Status {
     }
 }
 
-async fn fetch_air_quality(lat: f64, lon: f64) -> Result<AirQualityResponse> {
+async fn fetch_open_meteo(lat: f64, lon: f64) -> Result<AirQualityResponse> {
     let url = format!(
         "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide&timezone=auto",
         lat, lon
@@ -115,11 +148,56 @@ async fn fetch_air_quality(lat: f64, lon: f64) -> Result<AirQualityResponse> {
     Ok(response)
 }
 
+async fn fetch_sensor_community(sensor_id: u64) -> Result<AirQualityResponse> {
+    let url = format!("https://data.sensor.community/airrohr/v1/sensor/{}/", sensor_id);
+    
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to send request to Sensor.Community API")?
+        .json::<Vec<SensorCommunityResponse>>()
+        .await
+        .context("Failed to parse JSON response")?;
+
+    let latest = response.into_iter().next().context("No data found for sensor")?;
+
+    let mut pm2_5 = None;
+    let mut pm10 = None;
+
+    for val in latest.sensordatavalues {
+        if val.value_type == "P1" {
+            pm10 = val.value.parse::<f64>().ok();
+        } else if val.value_type == "P2" {
+            pm2_5 = val.value.parse::<f64>().ok();
+        }
+    }
+
+    let lat = latest.location.latitude.parse::<f64>().unwrap_or(0.0);
+    let lon = latest.location.longitude.parse::<f64>().unwrap_or(0.0);
+
+    Ok(AirQualityResponse {
+        latitude: lat,
+        longitude: lon,
+        current: CurrentData { pm2_5, pm10, carbon_monoxide: None, nitrogen_dioxide: None },
+        current_units: CurrentUnits {
+            pm2_5: "µg/m³".to_string(),
+            pm10: "µg/m³".to_string(),
+            carbon_monoxide: "".to_string(),
+            nitrogen_dioxide: "".to_string(),
+        },
+    })
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    let data = fetch_air_quality(args.lat, args.lon).await?;
+    let data = match args.provider {
+        Provider::OpenMeteo => fetch_open_meteo(args.lat, args.lon).await?,
+        Provider::SensorCommunity => {
+            let sensor_id = args.sensor_id.context("sensor-id is required for sensor-community provider")?;
+            fetch_sensor_community(sensor_id).await?
+        }
+    };
 
     if args.json {
         let json_output = serde_json::to_string_pretty(&data)?;
