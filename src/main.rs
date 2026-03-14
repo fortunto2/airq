@@ -7,7 +7,25 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    about = "Air quality CLI — any city, model + real sensors merged",
+    long_about = None,
+    after_help = "\x1b[1mExamples:\x1b[0m
+  airq --city tokyo                        Current air quality (model + sensors)
+  airq --city gazipasa --json              JSON output
+  airq --city berlin --provider open-meteo Model only
+  airq history --city istanbul --days 7    Last 7 days sparkline
+  airq top --country turkey                Top cities by AQI
+  airq compare --city berlin               Side-by-side providers
+  airq nearby --city gazipasa              Find sensors nearby
+
+\x1b[1mData sources:\x1b[0m
+  Open-Meteo (global model) + Sensor.Community (15K+ real sensors)
+  All free, no API key needed.
+"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
