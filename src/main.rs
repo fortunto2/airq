@@ -1,18 +1,27 @@
+use airq::{
+    fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby, get_co_status,
+    get_no2_status, get_pm10_status, get_pm25_status, Provider,
+};
 use anyhow::{Context, Result};
-use clap::Parser;
-use colored::Colorize;
-use serde::{Deserialize, Serialize};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// Latitude of the location
-    #[arg(long)]
-    lat: f64,
+    #[arg(long, required_unless_present = "city")]
+    lat: Option<f64>,
 
     /// Longitude of the location
+    #[arg(long, required_unless_present = "city")]
+    lon: Option<f64>,
+
+    /// Preset city name (moscow, istanbul, gazipasa, berlin, tokyo)
     #[arg(long)]
-    lon: f64,
+    city: Option<String>,
 
     /// Output raw JSON
     #[arg(long)]
@@ -27,185 +36,90 @@ struct Args {
     sensor_id: Option<u64>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct AirQualityResponse {
-    latitude: f64,
-    longitude: f64,
-    current: CurrentData,
-    current_units: CurrentUnits,
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Find nearby sensors from sensor.community
+    Nearby {
+        /// Latitude of the location
+        #[arg(long, required_unless_present = "city")]
+        lat: Option<f64>,
+
+        /// Longitude of the location
+        #[arg(long, required_unless_present = "city")]
+        lon: Option<f64>,
+
+        /// Preset city name
+        #[arg(long)]
+        city: Option<String>,
+
+        /// Search radius in km
+        #[arg(long, default_value_t = 10.0)]
+        radius: f64,
+    },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct CurrentData {
-    pm2_5: Option<f64>,
-    pm10: Option<f64>,
-    carbon_monoxide: Option<f64>,
-    nitrogen_dioxide: Option<f64>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct CurrentUnits {
-    pm2_5: String,
-    pm10: String,
-    carbon_monoxide: String,
-    nitrogen_dioxide: String,
-}
-
-#[derive(clap::ValueEnum, Clone, Debug, Default, PartialEq)]
-enum Provider {
-    #[default]
-    OpenMeteo,
-    SensorCommunity,
-}
-
-#[derive(Debug, Deserialize)]
-struct SensorCommunityResponse {
-    sensordatavalues: Vec<SensorDataValue>,
-    location: SensorLocation,
-}
-
-#[derive(Debug, Deserialize)]
-struct SensorDataValue {
-    value: String,
-    value_type: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SensorLocation {
-    latitude: String,
-    longitude: String,
-}
-
-enum Status {
-    Good,
-    Moderate,
-    Poor,
-}
-
-impl Status {
-    fn colorize(&self, text: &str) -> colored::ColoredString {
-        match self {
-            Status::Good => text.green(),
-            Status::Moderate => text.yellow(),
-            Status::Poor => text.red(),
-        }
+fn get_city_coords(city: &str) -> Option<(f64, f64)> {
+    match city.to_lowercase().as_str() {
+        "moscow" => Some((55.7558, 37.6173)),
+        "istanbul" => Some((41.0082, 28.9784)),
+        "gazipasa" => Some((36.2694, 32.3179)),
+        "berlin" => Some((52.5200, 13.4050)),
+        "tokyo" => Some((35.6762, 139.6503)),
+        _ => None,
     }
-}
-
-fn get_pm25_status(value: f64) -> Status {
-    if value <= 15.0 {
-        Status::Good
-    } else if value <= 35.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
-}
-
-fn get_pm10_status(value: f64) -> Status {
-    if value <= 45.0 {
-        Status::Good
-    } else if value <= 100.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
-}
-
-fn get_co_status(value: f64) -> Status {
-    if value <= 4000.0 {
-        Status::Good
-    } else if value <= 10000.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
-}
-
-fn get_no2_status(value: f64) -> Status {
-    if value <= 25.0 {
-        Status::Good
-    } else if value <= 50.0 {
-        Status::Moderate
-    } else {
-        Status::Poor
-    }
-}
-
-async fn fetch_open_meteo(lat: f64, lon: f64) -> Result<AirQualityResponse> {
-    let url = format!(
-        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide&timezone=auto",
-        lat, lon
-    );
-
-    let response = reqwest::get(&url)
-        .await
-        .context("Failed to send request to Open-Meteo API")?
-        .json::<AirQualityResponse>()
-        .await
-        .context("Failed to parse JSON response")?;
-
-    Ok(response)
-}
-
-async fn fetch_sensor_community(sensor_id: u64) -> Result<AirQualityResponse> {
-    let url = format!("https://data.sensor.community/airrohr/v1/sensor/{}/", sensor_id);
-    
-    let response = reqwest::get(&url)
-        .await
-        .context("Failed to send request to Sensor.Community API")?
-        .json::<Vec<SensorCommunityResponse>>()
-        .await
-        .context("Failed to parse JSON response")?;
-
-    let latest = response.into_iter().next().context("No data found for sensor")?;
-
-    let mut pm2_5 = None;
-    let mut pm10 = None;
-
-    for val in latest.sensordatavalues {
-        if val.value_type == "P1" {
-            pm10 = val.value.parse::<f64>().ok();
-        } else if val.value_type == "P2" {
-            pm2_5 = val.value.parse::<f64>().ok();
-        }
-    }
-
-    let lat = latest.location.latitude.parse::<f64>().unwrap_or(0.0);
-    let lon = latest.location.longitude.parse::<f64>().unwrap_or(0.0);
-
-    Ok(AirQualityResponse {
-        latitude: lat,
-        longitude: lon,
-        current: CurrentData { pm2_5, pm10, carbon_monoxide: None, nitrogen_dioxide: None },
-        current_units: CurrentUnits {
-            pm2_5: "µg/m³".to_string(),
-            pm10: "µg/m³".to_string(),
-            carbon_monoxide: "".to_string(),
-            nitrogen_dioxide: "".to_string(),
-        },
-    })
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::parse();
+    let cli = Cli::parse();
 
-    let data = match args.provider {
-        Provider::OpenMeteo => fetch_open_meteo(args.lat, args.lon).await?,
+    if let Some(Commands::Nearby { lat, lon, city, radius }) = cli.command {
+        let (lat, lon) = if let Some(city_name) = city {
+            get_city_coords(&city_name).context(format!("Unknown city: {}", city_name))?
+        } else {
+            (lat.unwrap(), lon.unwrap())
+        };
+
+        let sensors = fetch_sensor_community_nearby(lat, lon, radius).await?;
+        
+        if sensors.is_empty() {
+            println!("No sensors found within {}km of {}, {}", radius, lat, lon);
+        } else {
+            println!("Found {} sensors within {}km:", sensors.len(), radius);
+            for sensor in sensors {
+                println!("- Sensor ID: {}", sensor.id);
+            }
+        }
+        
+        return Ok(());
+    }
+
+    let (lat, lon) = if let Some(city_name) = cli.city {
+        get_city_coords(&city_name).context(format!("Unknown city: {}", city_name))?
+    } else {
+        (cli.lat.unwrap(), cli.lon.unwrap())
+    };
+
+    let data = match cli.provider {
+        Provider::OpenMeteo => fetch_open_meteo(lat, lon).await?,
         Provider::SensorCommunity => {
-            let sensor_id = args.sensor_id.context("sensor-id is required for sensor-community provider")?;
+            let sensor_id = cli
+                .sensor_id
+                .context("sensor-id is required for sensor-community provider")?;
             fetch_sensor_community(sensor_id).await?
         }
     };
 
-    if args.json {
+    if cli.json {
         let json_output = serde_json::to_string_pretty(&data)?;
         println!("{}", json_output);
         return Ok(());
     }
 
-    println!("Air Quality for Coordinates: {}, {}", data.latitude, data.longitude);
+    println!(
+        "Air Quality for Coordinates: {}, {}",
+        data.latitude, data.longitude
+    );
     println!("--------------------------------------------------");
 
     if let Some(pm25) = data.current.pm2_5 {
@@ -241,68 +155,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_pm25_status() {
-        assert!(matches!(get_pm25_status(10.0), Status::Good));
-        assert!(matches!(get_pm25_status(15.0), Status::Good));
-        assert!(matches!(get_pm25_status(20.0), Status::Moderate));
-        assert!(matches!(get_pm25_status(35.0), Status::Moderate));
-        assert!(matches!(get_pm25_status(40.0), Status::Poor));
-    }
-
-    #[test]
-    fn test_pm10_status() {
-        assert!(matches!(get_pm10_status(30.0), Status::Good));
-        assert!(matches!(get_pm10_status(45.0), Status::Good));
-        assert!(matches!(get_pm10_status(60.0), Status::Moderate));
-        assert!(matches!(get_pm10_status(100.0), Status::Moderate));
-        assert!(matches!(get_pm10_status(120.0), Status::Poor));
-    }
-
-    #[test]
-    fn test_co_status() {
-        assert!(matches!(get_co_status(2000.0), Status::Good));
-        assert!(matches!(get_co_status(4000.0), Status::Good));
-        assert!(matches!(get_co_status(6000.0), Status::Moderate));
-        assert!(matches!(get_co_status(10000.0), Status::Moderate));
-        assert!(matches!(get_co_status(12000.0), Status::Poor));
-    }
-
-    #[test]
-    fn test_no2_status() {
-        assert!(matches!(get_no2_status(15.0), Status::Good));
-        assert!(matches!(get_no2_status(25.0), Status::Good));
-        assert!(matches!(get_no2_status(35.0), Status::Moderate));
-        assert!(matches!(get_no2_status(50.0), Status::Moderate));
-        assert!(matches!(get_no2_status(60.0), Status::Poor));
-    }
-
-    #[test]
-    fn test_json_serialization() {
-        let data = AirQualityResponse {
-            latitude: 52.52,
-            longitude: 13.41,
-            current: CurrentData {
-                pm2_5: Some(10.0),
-                pm10: Some(20.0),
-                carbon_monoxide: Some(300.0),
-                nitrogen_dioxide: Some(15.0),
-            },
-            current_units: CurrentUnits {
-                pm2_5: "ug/m3".to_string(),
-                pm10: "ug/m3".to_string(),
-                carbon_monoxide: "ug/m3".to_string(),
-                nitrogen_dioxide: "ug/m3".to_string(),
-            },
-        };
-        let json = serde_json::to_string(&data).unwrap();
-        assert!(json.contains("\"latitude\":52.52"));
-        assert!(json.contains("\"pm2_5\":10.0"));
-    }
 }
