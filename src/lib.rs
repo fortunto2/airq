@@ -54,6 +54,7 @@ struct GeocodeResult {
 #[derive(clap::ValueEnum, Clone, Debug, Default, PartialEq)]
 pub enum Provider {
     #[default]
+    All,
     OpenMeteo,
     SensorCommunity,
 }

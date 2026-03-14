@@ -346,13 +346,42 @@ async fn main() -> Result<()> {
         anyhow::bail!("Provide --city or --lat + --lon. Run airq --help for usage.")
     };
 
-    let data = match cli.provider {
-        Provider::OpenMeteo => fetch_open_meteo(lat, lon).await?,
+    let (data, sources_msg) = match cli.provider {
+        Provider::All => {
+            let (om_res, sc_res) = tokio::join!(
+                fetch_open_meteo(lat, lon),
+                airq::fetch_area_average(lat, lon, 5.0)
+            );
+            let mut data = om_res?;
+            let mut msg = "Sources: Open-Meteo only (no nearby sensors)".to_string();
+            
+            if let Ok(sc_data) = sc_res {
+                if sc_data.sensor_count > 0 {
+                    msg = format!("Sources: Open-Meteo + {} sensors (5km)", sc_data.sensor_count);
+                    
+                    if let Some(sc_pm25) = sc_data.pm2_5_median {
+                        let om_pm25 = data.current.pm2_5.unwrap_or(sc_pm25);
+                        data.current.pm2_5 = Some((om_pm25 + sc_pm25) / 2.0);
+                    }
+                    if let Some(sc_pm10) = sc_data.pm10_median {
+                        let om_pm10 = data.current.pm10.unwrap_or(sc_pm10);
+                        data.current.pm10 = Some((om_pm10 + sc_pm10) / 2.0);
+                    }
+                    
+                    // Recalculate AQI if we merged data
+                    data.current.us_aqi = overall_aqi(&data.current).map(|v| v as f64);
+                }
+            }
+            (data, msg)
+        }
+        Provider::OpenMeteo => {
+            (fetch_open_meteo(lat, lon).await?, "Sources: Open-Meteo".to_string())
+        }
         Provider::SensorCommunity => {
             let sensor_id = cli
                 .sensor_id
                 .context("sensor-id is required for sensor-community provider")?;
-            fetch_sensor_community(sensor_id).await?
+            (fetch_sensor_community(sensor_id).await?, format!("Sources: Sensor.Community (#{})", sensor_id))
         }
     };
 
@@ -366,51 +395,25 @@ async fn main() -> Result<()> {
         "Air Quality for Coordinates: {}, {}",
         data.latitude, data.longitude
     );
+    println!("{}", sources_msg);
     println!("--------------------------------------------------");
 
-    if let Some(pm25) = data.current.pm2_5 {
-        let status = get_pm25_status(pm25);
-        let text = format!("PM2.5: {} {}", pm25, data.current_units.pm2_5);
-        println!("{}", status.colorize(&text));
-    } else {
-        println!("PM2.5: N/A");
-    }
+    let show_pollutant = |name: &str, value: Option<f64>, unit: &str, get_status: fn(f64) -> airq::AqiCategory, show_na: bool| {
+        if let Some(v) = value {
+            let status = get_status(v);
+            let text = format!("{}: {} {}", name, v, unit);
+            println!("{}", status.colorize(&text));
+        } else if show_na {
+            println!("{}: N/A", name);
+        }
+    };
 
-    if let Some(pm10) = data.current.pm10 {
-        let status = get_pm10_status(pm10);
-        let text = format!("PM10: {} {}", pm10, data.current_units.pm10);
-        println!("{}", status.colorize(&text));
-    } else {
-        println!("PM10: N/A");
-    }
-
-    if let Some(co) = data.current.carbon_monoxide {
-        let status = get_co_status(co);
-        let text = format!("CO: {} {}", co, data.current_units.carbon_monoxide);
-        println!("{}", status.colorize(&text));
-    } else {
-        println!("CO: N/A");
-    }
-
-    if let Some(no2) = data.current.nitrogen_dioxide {
-        let status = get_no2_status(no2);
-        let text = format!("NO2: {} {}", no2, data.current_units.nitrogen_dioxide);
-        println!("{}", status.colorize(&text));
-    } else {
-        println!("NO2: N/A");
-    }
-
-    if let Some(o3) = data.current.ozone {
-        let status = get_o3_status(o3);
-        let text = format!("O3: {} {}", o3, data.current_units.ozone);
-        println!("{}", status.colorize(&text));
-    }
-
-    if let Some(so2) = data.current.sulphur_dioxide {
-        let status = get_so2_status(so2);
-        let text = format!("SO2: {} {}", so2, data.current_units.sulphur_dioxide);
-        println!("{}", status.colorize(&text));
-    }
+    show_pollutant("PM2.5", data.current.pm2_5, &data.current_units.pm2_5, get_pm25_status, true);
+    show_pollutant("PM10", data.current.pm10, &data.current_units.pm10, get_pm10_status, true);
+    show_pollutant("CO", data.current.carbon_monoxide, &data.current_units.carbon_monoxide, get_co_status, true);
+    show_pollutant("NO2", data.current.nitrogen_dioxide, &data.current_units.nitrogen_dioxide, get_no2_status, true);
+    show_pollutant("O3", data.current.ozone, &data.current_units.ozone, get_o3_status, false);
+    show_pollutant("SO2", data.current.sulphur_dioxide, &data.current_units.sulphur_dioxide, get_so2_status, false);
 
     if let Some(uv) = data.current.uv_index {
         let (emoji, label) = match uv {
