@@ -37,6 +37,31 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: airq-linux-x86_64.tar.gz
 
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Test
+        run: cargo test
+
+      - name: Package
+        run: Compress-Archive -Path target/release/airq.exe -DestinationPath airq-windows-x86_64.zip
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: airq-windows-x86_64.zip
+
   update-homebrew:
     name: Update Homebrew formula
     needs: build-linux
