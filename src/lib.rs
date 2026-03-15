@@ -39,6 +39,57 @@ pub struct CurrentUnits {
     pub uv_index: String,
 }
 
+// ---------------------------------------------------------------------------
+// Wind data (from Open-Meteo Weather API)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WindResponse {
+    pub current: WindData,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WindData {
+    pub wind_speed_10m: Option<f64>,
+    pub wind_direction_10m: Option<f64>,
+    pub wind_gusts_10m: Option<f64>,
+}
+
+impl WindData {
+    /// Wind direction in degrees → compass direction string.
+    pub fn direction_label(&self) -> Option<&'static str> {
+        self.wind_direction_10m.map(|deg| {
+            let dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+            let idx = ((deg + 11.25) % 360.0 / 22.5) as usize;
+            dirs[idx.min(15)]
+        })
+    }
+
+    /// Wind direction → arrow emoji.
+    pub fn direction_arrow(&self) -> Option<&'static str> {
+        self.wind_direction_10m.map(|deg| {
+            let arrows = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"];
+            let idx = ((deg + 22.5) % 360.0 / 45.0) as usize;
+            arrows[idx.min(7)]
+        })
+    }
+}
+
+pub async fn fetch_wind(lat: f64, lon: f64) -> Result<WindData> {
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto",
+        lat, lon
+    );
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to fetch wind data")?
+        .json::<WindResponse>()
+        .await
+        .context("Failed to parse wind JSON")?;
+    Ok(response.current)
+}
+
 #[derive(Debug, Deserialize)]
 struct GeocodeResponse {
     results: Option<Vec<GeocodeResult>>,

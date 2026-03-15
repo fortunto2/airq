@@ -473,11 +473,12 @@ async fn main() -> Result<()> {
         sensor_count: usize,
     }
 
-    let (data, sources_msg, breakdown) = match cli.provider {
+    let (data, sources_msg, breakdown, wind) = match cli.provider {
         Provider::All => {
-            let (om_res, sc_res) = tokio::join!(
+            let (om_res, sc_res, wind_res) = tokio::join!(
                 fetch_open_meteo(lat, lon),
-                airq::fetch_area_average(lat, lon, 5.0)
+                airq::fetch_area_average(lat, lon, 5.0),
+                airq::fetch_wind(lat, lon)
             );
             let mut data = om_res?;
             let om_pm25 = data.current.pm2_5;
@@ -508,22 +509,24 @@ async fn main() -> Result<()> {
                 }
             }
             let bd = SourceBreakdown { om_pm25, om_pm10, sc_pm25, sc_pm10, sensor_count };
-            (data, msg, Some(bd))
+            (data, msg, Some(bd), wind_res.ok())
         }
-        Provider::OpenMeteo => (
-            fetch_open_meteo(lat, lon).await?,
-            "Open-Meteo".to_string(),
-            None,
-        ),
+        Provider::OpenMeteo => {
+            let (om_res, wind_res) = tokio::join!(
+                fetch_open_meteo(lat, lon),
+                airq::fetch_wind(lat, lon)
+            );
+            (om_res?, "Open-Meteo".to_string(), None, wind_res.ok())
+        }
         Provider::SensorCommunity => {
             let sensor_id = cli
                 .sensor_id
                 .context("sensor-id is required for sensor-community provider")?;
-            (
-                fetch_sensor_community(sensor_id).await?,
-                format!("Sensor.Community (#{})", sensor_id),
-                None,
-            )
+            let (sc_res, wind_res) = tokio::join!(
+                fetch_sensor_community(sensor_id),
+                airq::fetch_wind(lat, lon)
+            );
+            (sc_res?, format!("Sensor.Community (#{})", sensor_id), None, wind_res.ok())
         }
     };
 
@@ -603,6 +606,18 @@ async fn main() -> Result<()> {
             _ => ("🔥", "Extreme"),
         };
         println!("UV Index: {} {} ({})", uv, emoji, label);
+    }
+
+    // Wind
+    if let Some(ref w) = wind {
+        if let Some(speed) = w.wind_speed_10m {
+            let arrow = w.direction_arrow().unwrap_or("");
+            let dir = w.direction_label().unwrap_or("");
+            let gusts = w.wind_gusts_10m
+                .map(|g| format!(" (gusts {:.0})", g))
+                .unwrap_or_default();
+            println!("Wind:   {:.1} km/h {} {}{}", speed, arrow, dir, gusts);
+        }
     }
 
     // Overall AQI
