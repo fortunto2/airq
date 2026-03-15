@@ -12,9 +12,11 @@ By default merges two data sources for more accurate results:
 ## Install
 
 ```bash
-brew install fortunto2/tap/airq     # Homebrew
-cargo install airq                  # crates.io
+brew install fortunto2/tap/airq     # Homebrew (macOS & Linux)
+cargo install airq                  # crates.io (any platform)
 ```
+
+Or download prebuilt binaries from [GitHub Releases](https://github.com/fortunto2/airq/releases).
 
 ## Quick start
 
@@ -129,6 +131,36 @@ airq compare --city berlin --json
 
 ```bash
 airq nearby --city gazipasa --radius 10
+```
+
+## Configuration
+
+Set up a default city and favorites list so you don't have to type `--city` every time:
+
+```bash
+airq init --city tokyo          # set default city
+airq                            # now just works — uses tokyo
+```
+
+Config file: `~/.config/airq/config.toml`
+
+```toml
+default_city = "tokyo"
+cities = ["tokyo", "berlin", "istanbul", "new york"]
+```
+
+With a favorites list, check all cities at once:
+
+```bash
+airq --all
+```
+
+```
+# City              AQI  PM2.5
+1 Istanbul          98   🟡 34.6
+2 New York          72   🟡 22.0
+3 Berlin            31   🟢 4.2
+4 Tokyo             35   🟢 8.3
 ```
 
 ## How it works

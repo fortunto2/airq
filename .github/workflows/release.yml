@@ -36,3 +36,53 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: airq-linux-x86_64.tar.gz
+
+  update-homebrew:
+    name: Update Homebrew formula
+    needs: build-linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Update formula in homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          SHA=$(curl -sL "https://github.com/fortunto2/airq/archive/refs/tags/${VERSION}.tar.gz" | sha256sum | cut -d' ' -f1)
+
+          # Get current file SHA for update
+          FILE_SHA=$(curl -s -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/repos/fortunto2/homebrew-tap/contents/Formula/airq.rb" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+
+          # Generate updated formula
+          FORMULA=$(cat <<RUBY
+          class Airq < Formula
+            desc "CLI air quality checker — any city, Open-Meteo + Sensor.Community"
+            homepage "https://github.com/fortunto2/airq"
+            url "https://github.com/fortunto2/airq/archive/refs/tags/${VERSION}.tar.gz"
+            sha256 "${SHA}"
+            license "MIT"
+
+            depends_on "rust" => :build
+
+            def install
+              system "cargo", "install", "--root", prefix, "--path", "."
+            end
+
+            test do
+              assert_match "airq", shell_output("#{bin}/airq --version")
+            end
+          end
+          RUBY
+          )
+
+          CONTENT=$(echo "$FORMULA" | base64 -w0)
+
+          curl -s -X PUT \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/fortunto2/homebrew-tap/contents/Formula/airq.rb" \
+            -d "{\"message\":\"bump airq to ${VERSION}\",\"content\":\"${CONTENT}\",\"sha\":\"${FILE_SHA}\"}" \
+            && echo "Formula updated to ${VERSION}"
