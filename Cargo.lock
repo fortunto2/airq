@@ -7,6 +7,7 @@ name = "airq"
 version = "0.8.0"
 dependencies = [
  "anyhow",
+ "cities",
  "clap",
  "colored",
  "dirs",
@@ -155,6 +156,12 @@ name = "cfg_aliases"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
+
+[[package]]
+name = "cities"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee8bec2115436fa4c2d3fb2e7286482c16e812fd781f2e40ffb8d1f66186e4c2"
 
 [[package]]
 name = "clap"

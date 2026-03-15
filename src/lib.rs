@@ -602,61 +602,53 @@ pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
         .collect()
 }
 
-pub fn get_major_cities(country: &str) -> Option<&'static [&'static str]> {
-    match country.to_lowercase().as_str() {
-        "turkey" => Some(&[
-            "Istanbul",
-            "Ankara",
-            "Izmir",
-            "Bursa",
-            "Antalya",
-            "Adana",
-            "Gaziantep",
-            "Konya",
-            "Diyarbakir",
-            "Gazipasa",
-        ]),
-        "russia" => Some(&[
-            "Moscow",
-            "Saint Petersburg",
-            "Novosibirsk",
-            "Yekaterinburg",
-            "Kazan",
-            "Nizhny Novgorod",
-            "Chelyabinsk",
-            "Krasnoyarsk",
-            "Samara",
-            "Ufa",
-        ]),
-        "usa" => Some(&[
-            "New York",
-            "Los Angeles",
-            "Chicago",
-            "Houston",
-            "Phoenix",
-            "Philadelphia",
-            "San Antonio",
-            "San Diego",
-            "Dallas",
-            "San Jose",
-        ]),
-        "germany" => Some(&[
-            "Berlin",
-            "Hamburg",
-            "Munich",
-            "Cologne",
-            "Frankfurt",
-            "Stuttgart",
-            "Düsseldorf",
-            "Leipzig",
-            "Dortmund",
-            "Essen",
-        ]),
-        "japan" => Some(&[
-            "Tokyo", "Yokohama", "Osaka", "Nagoya", "Sapporo", "Fukuoka", "Kawasaki", "Kobe",
-            "Kyoto", "Saitama",
-        ]),
-        _ => None,
+/// City with pre-resolved coordinates (from `cities` crate).
+#[derive(Debug)]
+pub struct CityInfo {
+    pub name: &'static str,
+    pub country: &'static str,
+    pub lat: f64,
+    pub lon: f64,
+}
+
+/// Get major cities for any country. Returns up to `limit` cities.
+/// Country name is case-insensitive, supports common aliases (e.g., "usa" → "United States").
+pub fn get_major_cities(country: &str, limit: usize) -> Vec<CityInfo> {
+    let normalized = normalize_country(country);
+    cities::all()
+        .iter()
+        .filter(|c| c.country.to_lowercase() == normalized)
+        .take(limit)
+        .map(|c| CityInfo {
+            name: c.city,
+            country: c.country,
+            lat: c.latitude,
+            lon: c.longitude,
+        })
+        .collect()
+}
+
+/// List all available countries.
+pub fn list_countries() -> Vec<&'static str> {
+    let mut countries: Vec<&str> = cities::all()
+        .iter()
+        .map(|c| c.country)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    countries.sort();
+    countries
+}
+
+fn normalize_country(input: &str) -> String {
+    match input.to_lowercase().as_str() {
+        "usa" | "us" | "united states" | "america" => "united states".into(),
+        "uk" | "england" | "britain" | "great britain" => "united kingdom".into(),
+        "turkey" | "türkiye" | "turkiye" => "turkey".into(),
+        "russia" | "rf" => "russia".into(),
+        "south korea" | "korea" => "south korea".into(),
+        "uae" | "emirates" => "united arab emirates".into(),
+        other => other.into(),
     }
 }
 
@@ -838,12 +830,32 @@ mod tests {
 
     #[test]
     fn test_get_major_cities() {
-        assert!(get_major_cities("turkey").is_some());
-        assert!(get_major_cities("Turkey").is_some());
-        assert!(get_major_cities("TURKEY").is_some());
-        assert!(get_major_cities("unknown").is_none());
+        let cities = get_major_cities("turkey", 10);
+        assert!(!cities.is_empty());
+        assert!(cities.iter().any(|c| c.name == "Istanbul"));
 
-        let cities = get_major_cities("turkey").unwrap();
-        assert!(cities.contains(&"Istanbul"));
+        // Case insensitive
+        assert!(!get_major_cities("Turkey", 10).is_empty());
+        assert!(!get_major_cities("TURKEY", 10).is_empty());
+
+        // Aliases
+        assert!(!get_major_cities("usa", 10).is_empty());
+        assert!(!get_major_cities("uk", 10).is_empty());
+
+        // Any country works
+        assert!(!get_major_cities("france", 10).is_empty());
+        assert!(!get_major_cities("brazil", 10).is_empty());
+        assert!(!get_major_cities("india", 10).is_empty());
+
+        // Unknown returns empty
+        assert!(get_major_cities("zzzzz", 10).is_empty());
+    }
+
+    #[test]
+    fn test_list_countries() {
+        let countries = list_countries();
+        assert!(countries.len() > 100);
+        assert!(countries.contains(&"France"));
+        assert!(countries.contains(&"Japan"));
     }
 }

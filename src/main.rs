@@ -112,9 +112,9 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Show top cities by AQI in a country
+    /// Show top cities by AQI in a country (any country supported)
     Top {
-        /// Country name (e.g., turkey, russia, usa, germany, japan)
+        /// Country name (e.g., france, brazil, usa, japan, india)
         #[arg(long)]
         country: String,
         /// Number of cities to show
@@ -123,6 +123,9 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// List all available countries
+        #[arg(long)]
+        list: bool,
     },
 }
 
@@ -320,21 +323,30 @@ async fn main() -> Result<()> {
         country,
         count,
         json,
+        list,
     }) = &cli.command
     {
-        let cities = get_major_cities(country).unwrap_or(&[]);
+        if *list {
+            let countries = airq::list_countries();
+            println!("{} countries available:", countries.len());
+            for c in &countries {
+                println!("  {}", c);
+            }
+            return Ok(());
+        }
+
+        let cities = get_major_cities(country, 20);
         if cities.is_empty() {
-            println!("No major cities found for country: {}", country);
+            println!("No cities found for country: {}", country);
+            println!("Use `airq top --country x --list` to see available countries.");
             return Ok(());
         }
 
         let futures = cities.iter().map(|city| async move {
-            if let Ok((lat, lon, resolved_name)) = geocode(city).await {
-                if let Ok(data) = fetch_open_meteo(lat, lon).await {
-                    let pm25 = data.current.pm2_5.unwrap_or(0.0);
-                    let aqi = overall_aqi(&data.current).unwrap_or(0);
-                    return Some((resolved_name, aqi, pm25));
-                }
+            if let Ok(data) = fetch_open_meteo(city.lat, city.lon).await {
+                let pm25 = data.current.pm2_5.unwrap_or(0.0);
+                let aqi = overall_aqi(&data.current).unwrap_or(0);
+                return Some((city.name.to_string(), aqi, pm25));
             }
             None
         });
@@ -370,9 +382,7 @@ async fn main() -> Result<()> {
         for (i, (name, aqi, pm25)) in results.iter().take(*count).enumerate() {
             let cat = AqiCategory::from_aqi(*aqi);
 
-            // Format city name to fixed width
-            let short_name = name.split(',').next().unwrap_or(name);
-            let padded_name = format!("{:width$}", short_name, width = 17);
+            let padded_name = format!("{:width$}", name, width = 17);
             let padded_aqi = format!("{:<4}", aqi);
 
             let text = format!(
