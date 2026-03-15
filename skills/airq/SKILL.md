@@ -76,7 +76,7 @@ Shows daily AQI with sparkline bars for the past N days.
 airq top --country germany            # top 5 cities
 airq top --country turkey --count 10  # top 10
 ```
-Supported countries: turkey, russia, usa, germany, japan.
+Any country in the world — 10,000+ cities built-in. Use `--list` to see all countries.
 
 ### Compare data sources
 ```bash

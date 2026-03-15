@@ -81,14 +81,14 @@ airq top --country usa --json
 
 ```
 # City              AQI  PM2.5
-1 Bursa             143  🟠 52.5
-2 Izmir             121  🟠 43.6
-3 Ankara            99   🟡 34.8
-4 Istanbul          98   🟡 34.6
-5 Antalya           72   🟡 22.0
+1 Delhi             210  🟣 58.9
+2 Mumbai            87   🟡 29.3
+3 Bangalore         62   🟡 17.5
+4 Chennai           54   🟡 13.7
+5 Kolkata           43   🟢 10.2
 ```
 
-Countries: turkey, russia, usa, germany, japan.
+Any country in the world — 10,000+ cities built-in. Use `airq top --country x --list` to see all.
 
 ### Compare providers
 
