@@ -335,27 +335,33 @@ async fn main() -> Result<()> {
             return Ok(());
         }
 
-        let cities = get_major_cities(country, 20);
+        // Fetch more cities than requested to rank properly, but cap at 15 to avoid rate limits
+        let fetch_count = (*count).max(5).min(15) * 2;
+        let cities = get_major_cities(country, fetch_count);
         if cities.is_empty() {
             println!("No cities found for country: {}", country);
             println!("Use `airq top --country x --list` to see available countries.");
             return Ok(());
         }
 
-        let futures = cities.iter().map(|city| async move {
-            if let Ok(data) = fetch_open_meteo(city.lat, city.lon).await {
-                let pm25 = data.current.pm2_5.unwrap_or(0.0);
-                let aqi = overall_aqi(&data.current).unwrap_or(0);
-                return Some((city.name.to_string(), aqi, pm25));
-            }
-            None
-        });
-
-        let mut results: Vec<_> = futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+        // Fetch in batches of 5 to avoid rate limiting
+        let mut results = Vec::new();
+        for chunk in cities.chunks(5) {
+            let futures = chunk.iter().map(|city| async move {
+                if let Ok(data) = fetch_open_meteo(city.lat, city.lon).await {
+                    let pm25 = data.current.pm2_5.unwrap_or(0.0);
+                    let aqi = overall_aqi(&data.current).unwrap_or(0);
+                    return Some((city.name.to_string(), aqi, pm25));
+                }
+                None
+            });
+            let batch: Vec<_> = futures::future::join_all(futures)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+            results.extend(batch);
+        }
 
         results.sort_by(|a, b| b.1.cmp(&a.1));
 
