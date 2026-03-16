@@ -248,6 +248,36 @@ pub fn get_local_ip() -> Option<String> {
     candidates.into_iter().next()
 }
 
+/// Get ALL local IPs (WiFi, VPN, Tailscale, etc.)
+pub fn get_all_local_ips() -> Vec<(String, &'static str)> {
+    let mut result = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for target in &["192.168.1.1:53", "10.0.0.1:53", "172.16.0.1:53", "8.8.8.8:53"] {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect(target).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip().to_string();
+                    if seen.insert(ip.clone()) {
+                        let label = if ip.starts_with("192.168.") { "WiFi" }
+                            else if ip.starts_with("10.") { "LAN" }
+                            else if ip.starts_with("172.") { "LAN" }
+                            else if ip.starts_with("100.") { "VPN/ZeroTrust" }
+                            else { "Other" };
+                        result.push((ip, label));
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort: WiFi first
+    result.sort_by_key(|(_, label)| match *label {
+        "WiFi" => 0, "LAN" => 1, "VPN/ZeroTrust" => 2, _ => 3,
+    });
+    result
+}
+
 /// A discovered sensor device on the LAN.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LanSensor {

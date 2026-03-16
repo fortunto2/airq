@@ -92,6 +92,7 @@ pub fn App() -> Element {
     let mut city_data: Signal<CityData> = use_signal(CityData::default);
     // Network state
     let local_ip = state::get_local_ip().unwrap_or_else(|| "unknown".to_string());
+    let all_ips = state::get_all_local_ips();
     let mut lan_sensors: Signal<Vec<state::LanSensor>> = use_signal(Vec::new);
     let mut scanning: Signal<bool> = use_signal(|| false);
 
@@ -382,6 +383,7 @@ pub fn App() -> Element {
                     View::Network => rsx! {
                         NetworkView {
                             local_ip: local_ip.clone(),
+                            all_ips: all_ips.clone(),
                             lan_sensors: lan_sensors,
                             scanning: scanning,
                             is_running: is_running,
@@ -1096,6 +1098,7 @@ fn SourcesView(snap: MonitorSnapshot, city_data: CityData) -> Element {
 #[component]
 fn NetworkView(
     local_ip: String,
+    all_ips: Vec<(String, &'static str)>,
     lan_sensors: Signal<Vec<state::LanSensor>>,
     scanning: Signal<bool>,
     is_running: bool,
@@ -1132,9 +1135,12 @@ fn NetworkView(
         div { class: "card",
             h2 { "Local Server" }
             div { class: "net-info",
-                div { class: "net-row",
-                    span { class: "net-label", "IP Address" }
-                    span { class: "net-value", "{local_ip}" }
+                // All interfaces
+                for (ip, label) in all_ips.iter() {
+                    div { class: "net-row",
+                        span { class: "net-label", "{label}" }
+                        span { class: "net-value", "{ip}" }
+                    }
                 }
                 div { class: "net-row",
                     span { class: "net-label", "Port" }
