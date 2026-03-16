@@ -887,7 +887,7 @@ pub mod front {
             }
         }
 
-        (best_lag, best_corr)
+        (best_lag, best_corr.clamp(-1.0, 1.0))
     }
 
     /// Edge data in the pollution propagation graph.
