@@ -28,6 +28,7 @@
         .very-unhealthy td { color: #9c27b0; }
         .hazardous td { color: #795548; }
         .arrow-icon { background: none !important; border: none !important; }
+        .node-label { background: rgba(255,255,255,0.8) !important; border: none !important; box-shadow: none !important; font-size: 11px; font-weight: 600; padding: 1px 4px !important; }
         .methodology { font-size: 13px; color: #555; line-height: 1.6; }
         .methodology p { margin: 6px 0; }
         .footer { color: #999; font-size: 12px; margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; }
@@ -40,19 +41,19 @@
         <div class="info-panel">
             <h3>Moscow, Russia</h3>
             <p><b>Coords:</b> 55.7522, 37.6156</p>
-            <p><b>Wind:</b> 2.6 km/h ↑ SSE</p>
+            <p><b>Wind:</b> 4.8 km/h ↖ SSE</p>
             <p><b>Period:</b> 3 days</p>
-            <p><b>Radius:</b> 188 km</p>
+            <p><b>Radius:</b> 191 km</p>
         </div>
     </div>
     <div class="container">
         <h1>Air Quality Report — Moscow, Russia</h1>
 
         <h2>Key Insights</h2>
-        <ul><li><b>Highest PM2.5:</b> 13.3 µg/m³ (AQI 53, Moderate) at Zone 18 (1 sensors) — 2026-03-14 02:00</li>
-<li><b>Strongest front:</b> Zone 0 (1 sensors) → Zone 2 (1 sensors) at 3 km/h SE (correlation 100%, lag 20h)</li>
-<li><b>Wind:</b> 2.6 km/h SSE — calm — pollutants tend to accumulate locally</li>
-<li><b>Assessment:</b> Moderate air quality. Generally safe, sensitive individuals may want to limit prolonged outdoor exertion.</li></ul>
+        <ul><li><b>Highest PM2.5:</b> 999.9 µg/m³ (AQI 500, Hazardous) at Moscow-4 — 2026-03-14 20:00</li>
+<li><b>Strongest front:</b> Moscow-2 → Moscow-4 at 2 km/h NW (correlation 100%, lag 22h)</li>
+<li><b>Wind:</b> 4.8 km/h SSE — calm — pollutants tend to accumulate locally</li>
+<li><b>Assessment:</b> Very unhealthy to hazardous. Avoid outdoor activity. Close windows.</li></ul>
 
         <h2>Spikes</h2>
         <table>
@@ -60,20 +61,37 @@
                 <tr><th>City</th><th>Time</th><th>PM2.5</th><th>Delta</th><th>Z-score</th></tr>
             </thead>
             <tbody>
-                <tr class="good"><td>Zone 0 (1 sensors)</td><td>2026-03-14 15:00</td><td>0.9</td><td>+0.4</td><td>2.4</td></tr>
-<tr class="good"><td>Zone 2 (1 sensors)</td><td>2026-03-14 01:00</td><td>9.9</td><td>+2.4</td><td>2.5</td></tr>
-<tr class="good"><td>Zone 4 (2 sensors)</td><td>2026-03-14 05:00</td><td>2.4</td><td>+0.6</td><td>2.2</td></tr>
-<tr class="good"><td>Zone 6 (1 sensors)</td><td>2026-03-14 20:00</td><td>8.8</td><td>+3.4</td><td>2.2</td></tr>
-<tr class="good"><td>Zone 8 (4 sensors)</td><td>2026-03-14 04:00</td><td>5.3</td><td>+1.6</td><td>3.1</td></tr>
-<tr class="good"><td>Zone 11 (2 sensors)</td><td>2026-03-14 05:00</td><td>10.6</td><td>+2.9</td><td>2.4</td></tr>
-<tr class="good"><td>Zone 12 (1 sensors)</td><td>2026-03-14 03:00</td><td>9.2</td><td>+2.2</td><td>2.6</td></tr>
-<tr class="good"><td>Zone 15 (1 sensors)</td><td>2026-03-14 05:00</td><td>8.7</td><td>+1.7</td><td>2.2</td></tr>
-<tr class="good"><td>Zone 16 (1 sensors)</td><td>2026-03-14 06:00</td><td>10.4</td><td>+2.6</td><td>2.5</td></tr>
-<tr class="good"><td>Zone 17 (1 sensors)</td><td>2026-03-14 23:00</td><td>9.9</td><td>+4.5</td><td>3.1</td></tr>
-<tr class="good"><td>Zone 18 (1 sensors)</td><td>2026-03-14 01:00</td><td>9.7</td><td>+2.5</td><td>2.1</td></tr>
-<tr class="moderate"><td>Zone 18 (1 sensors)</td><td>2026-03-14 02:00</td><td>13.3</td><td>+3.6</td><td>3.0</td></tr>
-<tr class="good"><td>Zone 19 (3 sensors)</td><td>2026-03-14 02:00</td><td>6.1</td><td>+2.5</td><td>3.4</td></tr>
-<tr class="good"><td>Zone 20 (3 sensors)</td><td>2026-03-14 04:00</td><td>11.4</td><td>+2.4</td><td>2.4</td></tr>
+                <tr class="moderate"><td>Moscow-2</td><td>2026-03-14 02:00</td><td>12.3</td><td>+3.5</td><td>2.2</td></tr>
+<tr class="moderate"><td>Moscow-2</td><td>2026-03-14 04:00</td><td>18.6</td><td>+3.7</td><td>2.3</td></tr>
+<tr class="good"><td>Moscow-3</td><td>2026-03-15 05:00</td><td>9.6</td><td>+3.4</td><td>2.7</td></tr>
+<tr class="hazardous"><td>Moscow-4</td><td>2026-03-14 16:00</td><td>999.9</td><td>+504.1</td><td>2.1</td></tr>
+<tr class="hazardous"><td>Moscow-4</td><td>2026-03-14 20:00</td><td>999.9</td><td>+772.9</td><td>3.2</td></tr>
+<tr class="good"><td>Moscow-5 (2 sensors)</td><td>2026-03-14 05:00</td><td>10.0</td><td>+3.5</td><td>3.4</td></tr>
+<tr class="good"><td>Moscow-6 (2 sensors)</td><td>2026-03-14 03:00</td><td>10.9</td><td>+2.2</td><td>2.5</td></tr>
+<tr class="good"><td>Moscow-6 (2 sensors)</td><td>2026-03-15 16:00</td><td>7.0</td><td>+2.1</td><td>2.3</td></tr>
+<tr class="good"><td>Moscow-7</td><td>2026-03-14 02:00</td><td>11.4</td><td>+4.9</td><td>3.4</td></tr>
+<tr class="good"><td>Moscow-7</td><td>2026-03-14 23:00</td><td>6.7</td><td>+3.4</td><td>2.3</td></tr>
+<tr class="good"><td>Moscow-8 (2 sensors)</td><td>2026-03-15 19:00</td><td>7.3</td><td>+3.2</td><td>4.7</td></tr>
+<tr class="good"><td>Zelenograd (2 sensors)</td><td>2026-03-15 17:00</td><td>6.8</td><td>+2.0</td><td>2.7</td></tr>
+<tr class="moderate"><td>Moscow-10</td><td>2026-03-14 06:00</td><td>15.6</td><td>+3.9</td><td>2.1</td></tr>
+<tr class="moderate"><td>Moscow-10</td><td>2026-03-14 17:00</td><td>14.8</td><td>+7.7</td><td>4.0</td></tr>
+<tr class="good"><td>Moscow-11</td><td>2026-03-15 05:00</td><td>0.8</td><td>+0.4</td><td>2.2</td></tr>
+<tr class="good"><td>Moscow-11</td><td>2026-03-15 15:00</td><td>1.6</td><td>+0.4</td><td>2.1</td></tr>
+<tr class="good"><td>Moscow-13</td><td>2026-03-15 06:00</td><td>6.6</td><td>+1.9</td><td>2.1</td></tr>
+<tr class="good"><td>Moscow-14 (2 sensors)</td><td>2026-03-15 15:00</td><td>4.0</td><td>+2.0</td><td>2.7</td></tr>
+<tr class="good"><td>Moscow-15</td><td>2026-03-14 03:00</td><td>9.2</td><td>+2.2</td><td>2.2</td></tr>
+<tr class="good"><td>Moscow-15</td><td>2026-03-15 15:00</td><td>3.4</td><td>+2.1</td><td>2.1</td></tr>
+<tr class="good"><td>Moscow-15</td><td>2026-03-15 16:00</td><td>5.4</td><td>+2.0</td><td>2.1</td></tr>
+<tr class="good"><td>Vladimir</td><td>2026-03-14 02:00</td><td>8.3</td><td>+3.0</td><td>2.4</td></tr>
+<tr class="good"><td>Vladimir</td><td>2026-03-14 15:00</td><td>6.8</td><td>+2.6</td><td>2.0</td></tr>
+<tr class="good"><td>Vladimir</td><td>2026-03-14 20:00</td><td>8.8</td><td>+3.4</td><td>2.7</td></tr>
+<tr class="moderate"><td>Zelenograd-2</td><td>2026-03-15 21:00</td><td>13.4</td><td>+9.8</td><td>4.6</td></tr>
+<tr class="moderate"><td>Zelenograd-2</td><td>2026-03-15 23:00</td><td>12.1</td><td>+6.5</td><td>3.0</td></tr>
+<tr class="good"><td>Moscow-16</td><td>2026-03-15 17:00</td><td>9.5</td><td>+4.9</td><td>4.0</td></tr>
+<tr class="moderate"><td>Moscow-17</td><td>2026-03-14 08:00</td><td>18.4</td><td>+6.6</td><td>2.9</td></tr>
+<tr class="good"><td>Moscow-18 (3 sensors)</td><td>2026-03-14 04:00</td><td>11.4</td><td>+2.4</td><td>2.5</td></tr>
+<tr class="good"><td>Zelenograd-3 (4 sensors)</td><td>2026-03-15 17:00</td><td>4.1</td><td>+1.3</td><td>2.1</td></tr>
+<tr class="good"><td>Zelenograd-3 (4 sensors)</td><td>2026-03-15 18:00</td><td>5.4</td><td>+1.3</td><td>2.1</td></tr>
 
             </tbody>
         </table>
@@ -84,59 +102,88 @@
                 <tr><th>From → To</th><th>Speed (km/h)</th><th>Direction</th><th>Lag (h)</th><th>Correlation</th></tr>
             </thead>
             <tbody>
-                <tr><td>Zone 0 (1 sensors) &rarr; Zone 2 (1 sensors)</td><td>3</td><td>SE</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 4 (2 sensors)</td><td>2</td><td>NW</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 8 (4 sensors)</td><td>2</td><td>W</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 11 (2 sensors)</td><td>1</td><td>NW</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 12 (1 sensors)</td><td>2</td><td>W</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 15 (1 sensors)</td><td>0</td><td>N</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 16 (1 sensors)</td><td>1</td><td>E</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 19 (3 sensors)</td><td>1</td><td>NW</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 0 (1 sensors) &rarr; Zone 20 (3 sensors)</td><td>1</td><td>E</td><td>20</td><td>100%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 12 (1 sensors)</td><td>29</td><td>N</td><td>2</td><td>100%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 15 (1 sensors)</td><td>14</td><td>N</td><td>4</td><td>100%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 20 (3 sensors)</td><td>30</td><td>NE</td><td>2</td><td>100%</td></tr>
-<tr><td>Zone 17 (1 sensors) &rarr; Zone 2 (1 sensors)</td><td>23</td><td>NW</td><td>1</td><td>99%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 20 (3 sensors)</td><td>45</td><td>E</td><td>1</td><td>99%</td></tr>
-<tr><td>Zone 2 (1 sensors) &rarr; Zone 15 (1 sensors)</td><td>19</td><td>NW</td><td>4</td><td>98%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 16 (1 sensors)</td><td>21</td><td>NE</td><td>3</td><td>98%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 11 (2 sensors)</td><td>12</td><td>NE</td><td>2</td><td>98%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 11 (2 sensors)</td><td>23</td><td>N</td><td>3</td><td>97%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 19 (3 sensors)</td><td>7</td><td>NE</td><td>2</td><td>96%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 8 (4 sensors)</td><td>16</td><td>NW</td><td>1</td><td>96%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 15 (1 sensors)</td><td>10</td><td>E</td><td>3</td><td>96%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 19 (3 sensors)</td><td>15</td><td>N</td><td>4</td><td>96%</td></tr>
-<tr><td>Zone 17 (1 sensors) &rarr; Zone 18 (1 sensors)</td><td>73</td><td>W</td><td>1</td><td>96%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 19 (3 sensors)</td><td>24</td><td>E</td><td>1</td><td>95%</td></tr>
-<tr><td>Zone 20 (3 sensors) &rarr; Zone 15 (1 sensors)</td><td>6</td><td>W</td><td>3</td><td>95%</td></tr>
-<tr><td>Zone 20 (3 sensors) &rarr; Zone 11 (2 sensors)</td><td>31</td><td>NW</td><td>1</td><td>94%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 2 (1 sensors)</td><td>58</td><td>E</td><td>1</td><td>94%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 16 (1 sensors)</td><td>29</td><td>E</td><td>2</td><td>94%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 8 (4 sensors)</td><td>36</td><td>NW</td><td>2</td><td>93%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 16 (1 sensors)</td><td>71</td><td>E</td><td>1</td><td>92%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 11 (2 sensors)</td><td>30</td><td>E</td><td>1</td><td>92%</td></tr>
-<tr><td>Zone 2 (1 sensors) &rarr; Zone 20 (3 sensors)</td><td>63</td><td>NW</td><td>1</td><td>91%</td></tr>
-<tr><td>Zone 20 (3 sensors) &rarr; Zone 19 (3 sensors)</td><td>33</td><td>W</td><td>1</td><td>91%</td></tr>
-<tr><td>Zone 17 (1 sensors) &rarr; Zone 16 (1 sensors)</td><td>38</td><td>NW</td><td>2</td><td>90%</td></tr>
-<tr><td>Zone 16 (1 sensors) &rarr; Zone 19 (3 sensors)</td><td>47</td><td>W</td><td>1</td><td>90%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 20 (3 sensors)</td><td>57</td><td>E</td><td>1</td><td>89%</td></tr>
-<tr><td>Zone 19 (3 sensors) &rarr; Zone 15 (1 sensors)</td><td>8</td><td>E</td><td>2</td><td>89%</td></tr>
-<tr><td>Zone 18 (1 sensors) &rarr; Zone 0 (1 sensors)</td><td>7</td><td>N</td><td>7</td><td>84%</td></tr>
-<tr><td>Zone 11 (2 sensors) &rarr; Zone 15 (1 sensors)</td><td>9</td><td>SE</td><td>2</td><td>83%</td></tr>
-<tr><td>Zone 2 (1 sensors) &rarr; Zone 16 (1 sensors)</td><td>27</td><td>N</td><td>2</td><td>82%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 15 (1 sensors)</td><td>20</td><td>E</td><td>2</td><td>82%</td></tr>
-<tr><td>Zone 16 (1 sensors) &rarr; Zone 15 (1 sensors)</td><td>15</td><td>W</td><td>2</td><td>81%</td></tr>
-<tr><td>Zone 8 (4 sensors) &rarr; Zone 4 (2 sensors)</td><td>19</td><td>N</td><td>1</td><td>79%</td></tr>
-<tr><td>Zone 12 (1 sensors) &rarr; Zone 4 (2 sensors)</td><td>16</td><td>N</td><td>2</td><td>79%</td></tr>
-<tr><td>Zone 15 (1 sensors) &rarr; Zone 4 (2 sensors)</td><td>45</td><td>NW</td><td>1</td><td>77%</td></tr>
-<tr><td>Zone 20 (3 sensors) &rarr; Zone 4 (2 sensors)</td><td>8</td><td>NW</td><td>8</td><td>77%</td></tr>
+                <tr><td>Moscow-2 &rarr; Moscow-4</td><td>2</td><td>NW</td><td>22</td><td>100%</td></tr>
+<tr><td>Moscow-3 &rarr; Moscow-4</td><td>1</td><td>NW</td><td>22</td><td>100%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-4</td><td>1</td><td>E</td><td>23</td><td>100%</td></tr>
+<tr><td>Zelenograd (2 sensors) &rarr; Moscow-4</td><td>1</td><td>SE</td><td>22</td><td>100%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-4</td><td>1</td><td>N</td><td>23</td><td>100%</td></tr>
+<tr><td>Moscow-14 (2 sensors) &rarr; Moscow-4</td><td>1</td><td>SW</td><td>21</td><td>100%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-4</td><td>1</td><td>E</td><td>24</td><td>100%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-4</td><td>1</td><td>E</td><td>23</td><td>100%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-14 (2 sensors)</td><td>13</td><td>E</td><td>3</td><td>99%</td></tr>
+<tr><td>Moscow-16 &rarr; Moscow-4</td><td>1</td><td>SE</td><td>22</td><td>99%</td></tr>
+<tr><td>Moscow-18 (3 sensors) &rarr; Moscow-4</td><td>1</td><td>W</td><td>22</td><td>97%</td></tr>
+<tr><td>Moscow-3 &rarr; Moscow-14 (2 sensors)</td><td>25</td><td>N</td><td>1</td><td>95%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-16</td><td>9</td><td>N</td><td>1</td><td>94%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-17</td><td>11</td><td>SE</td><td>4</td><td>93%</td></tr>
+<tr><td>Moscow-17 &rarr; Moscow-4</td><td>1</td><td>N</td><td>24</td><td>92%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-6 (2 sensors)</td><td>6</td><td>SE</td><td>4</td><td>92%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-3</td><td>38</td><td>SE</td><td>1</td><td>92%</td></tr>
+<tr><td>Moscow-18 (3 sensors) &rarr; Moscow-14 (2 sensors)</td><td>19</td><td>W</td><td>1</td><td>91%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-3</td><td>29</td><td>SE</td><td>1</td><td>91%</td></tr>
+<tr><td>Moscow-7 &rarr; Moscow-4</td><td>1</td><td>SE</td><td>21</td><td>91%</td></tr>
+<tr><td>Moscow-2 &rarr; Moscow-18 (3 sensors)</td><td>20</td><td>NW</td><td>1</td><td>90%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-2</td><td>29</td><td>E</td><td>1</td><td>90%</td></tr>
+<tr><td>Moscow-15 &rarr; Zelenograd (2 sensors)</td><td>28</td><td>N</td><td>1</td><td>90%</td></tr>
+<tr><td>Moscow-18 (3 sensors) &rarr; Moscow-17</td><td>41</td><td>SW</td><td>1</td><td>90%</td></tr>
+<tr><td>Moscow-2 &rarr; Moscow-14 (2 sensors)</td><td>18</td><td>NW</td><td>2</td><td>90%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-18 (3 sensors)</td><td>45</td><td>E</td><td>1</td><td>90%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-18 (3 sensors)</td><td>19</td><td>E</td><td>3</td><td>90%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-5 (2 sensors)</td><td>40</td><td>NE</td><td>1</td><td>89%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-7</td><td>9</td><td>NE</td><td>1</td><td>89%</td></tr>
+<tr><td>Moscow-3 &rarr; Moscow-17</td><td>23</td><td>SW</td><td>1</td><td>89%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-17</td><td>13</td><td>W</td><td>1</td><td>88%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Zelenograd (2 sensors)</td><td>29</td><td>N</td><td>1</td><td>88%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-16</td><td>15</td><td>NW</td><td>1</td><td>88%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-17</td><td>23</td><td>S</td><td>1</td><td>87%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-13</td><td>17</td><td>SE</td><td>3</td><td>87%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-14 (2 sensors)</td><td>22</td><td>NE</td><td>1</td><td>85%</td></tr>
+<tr><td>Moscow-8 (2 sensors) &rarr; Moscow-4</td><td>1</td><td>SE</td><td>17</td><td>85%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-14 (2 sensors)</td><td>16</td><td>N</td><td>2</td><td>85%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-7</td><td>12</td><td>N</td><td>1</td><td>84%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Zelenograd (2 sensors)</td><td>6</td><td>NE</td><td>4</td><td>84%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-2</td><td>35</td><td>SE</td><td>2</td><td>84%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-14 (2 sensors)</td><td>14</td><td>E</td><td>2</td><td>84%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-13</td><td>36</td><td>SE</td><td>1</td><td>83%</td></tr>
+<tr><td>Moscow-15 &rarr; Moscow-17</td><td>14</td><td>SE</td><td>2</td><td>83%</td></tr>
+<tr><td>Moscow-2 &rarr; Moscow-17</td><td>42</td><td>W</td><td>1</td><td>82%</td></tr>
+<tr><td>Moscow-6 (2 sensors) &rarr; Moscow-5 (2 sensors)</td><td>35</td><td>NE</td><td>1</td><td>82%</td></tr>
+<tr><td>Moscow-7 &rarr; Zelenograd (2 sensors)</td><td>18</td><td>N</td><td>1</td><td>82%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-3</td><td>13</td><td>SE</td><td>4</td><td>81%</td></tr>
+<tr><td>Zelenograd (2 sensors) &rarr; Moscow-8 (2 sensors)</td><td>5</td><td>S</td><td>2</td><td>80%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-16</td><td>4</td><td>E</td><td>3</td><td>80%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-15</td><td>5</td><td>SE</td><td>3</td><td>80%</td></tr>
+<tr><td>Moscow-16 &rarr; Moscow-14 (2 sensors)</td><td>28</td><td>E</td><td>1</td><td>80%</td></tr>
+<tr><td>Moscow-2 &rarr; Moscow-16</td><td>60</td><td>NW</td><td>1</td><td>79%</td></tr>
+<tr><td>Moscow-13 &rarr; Zelenograd (2 sensors)</td><td>53</td><td>N</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-5 (2 sensors) &rarr; Moscow-14 (2 sensors)</td><td>15</td><td>SW</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-2 &rarr; Moscow-5 (2 sensors)</td><td>42</td><td>NW</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-18 (3 sensors) &rarr; Zelenograd (2 sensors)</td><td>43</td><td>NW</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-7 &rarr; Moscow-17</td><td>34</td><td>S</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-3 &rarr; Moscow-8 (2 sensors)</td><td>40</td><td>NW</td><td>1</td><td>78%</td></tr>
+<tr><td>Moscow-16 &rarr; Moscow-17</td><td>37</td><td>SE</td><td>1</td><td>77%</td></tr>
+<tr><td>Moscow-7 &rarr; Moscow-14 (2 sensors)</td><td>11</td><td>E</td><td>2</td><td>77%</td></tr>
+<tr><td>Moscow-2 &rarr; Zelenograd (2 sensors)</td><td>61</td><td>NW</td><td>1</td><td>77%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-5 (2 sensors)</td><td>15</td><td>E</td><td>3</td><td>76%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-8 (2 sensors)</td><td>44</td><td>NW</td><td>1</td><td>76%</td></tr>
+<tr><td>Moscow-16 &rarr; Moscow-8 (2 sensors)</td><td>6</td><td>NE</td><td>2</td><td>74%</td></tr>
+<tr><td>Moscow-18 (3 sensors) &rarr; Moscow-10</td><td>36</td><td>N</td><td>1</td><td>74%</td></tr>
+<tr><td>Moscow-3 &rarr; Moscow-10</td><td>55</td><td>N</td><td>1</td><td>74%</td></tr>
+<tr><td>Moscow-8 (2 sensors) &rarr; Moscow-10</td><td>45</td><td>NE</td><td>1</td><td>73%</td></tr>
+<tr><td>Moscow-10 &rarr; Moscow-13</td><td>66</td><td>S</td><td>1</td><td>73%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-8 (2 sensors)</td><td>4</td><td>E</td><td>5</td><td>72%</td></tr>
+<tr><td>Moscow-5 (2 sensors) &rarr; Moscow-4</td><td>1</td><td>SW</td><td>22</td><td>71%</td></tr>
+<tr><td>Zelenograd (2 sensors) &rarr; Moscow-17</td><td>51</td><td>S</td><td>1</td><td>71%</td></tr>
+<tr><td>Zelenograd-3 (4 sensors) &rarr; Moscow-7</td><td>5</td><td>E</td><td>3</td><td>71%</td></tr>
+<tr><td>Moscow-7 &rarr; Moscow-8 (2 sensors)</td><td>5</td><td>NE</td><td>2</td><td>70%</td></tr>
+<tr><td>Moscow-13 &rarr; Moscow-5 (2 sensors)</td><td>46</td><td>N</td><td>1</td><td>70%</td></tr>
 
             </tbody>
         </table>
 
         <h2>Methodology</h2>
         <div class="methodology">
-        <p><b>Data sources:</b> Open-Meteo atmospheric model (~11km grid) + Sensor.Community citizen science network (132 sensors, 85 analysis nodes).</p>
+        <p><b>Data sources:</b> Open-Meteo atmospheric model (~11km grid) + Sensor.Community citizen science network (134 sensors, 86 analysis nodes).</p>
         <p><b>Spike detection:</b> Z-score on hourly PM2.5 differences. A spike is flagged when the rate of change exceeds 2 standard deviations above the rolling mean — indicating a sudden pollution event rather than normal variation.</p>
         <p><b>Front tracking:</b> Cross-correlation analysis between city pairs with time lags from -24h to +24h. The lag at peak correlation reveals how many hours pollution takes to travel between two points. Combined with haversine distance, this gives front speed and direction.</p>
         <p><b>Confidence:</b> When both Open-Meteo (model) and Sensor.Community (ground sensors) agree on lag direction, confidence is boosted. Disagreement reduces confidence, highlighting uncertain fronts.</p>
@@ -163,318 +210,411 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        var heat = L.heatLayer([[55.82708182814,37.14110344648,1.3],[55.89,37.528,1.5],[55.25641039638,38.58043313026,2.8],[55.83410184415,37.13954128909,1.3],[55.81068710595,37.73338347673,2.2],[55.7538055,37.7900273,2.4],[55.58640389519,38.20505529642,6.1],[55.652,37.71,2.8],[55.656,37.702,2.8],[56.742,38.866,4.5],[55.81,37.588,1.3],[55.89778449735,37.57769942545,1.5],[54.56806933241,36.2713030971,1.3],[55.56715718725,37.48973084898,0.8],[55.838,37.184,1.3],[56.002,37.208,0.8],[55.54184463348,37.71470189095,3.3],[55.54359022004,37.49738663435,0.8],[55.736,38.048,3.5],[55.88,37.538,1.5],[55.83495287406,37.17927718117,1.3],[55.78,37.52,1.3],[55.644,37.734,2.8],[55.25,37.668,3.7],[55.72765355007,37.33598987251,2.8],[55.888,37.53,1.5],[55.762,38.084,3.5],[55.87517995,37.52009943994,1.5],[55.7,38.27,3.5],[55.776,37.496,1.3],[55.502,36.692,2.9],[55.89,37.664,2.9],[55.766,37.672,2.2],[55.7351942,38.0487139,3.5],[55.706,37.816,0.4],[55.87,37.592,2.9],[55.998,37.212,0.8],[55.082,38.772,9.9],[55.8845002889,37.54173648716,1.5],], {radius: 25, blur: 15, maxZoom: 12, max: 100, gradient: {0.2: '#00c853', 0.4: '#ffc107', 0.6: '#ff9800', 0.8: '#f44336', 1.0: '#9c27b0'}}).addTo(map);
+        var heat = L.heatLayer([[55.58640389519,38.20505529642,10.8],[55.652,37.71,6.1],[55.838,37.184,4.8],[55.806,37.754,3.7],[55.726,37.566,8.8],[55.426,37.756,6.0],[55.802,37.404,7.3],[55.672,37.764,6.1],[55.504349,37.55808,10.0],[55.83410184415,37.13954128909,4.8],[55.72483110944,37.66953740967,11.7],[55.762,38.084,8.2],[55.93,37.888,8.9],[55.868,37.472,4.8],[55.908,37.88,8.9],[55.698,37.46,8.3],[55.83495287406,37.17927718117,4.8],[55.95,37.484,6.1],[56.742,38.866,7.3],[55.59102140949,37.88555502889,7.5],[55.512,37.764,7.0],[55.87537630439,37.48824199039,4.8],[55.97,37.502,6.1],[55.644,37.734,6.1],[55.806641258,37.32381016016,7.9],[55.7351942,38.0487139,8.2],[55.656,37.702,6.1],[55.736,38.048,8.2],[55.82708182814,37.14110344648,4.8],[56.07135397576,38.11208387333,9.8],[55.708,37.478,8.3],[55.72765355007,37.33598987251,7.2],[56.136,40.36,4.2],[55.816,37.036,12.1],[55.798,37.782,3.7],[55.706,37.816,0.3],], {radius: 25, blur: 15, maxZoom: 12, max: 100, gradient: {0.2: '#00c853', 0.4: '#ffc107', 0.6: '#ff9800', 0.8: '#f44336', 1.0: '#9c27b0'}}).addTo(map);
 
-        L.circleMarker([55.922, 37.54], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30862');
-L.circleMarker([55.85530992435, 37.64254832271], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #69939');
-L.circleMarker([55.82708182814, 37.14110344648], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72803<br>PM2.5: 1.3');
-L.circleMarker([55.614, 37.326], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #51515');
-L.circleMarker([55.816, 37.036], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72797');
-L.circleMarker([55.72483110944, 37.66953740967], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #29146');
-L.circleMarker([55.89, 37.528], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89896<br>PM2.5: 1.5');
-L.circleMarker([55.25641039638, 38.58043313026], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74961<br>PM2.5: 2.8');
-L.circleMarker([55.808, 37.078], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70213');
-L.circleMarker([55.83410184415, 37.13954128909], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74261<br>PM2.5: 1.3');
-L.circleMarker([55.81068710595, 37.73338347673], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #47317<br>PM2.5: 2.2');
-L.circleMarker([55.628, 37.476], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97178');
-L.circleMarker([55.708, 37.478], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49824');
-L.circleMarker([55.918, 37.746], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #23317');
-L.circleMarker([55.7538055, 37.7900273], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #67394<br>PM2.5: 2.4');
-L.circleMarker([55.84, 37.442], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #56073');
-L.circleMarker([55.656, 37.422], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28802');
-L.circleMarker([55.812, 37.56], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #33495');
-L.circleMarker([55.68559940773, 37.67334759235], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93424');
-L.circleMarker([55.58640389519, 38.20505529642], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81052<br>PM2.5: 6.1');
-L.circleMarker([55.624, 37.304], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74912');
-L.circleMarker([55.652, 37.71], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81231<br>PM2.5: 2.8');
-L.circleMarker([55.656, 37.702], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62740<br>PM2.5: 2.8');
-L.circleMarker([56.742, 38.866], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28455<br>PM2.5: 4.5');
-L.circleMarker([55.81, 37.588], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93569<br>PM2.5: 1.3');
-L.circleMarker([55.67, 37.578], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #35488');
-L.circleMarker([55.89778449735, 37.57769942545], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53495<br>PM2.5: 1.5');
-L.circleMarker([55.70864042076, 37.75670260191], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #86530');
-L.circleMarker([55.35, 36.906], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76675');
-L.circleMarker([55.426, 37.756], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #42670');
-L.circleMarker([55.432, 37.248], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70426');
-L.circleMarker([55.566, 38.058], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71125');
-L.circleMarker([55.61048953099, 37.78624096979], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #24028');
-L.circleMarker([55.992, 37.252], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #46110');
-L.circleMarker([54.56806933241, 36.2713030971], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71189<br>PM2.5: 1.3');
-L.circleMarker([55.75391733669, 37.87206977606], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28401');
-L.circleMarker([55.16, 36.002], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75423');
-L.circleMarker([55.56715718725, 37.48973084898], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49878<br>PM2.5: 0.8');
-L.circleMarker([54.228, 37.632], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72974');
-L.circleMarker([56.136, 40.36], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #26486');
-L.circleMarker([54.60222641591, 39.79066997766], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #38731');
-L.circleMarker([55.766, 37.57], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37791');
-L.circleMarker([55.848, 37.638], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #85912');
-L.circleMarker([55.838, 37.184], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #65533<br>PM2.5: 1.3');
-L.circleMarker([55.97, 37.502], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #32407');
-L.circleMarker([55.798, 37.782], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #33421');
-L.circleMarker([56.002, 37.208], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75548<br>PM2.5: 0.8');
-L.circleMarker([55.644, 37.358], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93707');
-L.circleMarker([55.806641258, 37.32381016016], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70649');
-L.circleMarker([55.814, 37.46], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #27213');
-L.circleMarker([55.54184463348, 37.71470189095], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62675<br>PM2.5: 3.3');
-L.circleMarker([55.60421902821, 37.60206252337], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74379');
-L.circleMarker([56.278, 37.928], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93927');
-L.circleMarker([55.556, 37.596], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #59553');
-L.circleMarker([55.54359022004, 37.49738663435], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49894<br>PM2.5: 0.8');
-L.circleMarker([55.736, 38.048], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #36105<br>PM2.5: 3.5');
-L.circleMarker([55.704, 37.918], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #90231');
-L.circleMarker([55.69215481111, 37.91106820104], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #50411');
-L.circleMarker([55.93, 37.888], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #87509');
-L.circleMarker([55.77, 37.592], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #34373');
-L.circleMarker([55.840821, 37.133724], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #67355');
-L.circleMarker([55.72249067894, 38.21110904217], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71687');
-L.circleMarker([55.868, 37.472], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37857');
-L.circleMarker([55.88, 37.538], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #91062<br>PM2.5: 1.5');
-L.circleMarker([55.762, 37.78], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #82783');
-L.circleMarker([55.83495287406, 37.17927718117], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #66292<br>PM2.5: 1.3');
-L.circleMarker([55.772, 38.224], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58240');
-L.circleMarker([55.87537630439, 37.48824199039], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53369');
-L.circleMarker([55.65918211326, 37.49698162079], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #95735');
-L.circleMarker([55.78, 37.52], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61204<br>PM2.5: 1.3');
-L.circleMarker([55.644, 37.734], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75408<br>PM2.5: 2.8');
-L.circleMarker([55.25, 37.668], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #45368<br>PM2.5: 3.7');
-L.circleMarker([55.714, 37.794], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81651');
-L.circleMarker([55.81093665133, 37.08116471522], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70615');
-L.circleMarker([55.72765355007, 37.33598987251], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #39446<br>PM2.5: 2.8');
-L.circleMarker([55.806, 37.754], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #84033');
-L.circleMarker([55.888, 37.53], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89441<br>PM2.5: 1.5');
-L.circleMarker([55.388, 37.844], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #26014');
-L.circleMarker([55.68085381075, 37.91410803795], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #92751');
-L.circleMarker([55.762, 38.084], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53010<br>PM2.5: 3.5');
-L.circleMarker([55.94, 37.824], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97853');
-L.circleMarker([55.586, 37.73], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62711');
-L.circleMarker([55.87517995, 37.52009943994], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74598<br>PM2.5: 1.5');
-L.circleMarker([55.628, 37.476], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97176');
-L.circleMarker([55.682, 38.116], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98081');
-L.circleMarker([55.95, 37.484], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #80136');
-L.circleMarker([55.93963490463, 37.5259333849], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49089');
-L.circleMarker([55.72, 37.606], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74495');
-L.circleMarker([55.7, 38.27], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #55346<br>PM2.5: 3.5');
-L.circleMarker([55.776, 37.496], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #54805<br>PM2.5: 1.3');
-L.circleMarker([55.726, 37.566], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #69706');
-L.circleMarker([55.698, 37.46], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44026');
-L.circleMarker([55.56375009071, 37.64437973499], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #41097');
-L.circleMarker([55.60194616744, 37.73473531008], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72933');
-L.circleMarker([55.502, 36.692], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98083<br>PM2.5: 2.9');
-L.circleMarker([55.88712099602, 37.26506710052], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #42870');
-L.circleMarker([55.03, 38.71], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74543');
-L.circleMarker([55.806, 38.082], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #55989');
-L.circleMarker([55.512, 37.764], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44197');
-L.circleMarker([56.07135397576, 38.11208387333], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44250');
-L.circleMarker([55.89, 37.664], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61899<br>PM2.5: 2.9');
-L.circleMarker([55.766, 37.672], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61905<br>PM2.5: 2.2');
-L.circleMarker([55.868, 37.682], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98529');
-L.circleMarker([55.908, 37.88], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76589');
-L.circleMarker([55.766, 37.828], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #40635');
-L.circleMarker([55.573902, 37.582044], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74842');
-L.circleMarker([55.638, 37.356], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58238');
-L.circleMarker([55.7351942, 38.0487139], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #34399<br>PM2.5: 3.5');
-L.circleMarker([55.82, 37.49], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #80381');
+        L.circleMarker([55.58640389519, 38.20505529642], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81052<br>PM2.5: 10.8');
 L.circleMarker([55.688, 37.6], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70199');
-L.circleMarker([55.82200433443, 37.37725585699], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70645');
-L.circleMarker([55.706, 37.816], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74469<br>PM2.5: 0.4');
-L.circleMarker([55.7622616067, 37.78676829289], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #77619');
-L.circleMarker([55.87, 37.592], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #45316<br>PM2.5: 2.9');
-L.circleMarker([55.506, 37.95], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #85662');
-L.circleMarker([55.672, 37.628], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76204');
-L.circleMarker([55.93632688775, 37.51895695925], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30904');
-L.circleMarker([55.59102140949, 37.88555502889], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #95782');
-L.circleMarker([55.61302612525, 37.71438013175], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58073');
-L.circleMarker([55.56314944937, 37.85517990589], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62959');
-L.circleMarker([55.998, 37.212], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37077<br>PM2.5: 0.8');
-L.circleMarker([55.684, 37.57], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70216');
-L.circleMarker([56.118, 38.42], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98179');
-L.circleMarker([55.802, 37.404], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89329');
-L.circleMarker([55.674, 37.468], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49177');
 L.circleMarker([55.59101044569, 37.54126489064], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #45370');
-L.circleMarker([55.082, 38.772], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71947<br>PM2.5: 9.9');
-L.circleMarker([55.504349, 37.55808], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #73472');
-L.circleMarker([55.82, 37.574], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75446');
-L.circleMarker([55.92889859446, 37.54050046206], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30731');
+L.circleMarker([55.848, 37.638], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #85912');
+L.circleMarker([55.56375009071, 37.64437973499], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #41097');
+L.circleMarker([55.808, 37.078], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70213');
+L.circleMarker([55.54359022004, 37.49738663435], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49894');
 L.circleMarker([55.682, 37.592], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #69459');
-L.circleMarker([55.8845002889, 37.54173648716], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74316<br>PM2.5: 1.5');
+L.circleMarker([55.85530992435, 37.64254832271], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #69939');
+L.circleMarker([55.82, 37.574], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75446');
+L.circleMarker([55.998, 37.212], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37077');
+L.circleMarker([55.82200433443, 37.37725585699], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70645');
+L.circleMarker([55.814, 37.46], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #27213');
+L.circleMarker([55.89, 37.664], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61899');
+L.circleMarker([55.75391733669, 37.87206977606], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28401');
+L.circleMarker([56.278, 37.928], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93927');
+L.circleMarker([55.93632688775, 37.51895695925], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30904');
+L.circleMarker([55.652, 37.71], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81231<br>PM2.5: 6.1');
+L.circleMarker([55.81, 37.588], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93569');
+L.circleMarker([55.88712099602, 37.26506710052], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #42870');
+L.circleMarker([54.56806933241, 36.2713030971], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71189');
+L.circleMarker([55.838, 37.184], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #65533<br>PM2.5: 4.8');
+L.circleMarker([55.556, 37.596], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #59553');
+L.circleMarker([55.806, 37.754], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #84033<br>PM2.5: 3.7');
+L.circleMarker([55.69215481111, 37.91106820104], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #50411');
+L.circleMarker([55.89, 37.528], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89896');
+L.circleMarker([55.84, 37.442], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #56073');
+L.circleMarker([55.726, 37.566], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #69706<br>PM2.5: 8.8');
+L.circleMarker([55.766, 37.57], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37791');
+L.circleMarker([55.70864042076, 37.75670260191], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #86530');
+L.circleMarker([55.82, 37.49], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #80381');
+L.circleMarker([55.85095100586, 37.34859108925], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #42920');
+L.circleMarker([54.60222641591, 39.79066997766], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #38731');
+L.circleMarker([55.918, 37.746], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #23317');
+L.circleMarker([55.426, 37.756], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #42670<br>PM2.5: 6.0');
+L.circleMarker([55.92889859446, 37.54050046206], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30731');
+L.circleMarker([55.644, 37.358], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93707');
+L.circleMarker([55.56715718725, 37.48973084898], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49878');
+L.circleMarker([55.54184463348, 37.71470189095], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62675');
+L.circleMarker([55.802, 37.404], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89329<br>PM2.5: 7.3');
+L.circleMarker([55.60194616744, 37.73473531008], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72933');
+L.circleMarker([55.638, 37.356], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58238');
+L.circleMarker([55.672, 37.764], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #26191<br>PM2.5: 6.1');
+L.circleMarker([55.506, 37.95], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #85662');
+L.circleMarker([55.388, 37.844], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #26014');
+L.circleMarker([55.03, 38.71], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74543');
+L.circleMarker([55.89778449735, 37.57769942545], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53495');
+L.circleMarker([55.766, 37.828], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #40635');
+L.circleMarker([55.840821, 37.133724], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #67355');
+L.circleMarker([55.504349, 37.55808], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #73472<br>PM2.5: 10.0');
+L.circleMarker([55.83410184415, 37.13954128909], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74261<br>PM2.5: 4.8');
+L.circleMarker([55.586, 37.73], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62711');
+L.circleMarker([55.682, 38.116], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98081');
+L.circleMarker([55.65918211326, 37.49698162079], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #95735');
+L.circleMarker([55.60421902821, 37.60206252337], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74379');
+L.circleMarker([55.81093665133, 37.08116471522], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70615');
+L.circleMarker([55.772, 38.224], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58240');
+L.circleMarker([55.628, 37.476], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97176');
+L.circleMarker([55.82891274026, 37.05335657701], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71530');
+L.circleMarker([55.72483110944, 37.66953740967], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #29146<br>PM2.5: 11.7');
+L.circleMarker([55.35, 36.906], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76675');
+L.circleMarker([55.566, 38.058], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71125');
+L.circleMarker([56.002, 37.208], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75548');
+L.circleMarker([55.573902, 37.582044], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74842');
+L.circleMarker([55.502, 36.692], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98083');
+L.circleMarker([55.81068710595, 37.73338347673], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #47317');
+L.circleMarker([55.762, 38.084], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53010<br>PM2.5: 8.2');
+L.circleMarker([55.714, 37.794], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #81651');
+L.circleMarker([55.93, 37.888], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #87509<br>PM2.5: 8.9');
+L.circleMarker([55.868, 37.472], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #37857<br>PM2.5: 4.8');
+L.circleMarker([55.61048953099, 37.78624096979], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #24028');
+L.circleMarker([56.118, 38.42], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98179');
+L.circleMarker([55.25, 37.668], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #45368');
+L.circleMarker([55.68085381075, 37.91410803795], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #92751');
+L.circleMarker([55.908, 37.88], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76589<br>PM2.5: 8.9');
+L.circleMarker([55.78, 37.52], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61204');
+L.circleMarker([55.698, 37.46], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44026<br>PM2.5: 8.3');
+L.circleMarker([55.83495287406, 37.17927718117], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #66292<br>PM2.5: 4.8');
+L.circleMarker([55.25641039638, 38.58043313026], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74961');
+L.circleMarker([55.992, 37.252], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #46110');
+L.circleMarker([55.95, 37.484], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #80136<br>PM2.5: 6.1');
+L.circleMarker([56.742, 38.866], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28455<br>PM2.5: 7.3');
+L.circleMarker([55.59102140949, 37.88555502889], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #95782<br>PM2.5: 7.5');
+L.circleMarker([55.512, 37.764], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44197<br>PM2.5: 7.0');
+L.circleMarker([55.628, 37.476], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97178');
+L.circleMarker([55.87537630439, 37.48824199039], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #53369<br>PM2.5: 4.8');
+L.circleMarker([54.228, 37.632], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72974');
+L.circleMarker([55.93963490463, 37.5259333849], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49089');
+L.circleMarker([55.8845002889, 37.54173648716], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74316');
+L.circleMarker([55.97, 37.502], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #32407<br>PM2.5: 6.1');
+L.circleMarker([55.87, 37.592], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #45316');
+L.circleMarker([55.16, 36.002], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75423');
+L.circleMarker([55.67, 37.578], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #35488');
+L.circleMarker([55.644, 37.734], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #75408<br>PM2.5: 6.1');
+L.circleMarker([55.7538055, 37.7900273], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #67394');
+L.circleMarker([55.806641258, 37.32381016016], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70649<br>PM2.5: 7.9');
+L.circleMarker([55.868, 37.682], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #98529');
+L.circleMarker([55.704, 37.918], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #90231');
+L.circleMarker([55.674, 37.468], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49177');
+L.circleMarker([55.7351942, 38.0487139], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #34399<br>PM2.5: 8.2');
+L.circleMarker([55.806, 38.082], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #55989');
+L.circleMarker([55.766, 37.672], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #61905');
+L.circleMarker([55.68559940773, 37.67334759235], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #93424');
+L.circleMarker([55.7622616067, 37.78676829289], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #77619');
+L.circleMarker([55.72249067894, 38.21110904217], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71687');
+L.circleMarker([55.656, 37.702], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62740<br>PM2.5: 6.1');
+L.circleMarker([55.72, 37.606], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74495');
+L.circleMarker([55.77, 37.592], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #34373');
+L.circleMarker([55.94, 37.824], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #97853');
+L.circleMarker([55.736, 38.048], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #36105<br>PM2.5: 8.2');
+L.circleMarker([55.82708182814, 37.14110344648], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72803<br>PM2.5: 4.8');
+L.circleMarker([55.7, 38.27], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #55346');
+L.circleMarker([55.88, 37.538], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #91062');
+L.circleMarker([56.07135397576, 38.11208387333], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #44250<br>PM2.5: 9.8');
+L.circleMarker([55.082, 38.772], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #71947');
+L.circleMarker([55.776, 37.496], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #54805');
+L.circleMarker([55.762, 37.78], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #82783');
+L.circleMarker([55.656, 37.422], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #28802');
+L.circleMarker([55.708, 37.478], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #49824<br>PM2.5: 8.3');
+L.circleMarker([55.672, 37.628], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #76204');
+L.circleMarker([55.72765355007, 37.33598987251], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #39446<br>PM2.5: 7.2');
+L.circleMarker([55.432, 37.248], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70426');
+L.circleMarker([56.4260365, 40.4497034], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #87412');
+L.circleMarker([56.136, 40.36], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #26486<br>PM2.5: 4.2');
+L.circleMarker([55.816, 37.036], {radius: 4, color: '#ffc107', fillColor: '#ffc107', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #72797<br>PM2.5: 12.1');
+L.circleMarker([55.922, 37.54], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #30862');
+L.circleMarker([55.56314944937, 37.85517990589], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #62959');
+L.circleMarker([55.87517995, 37.52009943994], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74598');
+L.circleMarker([55.61302612525, 37.71438013175], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #58073');
+L.circleMarker([55.888, 37.53], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #89441');
+L.circleMarker([55.798, 37.782], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #33421<br>PM2.5: 3.7');
+L.circleMarker([55.706, 37.816], {radius: 4, color: '#00c853', fillColor: '#00c853', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #74469<br>PM2.5: 0.3');
+L.circleMarker([55.812, 37.56], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #33495');
+L.circleMarker([55.684, 37.57], {radius: 4, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.7, weight: 1}).addTo(map).bindPopup('Sensor #70216');
 L.circleMarker([55.75222, 37.61556], {radius: 10, color: '#f44336', fillColor: '#f44336', fillOpacity: 0.8}).addTo(map).bindPopup('<b>Moscow, Russia</b><br>Target city');
-L.circleMarker([55.706, 37.816], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 0 (1 sensors)</b><br>14 km from target');
-L.circleMarker([55.650666666666666, 37.71533333333334], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 1 (3 sensors)</b><br>13 km from target');
-L.circleMarker([55.25641039638, 38.58043313026], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 2 (1 sensors)</b><br>82 km from target');
-L.circleMarker([55.788343552975, 37.702691738365], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 3 (2 sensors)</b><br>7 km from target');
-L.circleMarker([56, 37.21], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 4 (2 sensors)</b><br>37 km from target');
-L.circleMarker([55.502, 36.692], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 5 (1 sensors)</b><br>64 km from target');
-L.circleMarker([56.742, 38.866], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 6 (1 sensors)</b><br>134 km from target');
-L.circleMarker([55.58640389519, 38.20505529642], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 7 (1 sensors)</b><br>41 km from target');
-L.circleMarker([55.8335341365875, 37.160980479185], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 8 (4 sensors)</b><br>30 km from target');
-L.circleMarker([54.56806933241, 36.2713030971], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 9 (1 sensors)</b><br>157 km from target');
-L.circleMarker([56.278, 37.928], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 10 (1 sensors)</b><br>62 km from target');
-L.circleMarker([55.879999999999995, 37.628], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 11 (2 sensors)</b><br>14 km from target');
-L.circleMarker([55.72765355007, 37.33598987251], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 12 (1 sensors)</b><br>18 km from target');
-L.circleMarker([55.885910789375, 37.53925589209167], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 13 (6 sensors)</b><br>16 km from target');
-L.circleMarker([55.54184463348, 37.71470189095], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 14 (1 sensors)</b><br>24 km from target');
-L.circleMarker([55.7538055, 37.7900273], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 15 (1 sensors)</b><br>11 km from target');
-L.circleMarker([55.7, 38.27], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 16 (1 sensors)</b><br>41 km from target');
-L.circleMarker([55.082, 38.772], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 17 (1 sensors)</b><br>104 km from target');
-L.circleMarker([55.25, 37.668], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 18 (1 sensors)</b><br>56 km from target');
-L.circleMarker([55.78866666666667, 37.53466666666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 19 (3 sensors)</b><br>6 km from target');
-L.circleMarker([55.74439806666666, 38.06023796666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 20 (3 sensors)</b><br>28 km from target');
-L.circleMarker([55.555373703645, 37.493558741665], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 21 (2 sensors)</b><br>23 km from target');
-L.circleMarker([55.816, 37.567], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 22 (2 sensors)</b><br>8 km from target');
-L.circleMarker([55.806, 38.082], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 23 (1 sensors)</b><br>30 km from target');
-L.circleMarker([55.61302612525, 37.71438013175], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 24 (1 sensors)</b><br>17 km from target');
-L.circleMarker([55.802, 37.404], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 25 (1 sensors)</b><br>14 km from target');
-L.circleMarker([55.6935, 37.592], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 26 (4 sensors)</b><br>7 km from target');
-L.circleMarker([55.67, 37.578], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 27 (1 sensors)</b><br>9 km from target');
-L.circleMarker([55.599478566143326, 37.750325426623334], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 28 (3 sensors)</b><br>19 km from target');
-L.circleMarker([55.96, 37.493], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 29 (2 sensors)</b><br>24 km from target');
-L.circleMarker([55.918, 37.746], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 30 (1 sensors)</b><br>20 km from target');
-L.circleMarker([55.59101044569, 37.54126489064], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 31 (1 sensors)</b><br>19 km from target');
-L.circleMarker([55.831002167215004, 37.409627928495], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 32 (2 sensors)</b><br>16 km from target');
-L.circleMarker([56.136, 40.36], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 33 (1 sensors)</b><br>176 km from target');
-L.circleMarker([55.672, 37.628], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 34 (1 sensors)</b><br>9 km from target');
-L.circleMarker([55.94, 37.824], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 35 (1 sensors)</b><br>25 km from target');
-L.circleMarker([55.808, 37.078], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 36 (1 sensors)</b><br>34 km from target');
-L.circleMarker([55.75391733669, 37.87206977606], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 37 (1 sensors)</b><br>16 km from target');
-L.circleMarker([55.35, 36.906], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 38 (1 sensors)</b><br>63 km from target');
-L.circleMarker([55.88712099602, 37.26506710052], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 39 (1 sensors)</b><br>27 km from target');
-L.circleMarker([55.388, 37.844], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 40 (1 sensors)</b><br>43 km from target');
-L.circleMarker([54.228, 37.632], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 41 (1 sensors)</b><br>169 km from target');
-L.circleMarker([55.56314944937, 37.85517990589], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 42 (1 sensors)</b><br>26 km from target');
-L.circleMarker([55.851654962175004, 37.640274161354995], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 43 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.628, 37.476], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 44 (2 sensors)</b><br>16 km from target');
-L.circleMarker([55.59102140949, 37.88555502889], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 45 (1 sensors)</b><br>25 km from target');
-L.circleMarker([55.868, 37.682], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 46 (1 sensors)</b><br>14 km from target');
-L.circleMarker([55.504349, 37.55808], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 47 (1 sensors)</b><br>28 km from target');
-L.circleMarker([54.60222641591, 39.79066997766], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 48 (1 sensors)</b><br>188 km from target');
-L.circleMarker([55.692336207286665, 37.91439207966334], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 49 (3 sensors)</b><br>20 km from target');
-L.circleMarker([55.566, 38.058], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 50 (1 sensors)</b><br>35 km from target');
-L.circleMarker([55.992, 37.252], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 51 (1 sensors)</b><br>35 km from target');
-L.circleMarker([55.573902, 37.582044], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 52 (1 sensors)</b><br>20 km from target');
-L.circleMarker([55.802, 37.768], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 53 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.703, 37.469], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 54 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.816, 37.036], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 55 (1 sensors)</b><br>37 km from target');
-L.circleMarker([55.559875045355, 37.620189867495], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 56 (2 sensors)</b><br>21 km from target');
-L.circleMarker([55.512, 37.764], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 57 (1 sensors)</b><br>28 km from target');
-L.circleMarker([56.07135397576, 38.11208387333], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 58 (1 sensors)</b><br>47 km from target');
-L.circleMarker([55.762130803350004, 37.783384146445], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 59 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.871688152195006, 37.480120995195], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 60 (2 sensors)</b><br>16 km from target');
-L.circleMarker([55.66659105663, 37.48249081039501], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 61 (2 sensors)</b><br>13 km from target');
-L.circleMarker([55.72249067894, 38.21110904217], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 62 (1 sensors)</b><br>37 km from target');
-L.circleMarker([55.766, 37.828], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 63 (1 sensors)</b><br>13 km from target');
-L.circleMarker([55.806641258, 37.32381016016], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 64 (1 sensors)</b><br>19 km from target');
-L.circleMarker([55.16, 36.002], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 65 (1 sensors)</b><br>121 km from target');
-L.circleMarker([55.60421902821, 37.60206252337], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 66 (1 sensors)</b><br>16 km from target');
-L.circleMarker([55.645999999999994, 37.37866666666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 67 (3 sensors)</b><br>19 km from target');
-L.circleMarker([55.772, 38.224], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 68 (1 sensors)</b><br>38 km from target');
-L.circleMarker([55.619, 37.315], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 69 (2 sensors)</b><br>24 km from target');
-L.circleMarker([55.817, 37.475], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 70 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.726, 37.566], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 71 (1 sensors)</b><br>4 km from target');
-L.circleMarker([55.426, 37.756], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 72 (1 sensors)</b><br>37 km from target');
-L.circleMarker([55.682, 38.116], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 73 (1 sensors)</b><br>32 km from target');
-L.circleMarker([55.506, 37.95], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 74 (1 sensors)</b><br>35 km from target');
-L.circleMarker([55.711320210379995, 37.775351300954995], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 75 (2 sensors)</b><br>11 km from target');
-L.circleMarker([55.03, 38.71], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 76 (1 sensors)</b><br>106 km from target');
-L.circleMarker([56.118, 38.42], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 77 (1 sensors)</b><br>65 km from target');
-L.circleMarker([55.72483110944, 37.66953740967], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 78 (1 sensors)</b><br>5 km from target');
-L.circleMarker([55.93171509671, 37.531347701552505], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 79 (4 sensors)</b><br>21 km from target');
-L.circleMarker([55.432, 37.248], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 81 (1 sensors)</b><br>42 km from target');
-L.circleMarker([55.825878825665, 37.10744435761], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 82 (2 sensors)</b><br>33 km from target');
-L.circleMarker([55.919, 37.884], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 83 (2 sensors)</b><br>25 km from target');
-L.circleMarker([55.68559940773, 37.67334759235], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zone 84 (1 sensors)</b><br>8 km from target');
+L.circleMarker([55.426, 37.756], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow</b><br>37 km from target').bindTooltip('Moscow', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.58640389519, 38.20505529642], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-2</b><br>41 km from target').bindTooltip('Moscow-2', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.59102140949, 37.88555502889], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-3</b><br>25 km from target').bindTooltip('Moscow-3', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.72483110944, 37.66953740967], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-4</b><br>5 km from target').bindTooltip('Moscow-4', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.919, 37.884], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-5 (2 sensors)</b><br>25 km from target').bindTooltip('Moscow-5', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.703, 37.469], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-6 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-6', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.802, 37.404], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-7</b><br>14 km from target').bindTooltip('Moscow-7', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.871688152195006, 37.480120995195], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-8 (2 sensors)</b><br>16 km from target').bindTooltip('Moscow-8', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.656, 37.7275], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-9 (4 sensors)</b><br>13 km from target').bindTooltip('Moscow-9', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.96, 37.493], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd (2 sensors)</b><br>24 km from target').bindTooltip('Zelenograd', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.07135397576, 38.11208387333], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-10</b><br>47 km from target').bindTooltip('Moscow-10', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.706, 37.816], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-11</b><br>14 km from target').bindTooltip('Moscow-11', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.726, 37.566], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-12</b><br>4 km from target').bindTooltip('Moscow-12', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.512, 37.764], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-13</b><br>28 km from target').bindTooltip('Moscow-13', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.802, 37.768], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-14 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-14', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.72765355007, 37.33598987251], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-15</b><br>18 km from target').bindTooltip('Moscow-15', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.742, 38.866], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Vladimir</b><br>134 km from target').bindTooltip('Vladimir', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.816, 37.036], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-2</b><br>37 km from target').bindTooltip('Zelenograd-2', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.806641258, 37.32381016016], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-16</b><br>19 km from target').bindTooltip('Moscow-16', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.504349, 37.55808], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-17</b><br>28 km from target').bindTooltip('Moscow-17', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.74439806666666, 38.06023796666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-18 (3 sensors)</b><br>28 km from target').bindTooltip('Moscow-18', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.136, 40.36], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Vladimir-2</b><br>176 km from target').bindTooltip('Vladimir-2', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.8335341365875, 37.160980479185], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-3 (4 sensors)</b><br>30 km from target').bindTooltip('Zelenograd-3', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.502, 36.692], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-4</b><br>64 km from target').bindTooltip('Zelenograd-4', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.868, 37.682], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-19</b><br>14 km from target').bindTooltip('Moscow-19', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.432, 37.248], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-20</b><br>42 km from target').bindTooltip('Moscow-20', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.56314944937, 37.85517990589], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-21</b><br>26 km from target').bindTooltip('Moscow-21', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.61302612525, 37.71438013175], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-22</b><br>17 km from target').bindTooltip('Moscow-22', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.6935, 37.592], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-23 (4 sensors)</b><br>7 km from target').bindTooltip('Moscow-23', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.879999999999995, 37.628], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-24 (2 sensors)</b><br>14 km from target').bindTooltip('Moscow-24', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.506, 37.95], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-25</b><br>35 km from target').bindTooltip('Moscow-25', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.75391733669, 37.87206977606], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-26</b><br>16 km from target').bindTooltip('Moscow-26', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.711320210379995, 37.775351300954995], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-27 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-27', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.826890130529996, 37.089415097410004], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-5 (3 sensors)</b><br>34 km from target').bindTooltip('Zelenograd-5', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.66659105663, 37.48249081039501], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-28 (2 sensors)</b><br>13 km from target').bindTooltip('Moscow-28', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.69233620728667, 37.91439207966334], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-29 (3 sensors)</b><br>20 km from target').bindTooltip('Moscow-29', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.682, 38.116], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-30</b><br>32 km from target').bindTooltip('Moscow-30', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.4260365, 40.4497034], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Vladimir-3</b><br>191 km from target').bindTooltip('Vladimir-3', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.918, 37.746], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-31</b><br>20 km from target').bindTooltip('Moscow-31', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.60421902821, 37.60206252337], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-32</b><br>16 km from target').bindTooltip('Moscow-32', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.772, 38.224], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-33</b><br>38 km from target').bindTooltip('Moscow-33', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.16, 36.002], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Kaluga</b><br>121 km from target').bindTooltip('Kaluga', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.94, 37.824], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-34</b><br>25 km from target').bindTooltip('Moscow-34', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([54.60222641591, 39.79066997766], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Tula</b><br>188 km from target').bindTooltip('Tula', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.762130803350004, 37.783384146445], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-35 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-35', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.388, 37.844], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-36</b><br>43 km from target').bindTooltip('Moscow-36', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.566, 38.058], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-37</b><br>35 km from target').bindTooltip('Moscow-37', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.672, 37.628], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-38</b><br>9 km from target').bindTooltip('Moscow-38', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.885910789375, 37.53925589209167], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-39 (6 sensors)</b><br>16 km from target').bindTooltip('Moscow-39', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.082, 38.772], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-40</b><br>104 km from target').bindTooltip('Moscow-40', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.851654962175004, 37.640274161354995], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-41 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-41', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.85095100586, 37.34859108925], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-6</b><br>20 km from target').bindTooltip('Zelenograd-6', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.816, 37.567], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-42 (2 sensors)</b><br>8 km from target').bindTooltip('Moscow-42', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.88712099602, 37.26506710052], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-7</b><br>27 km from target').bindTooltip('Zelenograd-7', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.806, 38.082], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-43</b><br>30 km from target').bindTooltip('Moscow-43', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.628, 37.476], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-44 (2 sensors)</b><br>16 km from target').bindTooltip('Moscow-44', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.278, 37.928], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-8</b><br>62 km from target').bindTooltip('Zelenograd-8', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.35, 36.906], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-46</b><br>63 km from target').bindTooltip('Moscow-46', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.831002167215004, 37.409627928495], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-47 (2 sensors)</b><br>16 km from target').bindTooltip('Moscow-47', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.7, 38.27], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-48</b><br>41 km from target').bindTooltip('Moscow-48', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.808, 37.078], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-9</b><br>34 km from target').bindTooltip('Zelenograd-9', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.54184463348, 37.71470189095], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-49</b><br>24 km from target').bindTooltip('Moscow-49', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.03, 38.71], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-50</b><br>106 km from target').bindTooltip('Moscow-50', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.59101044569, 37.54126489064], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-51</b><br>19 km from target').bindTooltip('Moscow-51', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.59947856614334, 37.75032542662333], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-52 (3 sensors)</b><br>19 km from target').bindTooltip('Moscow-52', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.766, 37.828], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-53</b><br>13 km from target').bindTooltip('Moscow-53', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([54.56806933241, 36.2713030971], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Kaluga-2</b><br>157 km from target').bindTooltip('Kaluga-2', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56.118, 38.42], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-54</b><br>65 km from target').bindTooltip('Moscow-54', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.817, 37.475], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-55 (2 sensors)</b><br>11 km from target').bindTooltip('Moscow-55', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.68559940773, 37.67334759235], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-56</b><br>8 km from target').bindTooltip('Moscow-56', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.555373703645, 37.493558741665], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-57 (2 sensors)</b><br>23 km from target').bindTooltip('Moscow-57', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.93171509671, 37.5313477015525], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-58 (4 sensors)</b><br>21 km from target').bindTooltip('Moscow-58', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.992, 37.252], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-10</b><br>35 km from target').bindTooltip('Zelenograd-10', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.72249067894, 38.21110904217], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-59</b><br>37 km from target').bindTooltip('Moscow-59', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.788343552975, 37.702691738365], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-60 (2 sensors)</b><br>7 km from target').bindTooltip('Moscow-60', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.573902, 37.582044], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-61</b><br>20 km from target').bindTooltip('Moscow-61', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.25, 37.668], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-62</b><br>56 km from target').bindTooltip('Moscow-62', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.25641039638, 38.58043313026], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-63</b><br>82 km from target').bindTooltip('Moscow-63', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([54.228, 37.632], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Tula-2</b><br>169 km from target').bindTooltip('Tula-2', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.67, 37.578], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-64</b><br>9 km from target').bindTooltip('Moscow-64', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([56, 37.21], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Zelenograd-11 (2 sensors)</b><br>37 km from target').bindTooltip('Zelenograd-11', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.7538055, 37.7900273], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-65</b><br>11 km from target').bindTooltip('Moscow-65', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.645999999999994, 37.37866666666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-66 (3 sensors)</b><br>19 km from target').bindTooltip('Moscow-66', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.78866666666667, 37.53466666666667], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-67 (3 sensors)</b><br>6 km from target').bindTooltip('Moscow-67', {permanent: true, direction: 'top', className: 'node-label'});
+L.circleMarker([55.559875045355, 37.620189867495], {radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}).addTo(map).bindPopup('<b>Moscow-68 (2 sensors)</b><br>21 km from target').bindTooltip('Moscow-68', {permanent: true, direction: 'top', className: 'node-label'});
 
-        L.polyline([[55.706,37.816],[55.25641039638,38.58043313026]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 2 (1 sensors) | 3 km/h | corr 100%');
-L.marker([55.25641039638,38.58043313026], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(136deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[56,37.21]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 4 (2 sensors) | 2 km/h | corr 100%');
-L.marker([56,37.21], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(311deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.8335341365875,37.160980479185]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 8 (4 sensors) | 2 km/h | corr 100%');
-L.marker([55.8335341365875,37.160980479185], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(289deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.879999999999995,37.628]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 11 (2 sensors) | 1 km/h | corr 100%');
-L.marker([55.879999999999995,37.628], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(329deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.72765355007,37.33598987251]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 12 (1 sensors) | 2 km/h | corr 100%');
-L.marker([55.72765355007,37.33598987251], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(275deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 15 (1 sensors) | 0 km/h | corr 100%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(343deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.7,38.27]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 16 (1 sensors) | 1 km/h | corr 100%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(91deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 19 (3 sensors) | 1 km/h | corr 100%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(298deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.706,37.816],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 0 (1 sensors) &rarr; Zone 20 (3 sensors) | 1 km/h | corr 100%');
-L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(74deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.72765355007,37.33598987251]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 12 (1 sensors) | 29 km/h | corr 100%');
-L.marker([55.72765355007,37.33598987251], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(338deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 15 (1 sensors) | 14 km/h | corr 100%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(8deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 20 (3 sensors) | 30 km/h | corr 100%');
-L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(24deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.082,38.772],[55.25641039638,38.58043313026]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 17 (1 sensors) &rarr; Zone 2 (1 sensors) | 23 km/h | corr 99%');
-L.marker([55.25641039638,38.58043313026], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(328deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 20 (3 sensors) | 45 km/h | corr 99%');
+        L.polyline([[55.58640389519,38.20505529642],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-4 | 2 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(295deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.59102140949,37.88555502889],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-3 &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(318deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(79deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.96,37.493],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd (2 sensors) &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(157deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(346deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.768],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-14 (2 sensors) &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(216deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(91deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-4 | 1 km/h | corr 100%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(111deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.802,37.768]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-14 (2 sensors) | 13 km/h | corr 99%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(96deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.806641258,37.32381016016],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-16 &rarr; Moscow-4 | 1 km/h | corr 99%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(113deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Moscow-4 | 1 km/h | corr 97%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(265deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.59102140949,37.88555502889],[55.802,37.768]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-3 &rarr; Moscow-14 (2 sensors) | 25 km/h | corr 95%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(343deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.806641258,37.32381016016]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-16 | 9 km/h | corr 94%');
+L.marker([55.806641258,37.32381016016], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(355deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.504349,37.55808]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-17 | 11 km/h | corr 93%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(146deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.504349,37.55808],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-17 &rarr; Moscow-4 | 1 km/h | corr 92%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(16deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.703,37.469]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-6 (2 sensors) | 6 km/h | corr 92%');
+L.marker([55.703,37.469], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(127deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.59102140949,37.88555502889]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-3 | 38 km/h | corr 92%');
+L.marker([55.59102140949,37.88555502889], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(114deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[55.802,37.768]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Moscow-14 (2 sensors) | 19 km/h | corr 91%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(289deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.59102140949,37.88555502889]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-3 | 29 km/h | corr 91%');
+L.marker([55.59102140949,37.88555502889], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(116deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[55.72483110944,37.66953740967]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Moscow-4 | 1 km/h | corr 91%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(117deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-18 (3 sensors) | 20 km/h | corr 90%');
+L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(333deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.58640389519,38.20505529642]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-2 | 29 km/h | corr 90%');
+L.marker([55.58640389519,38.20505529642], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(74deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.96,37.493]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Zelenograd (2 sensors) | 28 km/h | corr 90%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(21deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[55.504349,37.55808]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Moscow-17 | 41 km/h | corr 90%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(230deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.802,37.768]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-14 (2 sensors) | 18 km/h | corr 90%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(311deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-18 (3 sensors) | 45 km/h | corr 90%');
 L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(87deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25641039638,38.58043313026],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 2 (1 sensors) &rarr; Zone 15 (1 sensors) | 19 km/h | corr 98%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(318deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.7,38.27]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 16 (1 sensors) | 21 km/h | corr 98%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(37deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.879999999999995,37.628]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 11 (2 sensors) | 12 km/h | corr 98%');
-L.marker([55.879999999999995,37.628], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(47deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.879999999999995,37.628]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 11 (2 sensors) | 23 km/h | corr 97%');
-L.marker([55.879999999999995,37.628], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(358deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 19 (3 sensors) | 7 km/h | corr 96%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(61deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.8335341365875,37.160980479185]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 8 (4 sensors) | 16 km/h | corr 96%');
-L.marker([55.8335341365875,37.160980479185], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(317deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 15 (1 sensors) | 10 km/h | corr 96%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(84deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 19 (3 sensors) | 15 km/h | corr 96%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(352deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.082,38.772],[55.25,37.668]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 17 (1 sensors) &rarr; Zone 18 (1 sensors) | 73 km/h | corr 96%');
-L.marker([55.25,37.668], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(285deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 19 (3 sensors) | 24 km/h | corr 95%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(102deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.74439806666666,38.06023796666667],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 20 (3 sensors) &rarr; Zone 15 (1 sensors) | 6 km/h | corr 95%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(273deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.74439806666666,38.06023796666667],[55.879999999999995,37.628]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 20 (3 sensors) &rarr; Zone 11 (2 sensors) | 31 km/h | corr 94%');
-L.marker([55.879999999999995,37.628], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(299deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.25641039638,38.58043313026]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 2 (1 sensors) | 58 km/h | corr 94%');
-L.marker([55.25641039638,38.58043313026], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(90deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[55.7,38.27]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 16 (1 sensors) | 29 km/h | corr 94%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(93deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.8335341365875,37.160980479185]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 8 (4 sensors) | 36 km/h | corr 93%');
-L.marker([55.8335341365875,37.160980479185], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(334deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[55.7,38.27]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 16 (1 sensors) | 71 km/h | corr 92%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(102deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[55.879999999999995,37.628]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 11 (2 sensors) | 30 km/h | corr 92%');
-L.marker([55.879999999999995,37.628], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(80deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25641039638,38.58043313026],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 2 (1 sensors) &rarr; Zone 20 (3 sensors) | 63 km/h | corr 91%');
-L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(329deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.74439806666666,38.06023796666667],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 20 (3 sensors) &rarr; Zone 19 (3 sensors) | 33 km/h | corr 91%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(278deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.082,38.772],[55.7,38.27]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 17 (1 sensors) &rarr; Zone 16 (1 sensors) | 38 km/h | corr 90%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(335deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.7,38.27],[55.78866666666667,37.53466666666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 16 (1 sensors) &rarr; Zone 19 (3 sensors) | 47 km/h | corr 90%');
-L.marker([55.78866666666667,37.53466666666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(282deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 20 (3 sensors) | 57 km/h | corr 89%');
+L.polyline([[55.8335341365875,37.160980479185],[55.74439806666666,38.06023796666667]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-18 (3 sensors) | 19 km/h | corr 90%');
 L.marker([55.74439806666666,38.06023796666667], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(100deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.78866666666667,37.53466666666667],[55.7538055,37.7900273]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 19 (3 sensors) &rarr; Zone 15 (1 sensors) | 8 km/h | corr 89%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(104deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25,37.668],[55.706,37.816]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 18 (1 sensors) &rarr; Zone 0 (1 sensors) | 7 km/h | corr 84%');
-L.marker([55.706,37.816], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(10deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.879999999999995,37.628],[55.7538055,37.7900273]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 11 (2 sensors) &rarr; Zone 15 (1 sensors) | 9 km/h | corr 83%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(144deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.25641039638,38.58043313026],[55.7,38.27]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 2 (1 sensors) &rarr; Zone 16 (1 sensors) | 27 km/h | corr 82%');
-L.marker([55.7,38.27], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(338deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[55.7538055,37.7900273]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 15 (1 sensors) | 20 km/h | corr 82%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(102deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.7,38.27],[55.7538055,37.7900273]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 16 (1 sensors) &rarr; Zone 15 (1 sensors) | 15 km/h | corr 81%');
-L.marker([55.7538055,37.7900273], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(281deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.8335341365875,37.160980479185],[56,37.21]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 8 (4 sensors) &rarr; Zone 4 (2 sensors) | 19 km/h | corr 79%');
-L.marker([56,37.21], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(9deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.72765355007,37.33598987251],[56,37.21]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 12 (1 sensors) &rarr; Zone 4 (2 sensors) | 16 km/h | corr 79%');
-L.marker([56,37.21], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(345deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.7538055,37.7900273],[56,37.21]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 15 (1 sensors) &rarr; Zone 4 (2 sensors) | 45 km/h | corr 77%');
-L.marker([56,37.21], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(307deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-L.polyline([[55.74439806666666,38.06023796666667],[56,37.21]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zone 20 (3 sensors) &rarr; Zone 4 (2 sensors) | 8 km/h | corr 77%');
-L.marker([56,37.21], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(298deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.919,37.884]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-5 (2 sensors) | 40 km/h | corr 89%');
+L.marker([55.919,37.884], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(58deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.802,37.404]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-7 | 9 km/h | corr 89%');
+L.marker([55.802,37.404], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(27deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.59102140949,37.88555502889],[55.504349,37.55808]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-3 &rarr; Moscow-17 | 23 km/h | corr 89%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(245deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.504349,37.55808]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-17 | 13 km/h | corr 88%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(266deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.96,37.493]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Zelenograd (2 sensors) | 29 km/h | corr 88%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(3deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.806641258,37.32381016016]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-16 | 15 km/h | corr 88%');
+L.marker([55.806641258,37.32381016016], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(322deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.504349,37.55808]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-17 | 23 km/h | corr 87%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(166deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.512,37.764]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-13 | 17 km/h | corr 87%');
+L.marker([55.512,37.764], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(134deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.802,37.768]], {color:'#00c853', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-14 (2 sensors) | 22 km/h | corr 85%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(59deg);font-size:20px;color:#00c853;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.871688152195006,37.480120995195],[55.72483110944,37.66953740967]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-8 (2 sensors) &rarr; Moscow-4 | 1 km/h | corr 85%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(144deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.802,37.768]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-14 (2 sensors) | 16 km/h | corr 85%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(0deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.802,37.404]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-7 | 12 km/h | corr 84%');
+L.marker([55.802,37.404], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(340deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.96,37.493]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Zelenograd (2 sensors) | 6 km/h | corr 84%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(56deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.58640389519,38.20505529642]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-2 | 35 km/h | corr 84%');
+L.marker([55.58640389519,38.20505529642], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(113deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.802,37.768]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-14 (2 sensors) | 14 km/h | corr 84%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(73deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.512,37.764]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-13 | 36 km/h | corr 83%');
+L.marker([55.512,37.764], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(132deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.504349,37.55808]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-17 | 14 km/h | corr 83%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(151deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.504349,37.55808]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-17 | 42 km/h | corr 82%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(258deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.919,37.884]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-5 (2 sensors) | 35 km/h | corr 82%');
+L.marker([55.919,37.884], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(47deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[55.96,37.493]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Zelenograd (2 sensors) | 18 km/h | corr 82%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(17deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.59102140949,37.88555502889]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-3 | 13 km/h | corr 81%');
+L.marker([55.59102140949,37.88555502889], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(121deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.96,37.493],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd (2 sensors) &rarr; Moscow-8 (2 sensors) | 5 km/h | corr 80%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(185deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.806641258,37.32381016016]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-16 | 4 km/h | corr 80%');
+L.marker([55.806641258,37.32381016016], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(106deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.72765355007,37.33598987251]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-15 | 5 km/h | corr 80%');
+L.marker([55.72765355007,37.33598987251], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(137deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.806641258,37.32381016016],[55.802,37.768]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-16 &rarr; Moscow-14 (2 sensors) | 28 km/h | corr 80%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(91deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.806641258,37.32381016016]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-16 | 60 km/h | corr 79%');
+L.marker([55.806641258,37.32381016016], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(294deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.96,37.493]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Zelenograd (2 sensors) | 53 km/h | corr 78%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(341deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.919,37.884],[55.802,37.768]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-5 (2 sensors) &rarr; Moscow-14 (2 sensors) | 15 km/h | corr 78%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(209deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.919,37.884]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-5 (2 sensors) | 42 km/h | corr 78%');
+L.marker([55.919,37.884], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(332deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[55.96,37.493]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Zelenograd (2 sensors) | 43 km/h | corr 78%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(304deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[55.504349,37.55808]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Moscow-17 | 34 km/h | corr 78%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(164deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.59102140949,37.88555502889],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-3 &rarr; Moscow-8 (2 sensors) | 40 km/h | corr 78%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(321deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.806641258,37.32381016016],[55.504349,37.55808]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-16 &rarr; Moscow-17 | 37 km/h | corr 77%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(156deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[55.802,37.768]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Moscow-14 (2 sensors) | 11 km/h | corr 77%');
+L.marker([55.802,37.768], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(90deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.96,37.493]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Zelenograd (2 sensors) | 61 km/h | corr 77%');
+L.marker([55.96,37.493], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(313deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.919,37.884]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-5 (2 sensors) | 15 km/h | corr 76%');
+L.marker([55.919,37.884], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(78deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-8 (2 sensors) | 44 km/h | corr 76%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(336deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.806641258,37.32381016016],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-16 &rarr; Moscow-8 (2 sensors) | 6 km/h | corr 74%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(54deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[56.07135397576,38.11208387333]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Moscow-10 | 36 km/h | corr 74%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(5deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.59102140949,37.88555502889],[56.07135397576,38.11208387333]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-3 &rarr; Moscow-10 | 55 km/h | corr 74%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(15deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.871688152195006,37.480120995195],[56.07135397576,38.11208387333]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-8 (2 sensors) &rarr; Moscow-10 | 45 km/h | corr 73%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(60deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[56.07135397576,38.11208387333],[55.512,37.764]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-10 &rarr; Moscow-13 | 66 km/h | corr 73%');
+L.marker([55.512,37.764], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(199deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-8 (2 sensors) | 4 km/h | corr 72%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(78deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.919,37.884],[55.72483110944,37.66953740967]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-5 (2 sensors) &rarr; Moscow-4 | 1 km/h | corr 71%');
+L.marker([55.72483110944,37.66953740967], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(212deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.96,37.493],[55.504349,37.55808]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd (2 sensors) &rarr; Moscow-17 | 51 km/h | corr 71%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(175deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[55.802,37.404]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-7 | 5 km/h | corr 71%');
+L.marker([55.802,37.404], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(103deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[55.871688152195006,37.480120995195]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Moscow-8 (2 sensors) | 5 km/h | corr 70%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(31deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.512,37.764],[55.919,37.884]], {color:'#ffc107', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-13 &rarr; Moscow-5 (2 sensors) | 46 km/h | corr 70%');
+L.marker([55.919,37.884], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(9deg);font-size:20px;color:#ffc107;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[55.871688152195006,37.480120995195]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-8 (2 sensors) | 6 km/h | corr 69%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(2deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[55.871688152195006,37.480120995195]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-8 (2 sensors) | 28 km/h | corr 68%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(305deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.919,37.884],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-5 (2 sensors) &rarr; Moscow-10 | 22 km/h | corr 68%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(40deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.74439806666666,38.06023796666667],[55.871688152195006,37.480120995195]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-18 (3 sensors) &rarr; Moscow-8 (2 sensors) | 39 km/h | corr 68%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(291deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.816,37.036]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Zelenograd-2 | 21 km/h | corr 67%');
+L.marker([55.816,37.036], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(298deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[56.07135397576,38.11208387333],[55.504349,37.55808]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-10 &rarr; Moscow-17 | 72 km/h | corr 66%');
+L.marker([55.504349,37.55808], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(209deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[55.871688152195006,37.480120995195]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-8 (2 sensors) | 6 km/h | corr 65%');
+L.marker([55.871688152195006,37.480120995195], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(29deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.72765355007,37.33598987251],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-15 &rarr; Moscow-10 | 31 km/h | corr 64%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(52deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.58640389519,38.20505529642],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-2 &rarr; Moscow-10 | 27 km/h | corr 63%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(354deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.703,37.469],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-6 (2 sensors) &rarr; Moscow-10 | 57 km/h | corr 63%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(44deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.806641258,37.32381016016],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-16 &rarr; Moscow-10 | 57 km/h | corr 62%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(59deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.802,37.404],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-7 &rarr; Moscow-10 | 53 km/h | corr 62%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(56deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.96,37.493],[55.816,37.036]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd (2 sensors) &rarr; Zelenograd-2 | 11 km/h | corr 61%');
+L.marker([55.816,37.036], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(241deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.504349,37.55808],[55.706,37.816]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Moscow-17 &rarr; Moscow-11 | 3 km/h | corr 61%');
+L.marker([55.706,37.816], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(36deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.8335341365875,37.160980479185],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd-3 (4 sensors) &rarr; Moscow-10 | 16 km/h | corr 61%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(66deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+L.polyline([[55.96,37.493],[56.07135397576,38.11208387333]], {color:'#ff9800', weight:3, opacity:0.8}).addTo(map).bindPopup('Zelenograd (2 sensors) &rarr; Moscow-10 | 40 km/h | corr 60%');
+L.marker([56.07135397576,38.11208387333], {icon: L.divIcon({className:'arrow-icon', html:'<div style="transform:rotate(72deg);font-size:20px;color:#ff9800;line-height:1">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
 
     </script>
 </body>

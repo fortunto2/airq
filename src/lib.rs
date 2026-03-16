@@ -978,15 +978,26 @@ pub mod front {
             grid.entry((gx, gy)).or_default().push((id, lat, lon));
         }
 
+        let mut used_names: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         grid.into_iter()
-            .enumerate()
-            .map(|(i, ((_, _), members))| {
+            .map(|((_, _), members)| {
                 let n = members.len() as f64;
                 let lat = members.iter().map(|(_, la, _)| la).sum::<f64>() / n;
                 let lon = members.iter().map(|(_, _, lo)| lo).sum::<f64>() / n;
                 let ids: Vec<u64> = members.iter().map(|(id, _, _)| *id).collect();
+
+                // Name by nearest city from cities crate
+                let name = nearest_city_name(lat, lon);
+                let count = used_names.entry(name.clone()).or_insert(0);
+                *count += 1;
+                let id = if *count > 1 {
+                    format!("{}-{}", name, count)
+                } else {
+                    name
+                };
+
                 SensorCluster {
-                    id: format!("zone_{}", i),
+                    id,
                     lat,
                     lon,
                     sensor_count: ids.len(),
@@ -994,6 +1005,19 @@ pub mod front {
                 }
             })
             .collect()
+    }
+
+    /// Find the nearest city name from the cities crate for a coordinate.
+    fn nearest_city_name(lat: f64, lon: f64) -> String {
+        cities::all()
+            .iter()
+            .map(|c| {
+                let d = haversine(lat, lon, c.latitude, c.longitude);
+                (d, c.city)
+            })
+            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .map(|(_, name)| name.to_string())
+            .unwrap_or_else(|| format!("{:.2},{:.2}", lat, lon))
     }
 
     /// Find cities within `radius_km` of a given point from the cities crate.
@@ -1413,7 +1437,11 @@ pub mod front {
             }
             let dist = haversine(target_lat, target_lon, cluster.lat, cluster.lon);
             let node = graph.add_node(StationNode {
-                name: format!("Zone {} ({} sensors)", cluster.id.replace("zone_", ""), cluster.sensor_count),
+                name: if cluster.sensor_count > 1 {
+                    format!("{} ({} sensors)", cluster.id, cluster.sensor_count)
+                } else {
+                    cluster.id.clone()
+                },
                 lat: cluster.lat,
                 lon: cluster.lon,
                 distance_from_target: dist,
@@ -1577,15 +1605,16 @@ pub mod front {
             html_escape(target_name),
         ));
 
-        // Neighbor markers (blue)
+        // Neighbor markers (blue) with labels
         for node_idx in analysis.graph.node_indices() {
             let node = &analysis.graph[node_idx];
             if node.distance_from_target > 0.0 {
                 markers_js.push_str(&format!(
-                    "L.circleMarker([{}, {}], {{radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}}).addTo(map).bindPopup('<b>{}</b><br>{:.0} km from target');\n",
+                    "L.circleMarker([{}, {}], {{radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}}).addTo(map).bindPopup('<b>{}</b><br>{:.0} km from target').bindTooltip('{}', {{permanent: true, direction: 'top', className: 'node-label'}});\n",
                     node.lat, node.lon,
                     html_escape(&node.name),
                     node.distance_from_target,
+                    html_escape(&node.name.split('(').next().unwrap_or(&node.name).trim()),
                 ));
             }
         }
@@ -1803,6 +1832,7 @@ pub mod front {
         .very-unhealthy td {{ color: #9c27b0; }}
         .hazardous td {{ color: #795548; }}
         .arrow-icon {{ background: none !important; border: none !important; }}
+        .node-label {{ background: rgba(255,255,255,0.8) !important; border: none !important; box-shadow: none !important; font-size: 11px; font-weight: 600; padding: 1px 4px !important; }}
         .methodology {{ font-size: 13px; color: #555; line-height: 1.6; }}
         .methodology p {{ margin: 6px 0; }}
         .footer {{ color: #999; font-size: 12px; margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; }}
