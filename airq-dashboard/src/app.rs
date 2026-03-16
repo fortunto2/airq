@@ -25,6 +25,7 @@ enum View {
     Events,
     History,
     Sources,
+    Network,
     Settings,
 }
 
@@ -32,11 +33,12 @@ impl View {
     fn icon(&self) -> &'static str {
         match self {
             Self::Dashboard => "\u{25c9}",  // ◉
-            Self::Map       => "\u{25cb}",  // ○ (map pin)
+            Self::Map       => "\u{25cb}",  // ○
             Self::Comfort   => "\u{2606}",  // ☆
             Self::Events    => "\u{26a0}",  // ⚠
             Self::History   => "\u{2630}",  // ☰
             Self::Sources   => "\u{2316}",  // ⌖
+            Self::Network   => "\u{2301}",  // ⌁
             Self::Settings  => "\u{2699}",  // ⚙
         }
     }
@@ -49,12 +51,17 @@ impl View {
             Self::Events    => "Events",
             Self::History   => "History",
             Self::Sources   => "Sources",
+            Self::Network   => "Network",
             Self::Settings  => "Settings",
         }
     }
 
-    fn all() -> &'static [View] {
+    fn all_top() -> &'static [View] {
         &[Self::Dashboard, Self::Map, Self::Comfort, Self::Events, Self::History, Self::Sources]
+    }
+
+    fn all_bottom() -> &'static [View] {
+        &[Self::Network, Self::Settings]
     }
 }
 
@@ -83,6 +90,10 @@ pub fn App() -> Element {
     // Keep shutdown_tx alive — dropping it kills the collector
     let mut shutdown_handle: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
     let mut city_data: Signal<CityData> = use_signal(CityData::default);
+    // Network state
+    let local_ip = state::get_local_ip().unwrap_or_else(|| "unknown".to_string());
+    let mut lan_sensors: Signal<Vec<state::LanSensor>> = use_signal(Vec::new);
+    let mut scanning: Signal<bool> = use_signal(|| false);
 
     // Settings state
     let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
@@ -153,7 +164,7 @@ pub fn App() -> Element {
                 div { class: "sidebar-logo", "AS" }
 
                 div { class: "sidebar-nav",
-                    for view in View::all() {
+                    for view in View::all_top() {
                         button {
                             class: if current_view == *view { "nav-item active" } else { "nav-item" },
                             onclick: move |_| active_view.set(*view),
@@ -164,14 +175,16 @@ pub fn App() -> Element {
                     }
                 }
 
-                // Settings at bottom
+                // Bottom: Network + Settings
                 div { class: "sidebar-bottom",
-                    button {
-                        class: if current_view == View::Settings { "nav-item active" } else { "nav-item" },
-                        onclick: move |_| active_view.set(View::Settings),
-                        title: "Settings",
-                        span { class: "nav-icon", {View::Settings.icon()} }
-                        span { class: "nav-label", {View::Settings.label()} }
+                    for view in View::all_bottom() {
+                        button {
+                            class: if current_view == *view { "nav-item active" } else { "nav-item" },
+                            onclick: move |_| active_view.set(*view),
+                            title: "{view.label()}",
+                            span { class: "nav-icon", {view.icon()} }
+                            span { class: "nav-label", {view.label()} }
+                        }
                     }
 
                     // Connection status
@@ -365,6 +378,15 @@ pub fn App() -> Element {
                     },
                     View::Sources => rsx! {
                         SourcesView { snap: snap.clone(), city_data: (city_data)() }
+                    },
+                    View::Network => rsx! {
+                        NetworkView {
+                            local_ip: local_ip.clone(),
+                            lan_sensors: lan_sensors,
+                            scanning: scanning,
+                            is_running: is_running,
+                            port: 8080,
+                        }
                     },
                     View::Settings => rsx! {
                         SettingsView {
@@ -1070,6 +1092,155 @@ fn SourcesView(snap: MonitorSnapshot, city_data: CityData) -> Element {
     }
 }
 
+/// Network: local server info + LAN sensor discovery
+#[component]
+fn NetworkView(
+    local_ip: String,
+    lan_sensors: Signal<Vec<state::LanSensor>>,
+    scanning: Signal<bool>,
+    is_running: bool,
+    port: u16,
+) -> Element {
+    let mut lan_sensors = lan_sensors;
+    let mut scanning = scanning;
+
+    let scan_network = {
+        let ip = local_ip.clone();
+        move |_| {
+            let ip = ip.clone();
+            scanning.set(true);
+            spawn(async move {
+                let found = state::scan_lan_sensors(&ip).await;
+                lan_sensors.set(found);
+                scanning.set(false);
+            });
+        }
+    };
+
+    let sensors = (lan_sensors)();
+    let is_scanning = (scanning)();
+    let server_url = format!("http://{local_ip}:{port}");
+    let push_url = format!("http://{local_ip}:{port}/api/push");
+
+    rsx! {
+        div { class: "view-header",
+            h1 { "Network" }
+            span { class: "view-subtitle", "{local_ip}" }
+        }
+
+        // Server card
+        div { class: "card",
+            h2 { "Local Server" }
+            div { class: "net-info",
+                div { class: "net-row",
+                    span { class: "net-label", "IP Address" }
+                    span { class: "net-value", "{local_ip}" }
+                }
+                div { class: "net-row",
+                    span { class: "net-label", "Port" }
+                    span { class: "net-value", "{port}" }
+                }
+                div { class: "net-row",
+                    span { class: "net-label", "Dashboard" }
+                    span { class: "net-value net-url", "{server_url}" }
+                }
+                div { class: "net-row",
+                    span { class: "net-label", "Push API" }
+                    span { class: "net-value net-url", "{push_url}" }
+                }
+                div { class: "net-row",
+                    span { class: "net-label", "Status" }
+                    if is_running {
+                        span { class: "net-value good", "Running" }
+                    } else {
+                        span { class: "net-value muted", "Stopped" }
+                    }
+                }
+            }
+        }
+
+        // ESP8266 config hint
+        div { class: "card",
+            h2 { "ESP8266 Setup" }
+            p { class: "muted", "Configure your sensor to send data here:" }
+            div { class: "settings-cmd",
+                span { class: "muted", "Send to own API: " }
+                code { "{push_url}" }
+            }
+            p { class: "muted small", "In sensor config: Server = {local_ip}, Path = /api/push, Port = {port}" }
+        }
+
+        // LAN Sensors
+        div { class: "card",
+            div { class: "net-header-row",
+                h2 { "Sensors in Network" }
+                button {
+                    class: "btn-scan",
+                    onclick: scan_network,
+                    disabled: is_scanning,
+                    if is_scanning { "Scanning..." } else { "Scan LAN" }
+                }
+            }
+
+            if is_scanning {
+                div { class: "scan-progress", "Scanning 254 addresses..." }
+            }
+
+            if sensors.is_empty() && !is_scanning {
+                p { class: "muted", "No sensors found. Click Scan LAN to search." }
+            }
+
+            if !sensors.is_empty() {
+                table { class: "data-table",
+                    thead {
+                        tr {
+                            th { "IP" }
+                            th { "ID" }
+                            th { class: "num", "PM2.5" }
+                            th { class: "num", "PM10" }
+                            th { class: "num", "Temp" }
+                            th { "Firmware" }
+                        }
+                    }
+                    tbody {
+                        for sensor in sensors.iter() {
+                            {
+                                let ip = sensor.ip.clone();
+                                let config_url = format!("http://{ip}");
+                                if let Some(ref d) = sensor.data {
+                                    let id = d.esp_id.clone();
+                                    let pm25 = fmt_opt(d.pm25, 1);
+                                    let pm10 = fmt_opt(d.pm10, 1);
+                                    let temp = d.temp.map(|v| format!("{v:.0}°")).unwrap_or("—".into());
+                                    let fw = d.software_version.clone();
+                                    let pm25_cls = pm25_color(d.pm25);
+                                    rsx! {
+                                        tr {
+                                            td { class: "net-url", "{config_url}" }
+                                            td { "{id}" }
+                                            td { class: "num {pm25_cls}", "{pm25}" }
+                                            td { class: "num", "{pm10}" }
+                                            td { class: "num", "{temp}" }
+                                            td { class: "muted", "{fw}" }
+                                        }
+                                    }
+                                } else {
+                                    rsx! {
+                                        tr {
+                                            td { class: "net-url", "{config_url}" }
+                                            td { colspan: "5", class: "muted", "Reachable (no sensor data)" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Settings: monitoring, server, cities, DB info — with save to config.toml
 #[component]
 fn SettingsView(
@@ -1478,6 +1649,19 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .settings-info div { font-variant-numeric: tabular-nums; }
 .city-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .chip { display: inline-block; padding: 4px 12px; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.2); border-radius: 16px; font-size: 0.8rem; color: var(--blue); }
+/* Network */
+.net-info { font-size: 0.85rem; }
+.net-row { display: flex; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.net-row:last-child { border-bottom: none; }
+.net-label { color: var(--muted); min-width: 120px; flex-shrink: 0; }
+.net-value { color: var(--text); }
+.net-url { color: var(--blue); font-family: monospace; font-size: 0.82rem; }
+.net-header-row { display: flex; justify-content: space-between; align-items: center; }
+.btn-scan { padding: 5px 14px; border-radius: 8px; border: 1px solid var(--blue); background: none; color: var(--blue); font-size: 0.8rem; cursor: pointer; }
+.btn-scan:hover { background: rgba(96,165,250,0.1); }
+.btn-scan:disabled { opacity: 0.5; cursor: default; }
+.scan-progress { color: var(--yellow); font-size: 0.8rem; padding: 8px 0; animation: pulse 1.5s infinite; }
+
 .form-hint { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
 .btn-save { background: var(--blue); color: #000; border: none; border-radius: 10px; padding: 10px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .btn-save:hover { opacity: 0.9; }

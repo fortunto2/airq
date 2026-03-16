@@ -212,3 +212,112 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
         total_reading_count,
     }
 }
+
+// ---------------------------------------------------------------------------
+// Network: local IP + LAN sensor discovery
+// ---------------------------------------------------------------------------
+
+/// Get local WiFi IP address.
+pub fn get_local_ip() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:53").ok()?;
+    socket.local_addr().ok().map(|a| a.ip().to_string())
+}
+
+/// A discovered sensor device on the LAN.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LanSensor {
+    pub ip: String,
+    pub reachable: bool,
+    pub data: Option<LanSensorData>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LanSensorData {
+    pub esp_id: String,
+    pub software_version: String,
+    pub pm25: Option<f64>,
+    pub pm10: Option<f64>,
+    pub temp: Option<f64>,
+    pub humidity: Option<f64>,
+}
+
+/// Probe a single IP for Sensor.Community firmware (ESP8266/ESP32).
+/// These sensors expose JSON at http://<ip>/data.json
+pub async fn probe_sensor(ip: String) -> Option<LanSensor> {
+    let url = format!("http://{}:{}/data.json", ip, 80);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .ok()?;
+
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                let esp_id = json.get("esp8266id")
+                    .or_else(|| json.get("esp32id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let sw = json.get("software_version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let mut pm25 = None;
+                let mut pm10 = None;
+                let mut temp = None;
+                let mut humidity = None;
+
+                if let Some(vals) = json.get("sensordatavalues").and_then(|v| v.as_array()) {
+                    for v in vals {
+                        let vtype = v.get("value_type").and_then(|t| t.as_str()).unwrap_or("");
+                        let val = v.get("value").and_then(|v| v.as_str()).and_then(|s| s.parse::<f64>().ok());
+                        match vtype {
+                            "SDS_P2" | "P2" => pm25 = val,
+                            "SDS_P1" | "P1" => pm10 = val,
+                            "BME280_temperature" | "temperature" => temp = val,
+                            "BME280_humidity" | "humidity" => humidity = val,
+                            _ => {}
+                        }
+                    }
+                }
+
+                Some(LanSensor {
+                    ip,
+                    reachable: true,
+                    data: Some(LanSensorData { esp_id, software_version: sw, pm25, pm10, temp, humidity }),
+                })
+            } else {
+                Some(LanSensor { ip, reachable: true, data: None })
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Scan local /24 subnet for sensors. Returns found devices.
+pub async fn scan_lan_sensors(local_ip: &str) -> Vec<LanSensor> {
+    let parts: Vec<&str> = local_ip.rsplitn(2, '.').collect();
+    if parts.len() != 2 {
+        return Vec::new();
+    }
+    let prefix = parts[1]; // e.g. "192.168.1"
+
+    tracing::info!("[scan] Scanning {prefix}.1-254 for sensors...");
+
+    let mut handles = Vec::new();
+    for i in 1..=254u8 {
+        let ip = format!("{prefix}.{i}");
+        handles.push(tokio::spawn(probe_sensor(ip)));
+    }
+
+    let mut found = Vec::new();
+    for h in handles {
+        if let Ok(Some(sensor)) = h.await {
+            tracing::info!("[scan] Found sensor at {}", sensor.ip);
+            found.push(sensor);
+        }
+    }
+    found
+}
