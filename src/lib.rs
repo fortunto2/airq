@@ -703,6 +703,330 @@ fn normalize_country(input: &str) -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Front analysis — pollution front detection and tracking
+// ---------------------------------------------------------------------------
+
+pub mod front {
+    use petgraph::graph::{Graph, NodeIndex};
+
+    /// Haversine distance in km between two points.
+    pub fn haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+        let r = 6371.0;
+        let dlat = (lat2 - lat1).to_radians();
+        let dlon = (lon2 - lon1).to_radians();
+        let a = (dlat / 2.0).sin().powi(2)
+            + lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
+        r * 2.0 * a.sqrt().asin()
+    }
+
+    /// Bearing in degrees (clockwise from N) from point A to point B.
+    pub fn bearing(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+        let lat1 = lat1.to_radians();
+        let lat2 = lat2.to_radians();
+        let dlon = (lon2 - lon1).to_radians();
+        let y = dlon.sin() * lat2.cos();
+        let x = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
+        (y.atan2(x).to_degrees() + 360.0) % 360.0
+    }
+
+    /// Compass label from bearing degrees.
+    pub fn bearing_label(deg: f64) -> &'static str {
+        let dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+        let idx = ((deg + 22.5) % 360.0 / 45.0) as usize;
+        dirs[idx.min(7)]
+    }
+
+    /// Arrow from bearing degrees (direction pollution is moving TO).
+    pub fn bearing_arrow(deg: f64) -> &'static str {
+        let arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+        let idx = ((deg + 22.5) % 360.0 / 45.0) as usize;
+        arrows[idx.min(7)]
+    }
+
+    /// Find cities within `radius_km` of a given point from the cities crate.
+    pub fn nearby_cities(lat: f64, lon: f64, radius_km: f64, max: usize) -> Vec<super::CityInfo> {
+        let mut nearby: Vec<(f64, super::CityInfo)> = cities::all()
+            .iter()
+            .filter_map(|c| {
+                let d = haversine(lat, lon, c.latitude, c.longitude);
+                if d > 5.0 && d <= radius_km {
+                    Some((d, super::CityInfo {
+                        name: c.city,
+                        country: c.country,
+                        lat: c.latitude,
+                        lon: c.longitude,
+                    }))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        nearby.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        nearby.into_iter().take(max).map(|(_, c)| c).collect()
+    }
+
+    /// Spike detected in time-series data.
+    #[derive(Debug, Clone)]
+    pub struct Spike {
+        /// Hour index in the time-series
+        pub hour: usize,
+        /// Timestamp string
+        pub time: String,
+        /// PM2.5 value at spike
+        pub value: f64,
+        /// Change from previous hour
+        pub delta: f64,
+        /// Z-score of the change
+        pub z_score: f64,
+    }
+
+    /// Detect spikes using Z-score on hourly differences.
+    /// Returns spikes where |z| > threshold (default 2.0).
+    pub fn detect_spikes(times: &[String], values: &[Option<f64>], threshold: f64) -> Vec<Spike> {
+        // Compute hourly differences
+        let mut deltas = Vec::new();
+        for i in 1..values.len() {
+            if let (Some(prev), Some(curr)) = (values[i - 1], values[i]) {
+                deltas.push((i, curr - prev, curr));
+            }
+        }
+        if deltas.len() < 3 {
+            return Vec::new();
+        }
+
+        let mean: f64 = deltas.iter().map(|(_, d, _)| d).sum::<f64>() / deltas.len() as f64;
+        let std: f64 = (deltas.iter().map(|(_, d, _)| (d - mean).powi(2)).sum::<f64>()
+            / deltas.len() as f64)
+            .sqrt();
+
+        if std < 0.1 {
+            return Vec::new(); // no variation
+        }
+
+        deltas
+            .iter()
+            .filter_map(|(i, delta, value)| {
+                let z = (delta - mean) / std;
+                if z > threshold {
+                    Some(Spike {
+                        hour: *i,
+                        time: times.get(*i).cloned().unwrap_or_default(),
+                        value: *value,
+                        delta: *delta,
+                        z_score: z,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Cross-correlation between two time-series with lag search.
+    /// Returns (best_lag, correlation) where lag is in hours.
+    /// Positive lag means series_a leads series_b.
+    pub fn cross_correlate(
+        series_a: &[Option<f64>],
+        series_b: &[Option<f64>],
+        max_lag: i32,
+    ) -> (i32, f64) {
+        let n = series_a.len().min(series_b.len());
+        if n < 6 {
+            return (0, 0.0);
+        }
+
+        // Extract valid values and compute stats
+        let mean_a = series_a.iter().filter_map(|v| *v).sum::<f64>()
+            / series_a.iter().filter(|v| v.is_some()).count().max(1) as f64;
+        let mean_b = series_b.iter().filter_map(|v| *v).sum::<f64>()
+            / series_b.iter().filter(|v| v.is_some()).count().max(1) as f64;
+
+        let std_a = (series_a
+            .iter()
+            .filter_map(|v| *v)
+            .map(|v| (v - mean_a).powi(2))
+            .sum::<f64>()
+            / series_a.iter().filter(|v| v.is_some()).count().max(1) as f64)
+            .sqrt();
+        let std_b = (series_b
+            .iter()
+            .filter_map(|v| *v)
+            .map(|v| (v - mean_b).powi(2))
+            .sum::<f64>()
+            / series_b.iter().filter(|v| v.is_some()).count().max(1) as f64)
+            .sqrt();
+
+        if std_a < 0.1 || std_b < 0.1 {
+            return (0, 0.0);
+        }
+
+        let mut best_lag = 0i32;
+        let mut best_corr = f64::NEG_INFINITY;
+
+        for lag in -max_lag..=max_lag {
+            let mut sum = 0.0;
+            let mut count = 0;
+
+            for i in 0..n {
+                let j = i as i32 + lag;
+                if j >= 0 && (j as usize) < n {
+                    if let (Some(a), Some(b)) = (series_a[i], series_b[j as usize]) {
+                        sum += (a - mean_a) * (b - mean_b);
+                        count += 1;
+                    }
+                }
+            }
+
+            if count > 3 {
+                let corr = sum / (count as f64 * std_a * std_b);
+                if corr > best_corr {
+                    best_corr = corr;
+                    best_lag = lag;
+                }
+            }
+        }
+
+        (best_lag, best_corr)
+    }
+
+    /// Edge data in the pollution propagation graph.
+    #[derive(Debug, Clone)]
+    pub struct PropagationEdge {
+        pub distance_km: f64,
+        pub bearing_deg: f64,
+        pub lag_hours: i32,
+        pub correlation: f64,
+        pub speed_kmh: f64,
+    }
+
+    /// Station node in the graph.
+    #[derive(Debug, Clone)]
+    pub struct StationNode {
+        pub name: String,
+        pub lat: f64,
+        pub lon: f64,
+        pub distance_from_target: f64,
+    }
+
+    /// Result of front analysis.
+    #[derive(Debug)]
+    pub struct FrontAnalysis {
+        pub graph: Graph<StationNode, PropagationEdge>,
+        pub target: NodeIndex,
+        pub spikes: Vec<(NodeIndex, Vec<Spike>)>,
+        pub fronts: Vec<FrontEvent>,
+    }
+
+    /// A detected pollution front.
+    #[derive(Debug)]
+    pub struct FrontEvent {
+        pub from_city: String,
+        pub to_city: String,
+        pub speed_kmh: f64,
+        pub bearing_deg: f64,
+        pub lag_hours: i32,
+        pub correlation: f64,
+        pub from_spike_time: String,
+        pub to_spike_time: String,
+    }
+
+    /// Build propagation graph from target city + nearby cities with history data.
+    /// `histories` is Vec of (city_name, lat, lon, distance_km, hourly_times, hourly_pm25).
+    pub fn build_graph(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        neighbors: Vec<(String, f64, f64, f64, Vec<String>, Vec<Option<f64>>)>,
+        target_times: &[String],
+        target_pm25: &[Option<f64>],
+    ) -> FrontAnalysis {
+        let mut graph = Graph::new();
+
+        let target_node = graph.add_node(StationNode {
+            name: target_name.to_string(),
+            lat: target_lat,
+            lon: target_lon,
+            distance_from_target: 0.0,
+        });
+
+        let mut nodes = vec![(target_node, target_times.to_vec(), target_pm25.to_vec())];
+        let mut all_spikes = vec![(target_node, detect_spikes(target_times, target_pm25, 2.0))];
+
+        for (name, lat, lon, dist, times, pm25) in &neighbors {
+            let node = graph.add_node(StationNode {
+                name: name.clone(),
+                lat: *lat,
+                lon: *lon,
+                distance_from_target: *dist,
+            });
+            all_spikes.push((node, detect_spikes(times, pm25, 2.0)));
+            nodes.push((node, times.clone(), pm25.clone()));
+        }
+
+        // Pairwise cross-correlation → edges
+        let mut fronts = Vec::new();
+        for i in 0..nodes.len() {
+            for j in (i + 1)..nodes.len() {
+                let (node_a, _, pm25_a) = &nodes[i];
+                let (node_b, _, pm25_b) = &nodes[j];
+                let a = &graph[*node_a];
+                let b = &graph[*node_b];
+
+                let dist = haversine(a.lat, a.lon, b.lat, b.lon);
+                let brng = bearing(a.lat, a.lon, b.lat, b.lon);
+                let (lag, corr) = cross_correlate(pm25_a, pm25_b, 24);
+
+                if corr > 0.5 && lag != 0 {
+                    let speed = dist / (lag.unsigned_abs() as f64);
+                    let (from, to, actual_bearing) = if lag > 0 {
+                        (*node_a, *node_b, brng)
+                    } else {
+                        (*node_b, *node_a, (brng + 180.0) % 360.0)
+                    };
+
+                    let edge = PropagationEdge {
+                        distance_km: dist,
+                        bearing_deg: actual_bearing,
+                        lag_hours: lag.abs(),
+                        correlation: corr,
+                        speed_kmh: speed,
+                    };
+                    graph.add_edge(from, to, edge.clone());
+
+                    // Find matching spikes
+                    let from_spikes = all_spikes.iter().find(|(n, _)| *n == from);
+                    let to_spikes = all_spikes.iter().find(|(n, _)| *n == to);
+                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes) {
+                        if let (Some(f), Some(t)) = (fs.first(), ts.first()) {
+                            fronts.push(FrontEvent {
+                                from_city: graph[from].name.clone(),
+                                to_city: graph[to].name.clone(),
+                                speed_kmh: speed,
+                                bearing_deg: actual_bearing,
+                                lag_hours: lag.abs(),
+                                correlation: corr,
+                                from_spike_time: f.time.clone(),
+                                to_spike_time: t.time.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort fronts by correlation (strongest first)
+        fronts.sort_by(|a, b| b.correlation.partial_cmp(&a.correlation).unwrap());
+
+        FrontAnalysis {
+            graph,
+            target: target_node,
+            spikes: all_spikes,
+            fronts,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -112,6 +112,21 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Detect pollution fronts moving toward your city
+    Front {
+        /// City name (or uses default from config)
+        #[arg(long)]
+        city: Option<String>,
+        /// Search radius for nearby cities in km
+        #[arg(long, default_value_t = 100.0)]
+        radius: f64,
+        /// Number of past days to analyze
+        #[arg(long, default_value_t = 2)]
+        days: u32,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Show top cities by AQI in a country (any country supported)
     Top {
         /// Country name (e.g., france, brazil, usa, japan, india)
@@ -181,6 +196,193 @@ async fn main() -> Result<()> {
             for sensor in sensors {
                 println!("- Sensor ID: {}", sensor.id);
             }
+        }
+
+        return Ok(());
+    }
+
+    if let Some(Commands::Front {
+        city,
+        radius,
+        days,
+        json,
+    }) = &cli.command
+    {
+        let city_name = city
+            .clone()
+            .or(config.default_city.clone())
+            .context("Specify --city or set default with `airq init`")?;
+        let (lat, lon, resolved_name) = geocode(&city_name).await?;
+        println!("Analyzing pollution fronts around {}...", resolved_name);
+
+        // Find nearby cities from built-in database
+        let nearby = airq::front::nearby_cities(lat, lon, *radius, 10);
+        if nearby.is_empty() {
+            println!("No nearby cities found within {}km", radius);
+            return Ok(());
+        }
+
+        // Fetch history for target + all nearby cities in batches
+        let target_history = fetch_history(lat, lon, *days).await?;
+        let wind = airq::fetch_wind(lat, lon).await.ok();
+
+        let mut neighbor_data = Vec::new();
+        for chunk in nearby.chunks(5) {
+            let futures = chunk.iter().map(|c| async move {
+                let dist = airq::front::haversine(lat, lon, c.lat, c.lon);
+                match fetch_history(c.lat, c.lon, *days).await {
+                    Ok(h) => Some((c.name.to_string(), c.lat, c.lon, dist, h.hourly.time, h.hourly.pm2_5)),
+                    Err(_) => None,
+                }
+            });
+            let batch: Vec<_> = futures::future::join_all(futures)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+            neighbor_data.extend(batch);
+        }
+
+        let analysis = airq::front::build_graph(
+            &resolved_name,
+            lat, lon,
+            neighbor_data,
+            &target_history.hourly.time,
+            &target_history.hourly.pm2_5,
+        );
+
+        if *json {
+            let json_data = serde_json::json!({
+                "city": resolved_name,
+                "radius_km": radius,
+                "days": days,
+                "nearby_count": analysis.graph.node_count() - 1,
+                "fronts": analysis.fronts.iter().map(|f| serde_json::json!({
+                    "from": f.from_city,
+                    "to": f.to_city,
+                    "speed_kmh": (f.speed_kmh * 10.0).round() / 10.0,
+                    "direction": airq::front::bearing_label(f.bearing_deg),
+                    "bearing": f.bearing_deg.round(),
+                    "lag_hours": f.lag_hours,
+                    "correlation": (f.correlation * 100.0).round() / 100.0,
+                })).collect::<Vec<_>>(),
+            });
+            println!("{}", serde_json::to_string_pretty(&json_data)?);
+            return Ok(());
+        }
+
+        // Display nearby cities
+        println!("Nearby cities ({}km radius):", radius);
+        for (node_idx, _) in &analysis.spikes {
+            let node = &analysis.graph[*node_idx];
+            if node.distance_from_target > 0.0 {
+                let brng = airq::front::bearing(lat, lon, node.lat, node.lon);
+                println!(
+                    "  {} ({:.0}km {})",
+                    node.name,
+                    node.distance_from_target,
+                    airq::front::bearing_label(brng)
+                );
+            }
+        }
+
+        // Display wind context
+        if let Some(ref w) = wind {
+            if let Some(speed) = w.wind_speed_10m {
+                let arrow = w.direction_arrow().unwrap_or("");
+                let dir = w.direction_label().unwrap_or("");
+                println!("\nCurrent wind: {:.1} km/h {} {}", speed, arrow, dir);
+            }
+        }
+
+        // Display spikes
+        let mut has_spikes = false;
+        println!("\nSpike detection (last {}h):", days * 24);
+        for (node_idx, spikes) in &analysis.spikes {
+            let node = &analysis.graph[*node_idx];
+            if !spikes.is_empty() {
+                has_spikes = true;
+                for spike in spikes.iter().take(3) {
+                    let time_short = spike.time.replace('T', " ");
+                    let cat = AqiCategory::from_aqi(pm25_aqi(spike.value));
+                    println!(
+                        "  {} {}: {:.1} µg/m³ (+{:.1}) {}",
+                        cat.emoji(),
+                        node.name,
+                        spike.value,
+                        spike.delta,
+                        time_short,
+                    );
+                }
+            }
+        }
+        if !has_spikes {
+            println!("  No significant spikes detected.");
+        }
+
+        // Display top fronts (max 5, only strong correlations)
+        let strong_fronts: Vec<_> = analysis.fronts.iter()
+            .filter(|f| f.correlation > 0.7 && f.speed_kmh < 100.0)
+            .take(5)
+            .collect();
+
+        if !strong_fronts.is_empty() {
+            println!("\nPollution fronts detected:");
+            for front in &strong_fronts {
+                let dir_label = airq::front::bearing_label(front.bearing_deg);
+                let arrow = airq::front::bearing_arrow(front.bearing_deg);
+                println!(
+                    "  {} {} → {} | {:.0} km/h {} | lag {}h | corr {:.0}%",
+                    arrow,
+                    front.from_city,
+                    front.to_city,
+                    front.speed_kmh,
+                    dir_label,
+                    front.lag_hours,
+                    front.correlation * 100.0,
+                );
+            }
+
+            // ETA: only for fronts moving TOWARD target city
+            let mut warned = false;
+            for front in &strong_fronts {
+                if front.to_city == resolved_name {
+                    // Front is already arriving at target
+                    println!(
+                        "\n  ⚠ {} → {} front detected (lag {}h, {:.0} km/h)",
+                        front.from_city, resolved_name, front.lag_hours, front.speed_kmh
+                    );
+                    warned = true;
+                } else {
+                    // Check if front passed through a neighbor and is heading our way
+                    let to_node = analysis.graph.node_indices()
+                        .find(|n| analysis.graph[*n].name == front.to_city);
+                    if let Some(to_idx) = to_node {
+                        let to = &analysis.graph[to_idx];
+                        let brng_to_target = airq::front::bearing(to.lat, to.lon, lat, lon);
+                        let angle_diff = ((front.bearing_deg - brng_to_target).abs() % 360.0).min(
+                            360.0 - (front.bearing_deg - brng_to_target).abs() % 360.0
+                        );
+                        // Front is roughly heading toward target (within 60°)
+                        if angle_diff < 60.0 && front.speed_kmh > 1.0 {
+                            let dist = airq::front::haversine(to.lat, to.lon, lat, lon);
+                            let eta = dist / front.speed_kmh;
+                            if eta < 24.0 {
+                                println!(
+                                    "\n  ⚠ Front heading toward {} — ETA ~{:.0}h ({:.0}km, {:.0} km/h)",
+                                    resolved_name, eta, dist, front.speed_kmh
+                                );
+                                warned = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if !warned {
+                println!("\n  No fronts heading toward {} currently.", resolved_name);
+            }
+        } else {
+            println!("\nNo significant pollution fronts detected in the last {} days.", days);
         }
 
         return Ok(());
