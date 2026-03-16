@@ -88,7 +88,7 @@ pub fn build_router(db: Arc<Db>) -> axum::Router {
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
-    let swagger: Router = SwaggerUi::new("/swagger/{tail}")
+    let swagger: Router = SwaggerUi::new("/docs/")
         .url("/api-doc/openapi.json", crate::api::ApiDoc::openapi())
         .into();
 
