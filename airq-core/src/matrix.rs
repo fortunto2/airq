@@ -266,6 +266,218 @@ impl SignalMatrix {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Math operations: deltas, trends, summary, ML vector
+// ---------------------------------------------------------------------------
+
+/// OLS (ordinary least squares) slope for evenly-spaced values.
+/// x_i = 0, 1, 2, ..., n-1; y_i = values[i].
+/// Returns slope β. NaN-safe: skips NaN values.
+pub fn ols_slope(values: &[f64]) -> f64 {
+    let n = values.len();
+    if n < 2 {
+        return 0.0;
+    }
+    let mut sum_x = 0.0;
+    let mut sum_y = 0.0;
+    let mut count = 0.0;
+    for (i, &v) in values.iter().enumerate() {
+        if !v.is_nan() {
+            sum_x += i as f64;
+            sum_y += v;
+            count += 1.0;
+        }
+    }
+    if count < 2.0 {
+        return 0.0;
+    }
+    let mean_x = sum_x / count;
+    let mean_y = sum_y / count;
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for (i, &v) in values.iter().enumerate() {
+        if !v.is_nan() {
+            let dx = i as f64 - mean_x;
+            num += dx * (v - mean_y);
+            den += dx * dx;
+        }
+    }
+    if den.abs() < f64::EPSILON { 0.0 } else { num / den }
+}
+
+/// Per-column statistics.
+#[derive(Debug, Clone, Serialize)]
+pub struct ColumnStats {
+    pub name: &'static str,
+    pub min: f64,
+    pub max: f64,
+    pub mean: f64,
+    pub std_dev: f64,
+    pub count: usize,
+}
+
+/// Summary for the entire matrix.
+#[derive(Debug, Clone, Serialize)]
+pub struct MatrixSummary {
+    pub rows: usize,
+    pub columns: Vec<ColumnStats>,
+}
+
+/// ML-ready feature vector (35 dimensions).
+pub const N_ML_FEATURES: usize = N_SIGNALS * 3 + 2; // 11 current + 11 delta + 11 trend + sensor + front
+
+#[derive(Debug, Clone)]
+pub struct MlVector {
+    /// 35 features: [11 current] [11 delta_24h] [11 trend_7d] [sensor_count] [front]
+    pub features: [f64; N_ML_FEATURES],
+    /// Feature names.
+    pub names: [&'static str; N_ML_FEATURES],
+    /// Weighted comfort 0.0-1.0.
+    pub comfort: f64,
+    /// Classification label.
+    pub label: &'static str,
+}
+
+impl Serialize for MlVector {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("MlVector", 4)?;
+        s.serialize_field("features", &self.features.as_slice())?;
+        let names_vec: Vec<&str> = self.names.iter().copied().collect();
+        s.serialize_field("names", &names_vec)?;
+        s.serialize_field("comfort", &self.comfort)?;
+        s.serialize_field("label", &self.label)?;
+        s.end()
+    }
+}
+
+impl SignalMatrix {
+    /// Delta: difference between last row and row `window` steps back.
+    /// Returns None if matrix has fewer than `window + 1` rows.
+    pub fn deltas(&self, window: usize) -> Option<[f64; N_SIGNALS]> {
+        let n = self.len();
+        if n == 0 || window >= n {
+            return None;
+        }
+        let current = &self.data[n - 1];
+        let past = &self.data[n - 1 - window];
+        let mut result = [0.0; N_SIGNALS];
+        for i in 0..N_SIGNALS {
+            result[i] = current[i] - past[i];
+        }
+        Some(result)
+    }
+
+    /// Trend: OLS slope per column over last `window` rows. Clamped to [-1, 1].
+    /// Positive = improving, negative = degrading.
+    pub fn trends(&self, window: usize) -> [f64; N_SIGNALS] {
+        let mut result = [0.0; N_SIGNALS];
+        let n = self.len();
+        if n < 2 {
+            return result;
+        }
+        let start = if n > window { n - window } else { 0 };
+        for col in 0..N_SIGNALS {
+            let values: Vec<f64> = self.data[start..n].iter().map(|r| r[col]).collect();
+            let slope = ols_slope(&values);
+            // Normalize: slope is per-hour change in score (0-100).
+            // Clamp to [-1, 1] for ML input.
+            result[col] = slope.clamp(-1.0, 1.0);
+        }
+        result
+    }
+
+    /// Per-column min/max/mean/std_dev statistics.
+    pub fn summary(&self) -> MatrixSummary {
+        let mut columns = Vec::with_capacity(N_SIGNALS);
+        for col in 0..N_SIGNALS {
+            let mut min = f64::INFINITY;
+            let mut max = f64::NEG_INFINITY;
+            let mut sum = 0.0;
+            let mut count = 0usize;
+            for row in &self.data {
+                let v = row[col];
+                if !v.is_nan() {
+                    if v < min { min = v; }
+                    if v > max { max = v; }
+                    sum += v;
+                    count += 1;
+                }
+            }
+            let mean = if count > 0 { sum / count as f64 } else { 0.0 };
+            let std_dev = if count > 1 {
+                let var: f64 = self.data.iter()
+                    .map(|r| r[col])
+                    .filter(|v| !v.is_nan())
+                    .map(|v| (v - mean).powi(2))
+                    .sum::<f64>() / (count - 1) as f64;
+                var.sqrt()
+            } else {
+                0.0
+            };
+            columns.push(ColumnStats {
+                name: SIGNAL_NAMES[col],
+                min: if count > 0 { min } else { 0.0 },
+                max: if count > 0 { max } else { 0.0 },
+                mean,
+                std_dev,
+                count,
+            });
+        }
+        MatrixSummary { rows: self.len(), columns }
+    }
+
+    /// Build ML-ready feature vector (35 dimensions).
+    pub fn to_ml_vector(&self) -> Option<MlVector> {
+        let (_, row) = self.latest()?;
+        let mut features = [0.0; N_ML_FEATURES];
+        let mut names = [""; N_ML_FEATURES];
+
+        // [0..11] current values normalized to 0.0-1.0
+        for i in 0..N_SIGNALS {
+            features[i] = row.scores[i] / 100.0;
+            names[i] = SIGNAL_NAMES[i];
+        }
+
+        // [11..22] delta 24h (or available window)
+        let delta_window = self.len().min(24).saturating_sub(1);
+        let deltas = self.deltas(delta_window).unwrap_or([0.0; N_SIGNALS]);
+        for i in 0..N_SIGNALS {
+            features[N_SIGNALS + i] = deltas[i] / 100.0;
+            // Names: static strings from macro + suffix
+            names[N_SIGNALS + i] = SIGNAL_NAMES[i]; // caller appends "_delta"
+        }
+
+        // [22..33] trend 7d (or available window)
+        let trend_window = self.len().min(168);
+        let trends = self.trends(trend_window);
+        for i in 0..N_SIGNALS {
+            features[2 * N_SIGNALS + i] = trends[i];
+            names[2 * N_SIGNALS + i] = SIGNAL_NAMES[i]; // caller appends "_trend"
+        }
+
+        // [33] sensor_count normalized
+        let n = self.len();
+        features[3 * N_SIGNALS] = self.sensor_count[n - 1] as f64 / 50.0;
+        names[3 * N_SIGNALS] = "sensor_count";
+
+        // [34] front_detected
+        features[3 * N_SIGNALS + 1] = if self.front_detected[n - 1] { 1.0 } else { 0.0 };
+        names[3 * N_SIGNALS + 1] = "front_detected";
+
+        let comfort = row.weighted_score() / 100.0;
+        let label = match (comfort * 100.0).round() as u32 {
+            80..=100 => "excellent",
+            60..=79 => "good",
+            40..=59 => "fair",
+            20..=39 => "poor",
+            _ => "bad",
+        };
+
+        Some(MlVector { features, names, comfort, label })
+    }
+}
+
 impl Default for SignalMatrix {
     fn default() -> Self {
         Self::new()
@@ -428,5 +640,139 @@ mod tests {
         let m2: SignalMatrix = serde_json::from_str(&json).unwrap();
         assert_eq!(m2.len(), 2);
         assert_eq!(m2.data[0], m.data[0]);
+    }
+
+    // -- Phase 2: Math ops --
+
+    #[test]
+    fn test_ols_slope_linear() {
+        // y = 2x → slope = 2
+        let vals = vec![0.0, 2.0, 4.0, 6.0, 8.0];
+        let slope = ols_slope(&vals);
+        assert!((slope - 2.0).abs() < 0.001, "slope: {slope}");
+    }
+
+    #[test]
+    fn test_ols_slope_flat() {
+        let vals = vec![50.0, 50.0, 50.0, 50.0];
+        assert_eq!(ols_slope(&vals), 0.0);
+    }
+
+    #[test]
+    fn test_ols_slope_single() {
+        assert_eq!(ols_slope(&[42.0]), 0.0);
+    }
+
+    #[test]
+    fn test_deltas() {
+        let mut m = SignalMatrix::new();
+        m.push(0.0, SignalRow { scores: [50.0; N_SIGNALS] });
+        m.push(3600.0, SignalRow { scores: [70.0; N_SIGNALS] });
+        m.push(7200.0, SignalRow { scores: [80.0; N_SIGNALS] });
+
+        // Delta 1 step back: 80 - 70 = 10
+        let d = m.deltas(1).unwrap();
+        assert!((d[0] - 10.0).abs() < 0.001);
+
+        // Delta 2 steps back: 80 - 50 = 30
+        let d = m.deltas(2).unwrap();
+        assert!((d[0] - 30.0).abs() < 0.001);
+
+        // Window too large
+        assert!(m.deltas(3).is_none());
+    }
+
+    #[test]
+    fn test_trends_increasing() {
+        let mut m = SignalMatrix::new();
+        for i in 0..10 {
+            // All columns increase by 5 per step
+            let scores = [i as f64 * 5.0; N_SIGNALS];
+            m.push(i as f64 * 3600.0, SignalRow { scores });
+        }
+        let t = m.trends(10);
+        // Slope = 5 per step, clamped to 1.0
+        assert!((t[0] - 1.0).abs() < 0.001, "trend[0]: {}", t[0]);
+    }
+
+    #[test]
+    fn test_trends_decreasing() {
+        let mut m = SignalMatrix::new();
+        for i in 0..10 {
+            let scores = [90.0 - i as f64 * 5.0; N_SIGNALS];
+            m.push(i as f64 * 3600.0, SignalRow { scores });
+        }
+        let t = m.trends(10);
+        assert!((t[0] - (-1.0)).abs() < 0.001, "trend[0]: {}", t[0]);
+    }
+
+    #[test]
+    fn test_trends_stable() {
+        let mut m = SignalMatrix::new();
+        for i in 0..10 {
+            m.push(i as f64 * 3600.0, SignalRow { scores: [50.0; N_SIGNALS] });
+        }
+        let t = m.trends(10);
+        assert!((t[0]).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_summary() {
+        let mut m = SignalMatrix::new();
+        m.push(0.0, SignalRow { scores: [10.0; N_SIGNALS] });
+        m.push(1.0, SignalRow { scores: [20.0; N_SIGNALS] });
+        m.push(2.0, SignalRow { scores: [30.0; N_SIGNALS] });
+        let s = m.summary();
+        assert_eq!(s.rows, 3);
+        assert_eq!(s.columns.len(), N_SIGNALS);
+        let air = &s.columns[0];
+        assert_eq!(air.name, "air");
+        assert!((air.min - 10.0).abs() < 0.001);
+        assert!((air.max - 30.0).abs() < 0.001);
+        assert!((air.mean - 20.0).abs() < 0.001);
+        assert!(air.std_dev > 0.0);
+    }
+
+    #[test]
+    fn test_ml_vector_dimensions() {
+        let mut m = SignalMatrix::new();
+        m.push_with_meta(0.0, SignalRow { scores: [80.0; N_SIGNALS] }, 5, true);
+        let v = m.to_ml_vector().unwrap();
+        assert_eq!(v.features.len(), N_ML_FEATURES);
+        assert_eq!(v.features.len(), 35);
+        assert_eq!(v.names.len(), 35);
+        // Current: 80/100 = 0.8
+        assert!((v.features[0] - 0.8).abs() < 0.001);
+        // Sensor count: 5/50 = 0.1
+        assert!((v.features[33] - 0.1).abs() < 0.001);
+        // Front: 1.0
+        assert!((v.features[34] - 1.0).abs() < 0.001);
+        assert_eq!(v.label, "excellent");
+    }
+
+    #[test]
+    fn test_ml_vector_empty() {
+        let m = SignalMatrix::new();
+        assert!(m.to_ml_vector().is_none());
+    }
+
+    #[test]
+    fn test_weighted_score_matches_comfort() {
+        // Ensure backward compat: weighted_score ≈ SignalComfort.total
+        let row = SignalRow { scores: [75.0; N_SIGNALS] };
+        let score = row.weighted_score();
+        assert!((score - 75.0).abs() < 0.01, "score: {score}");
+
+        // Different values
+        let mut scores = [0.0; N_SIGNALS];
+        scores[idx::air] = 100.0;       // w=0.22
+        scores[idx::temperature] = 50.0; // w=0.18
+        scores[idx::sea] = 80.0;         // w=0.12
+        // rest are 0 with non-zero weights → pull average down
+        let row = SignalRow { scores };
+        let ws = row.weighted_score();
+        // Manual: (100*0.22 + 50*0.18 + 80*0.12) / (0.22+0.18+0.12+0.08+0.08+0.05+0.05+0.05+0.03+0.02)
+        // = (22 + 9 + 9.6) / 0.88 = 40.6 / 0.88 ≈ 46.136
+        assert!((ws - 46.136).abs() < 0.1, "weighted_score: {ws}");
     }
 }
