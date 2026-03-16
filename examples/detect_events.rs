@@ -7,11 +7,16 @@ use std::collections::HashMap;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cities = vec![
-        ("Hamburg", 53.55, 10.0),
-        ("Moscow", 55.76, 37.62),
-        ("Berlin", 52.52, 13.41),
-        ("Istanbul", 41.01, 28.98),
-        ("Gazipasha", 36.27, 32.32),
+        // Active wildfires - Nebraska March 2026
+        ("Scottsbluff NE (wildfire)", 41.87, -103.67),
+        // Burning season - Chiang Mai
+        ("Chiang Mai (burning)", 18.79, 98.99),
+        // Dust storm - Hotan, Xinjiang
+        ("Hotan (dust storm)", 37.11, 79.93),
+        // Chronic - Lahore
+        ("Lahore (chronic)", 31.55, 74.34),
+        // Clean reference
+        ("Hamburg (clean)", 53.55, 10.0),
     ];
 
     for (name, lat, lon) in &cities {
@@ -19,12 +24,12 @@ async fn main() -> anyhow::Result<()> {
         println!("  {} ({}, {})", name, lat, lon);
         println!("{}", "=".repeat(60));
 
-        // Create grid of 9 points around city (3x3, ~10km spacing)
-        let delta = 0.05; // ~5km
+        // Create grid of 25 points around city (5x5, ~25km spacing = ~100km total)
+        let delta = 0.25; // ~25km
         let mut grid_lats = Vec::new();
         let mut grid_lons = Vec::new();
-        for dy in [-1.0, 0.0, 1.0] {
-            for dx in [-1.0, 0.0, 1.0] {
+        for dy in [-2.0, -1.0, 0.0, 1.0, 2.0] {
+            for dx in [-2.0, -1.0, 0.0, 1.0, 2.0] {
                 grid_lats.push(lat + dy * delta);
                 grid_lons.push(lon + dx * delta);
             }
