@@ -2507,4 +2507,215 @@ mod tests {
         assert_eq!(progress_bar(0), "\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}");
         assert_eq!(progress_bar(50).len(), progress_bar(100).len());
     }
+
+    // --- Cross-correlation tests ---
+
+    #[test]
+    fn test_cross_correlate_identical() {
+        let a: Vec<Option<f64>> = vec![Some(1.0), Some(5.0), Some(2.0), Some(8.0), Some(3.0), Some(7.0)];
+        let (lag, corr) = front::cross_correlate(&a, &a, 5);
+        assert_eq!(lag, 0);
+        assert!(corr > 0.99, "identical series should have corr ~1.0, got {}", corr);
+    }
+
+    #[test]
+    fn test_cross_correlate_shifted() {
+        // b is a shifted by 2 hours
+        let a: Vec<Option<f64>> = vec![Some(1.0), Some(2.0), Some(10.0), Some(3.0), Some(1.0), Some(2.0), Some(1.0), Some(1.0)];
+        let b: Vec<Option<f64>> = vec![Some(1.0), Some(1.0), Some(1.0), Some(2.0), Some(10.0), Some(3.0), Some(1.0), Some(2.0)];
+        let (lag, corr) = front::cross_correlate(&a, &b, 5);
+        assert_eq!(lag, 2, "a leads b by 2 hours");
+        assert!(corr > 0.8, "shifted series should correlate, got {}", corr);
+    }
+
+    #[test]
+    fn test_cross_correlate_no_data() {
+        let a: Vec<Option<f64>> = vec![None, None, None];
+        let b: Vec<Option<f64>> = vec![None, None, None];
+        let (lag, corr) = front::cross_correlate(&a, &b, 5);
+        assert_eq!(lag, 0);
+        assert!(corr.abs() < 0.01);
+    }
+
+    // --- Spike detection tests ---
+
+    #[test]
+    fn test_detect_spikes_finds_spike() {
+        let times: Vec<String> = (0..10).map(|i| format!("2026-03-15T{:02}:00", i)).collect();
+        // Flat then big jump at hour 5
+        let values: Vec<Option<f64>> = vec![
+            Some(10.0), Some(10.5), Some(10.2), Some(10.8), Some(10.3),
+            Some(50.0), // spike: +39.7
+            Some(48.0), Some(45.0), Some(42.0), Some(40.0),
+        ];
+        let spikes = front::detect_spikes(&times, &values, 2.0);
+        assert!(!spikes.is_empty(), "should detect spike");
+        assert!(spikes[0].value > 40.0);
+        assert!(spikes[0].delta > 30.0);
+    }
+
+    #[test]
+    fn test_detect_spikes_no_spikes_in_flat() {
+        let times: Vec<String> = (0..10).map(|i| format!("2026-03-15T{:02}:00", i)).collect();
+        let values: Vec<Option<f64>> = vec![
+            Some(10.0), Some(10.1), Some(10.0), Some(10.2), Some(10.1),
+            Some(10.0), Some(10.1), Some(10.2), Some(10.0), Some(10.1),
+        ];
+        let spikes = front::detect_spikes(&times, &values, 2.0);
+        assert!(spikes.is_empty(), "flat data should have no spikes");
+    }
+
+    // --- Haversine & bearing tests ---
+
+    #[test]
+    fn test_haversine_known_distance() {
+        // Moscow → Saint Petersburg ≈ 634 km
+        let d = front::haversine(55.75, 37.62, 59.93, 30.32);
+        assert!((d - 634.0).abs() < 20.0, "Moscow-SPb should be ~634km, got {}", d);
+    }
+
+    #[test]
+    fn test_haversine_same_point() {
+        assert!(front::haversine(55.0, 37.0, 55.0, 37.0) < 0.001);
+    }
+
+    #[test]
+    fn test_bearing_north() {
+        let b = front::bearing(55.0, 37.0, 56.0, 37.0);
+        assert!((b - 0.0).abs() < 5.0 || (b - 360.0).abs() < 5.0, "due north should be ~0°, got {}", b);
+    }
+
+    #[test]
+    fn test_bearing_east() {
+        let b = front::bearing(55.0, 37.0, 55.0, 38.0);
+        assert!((b - 90.0).abs() < 10.0, "due east should be ~90°, got {}", b);
+    }
+
+    #[test]
+    fn test_bearing_label() {
+        assert_eq!(front::bearing_label(0.0), "N");
+        assert_eq!(front::bearing_label(90.0), "E");
+        assert_eq!(front::bearing_label(180.0), "S");
+        assert_eq!(front::bearing_label(270.0), "W");
+        assert_eq!(front::bearing_label(45.0), "NE");
+    }
+
+    // --- Sensor clustering tests ---
+
+    #[test]
+    fn test_cluster_sensors_groups_nearby() {
+        let sensors = vec![
+            (1, 55.75, 37.60),
+            (2, 55.751, 37.601), // ~100m from sensor 1
+            (3, 55.80, 37.60),   // ~5.5km north
+            (4, 56.0, 37.60),    // ~28km north
+        ];
+        let clusters = front::cluster_sensors(&sensors, 5.0);
+        // sensor 1 and 2 should be in same cluster, 3 maybe same or separate, 4 separate
+        assert!(clusters.len() >= 2, "should have at least 2 clusters, got {}", clusters.len());
+        assert!(clusters.len() <= 4);
+    }
+
+    // --- Date helper tests ---
+
+    #[test]
+    fn test_epoch_days_to_date() {
+        assert_eq!(epoch_days_to_date(0), "1970-01-01");
+        assert_eq!(epoch_days_to_date(365), "1971-01-01");
+        assert_eq!(epoch_days_to_date(730), "1972-01-01"); // leap year
+        assert_eq!(epoch_days_to_date(18628), "2021-01-01");
+    }
+
+    #[test]
+    fn test_date_minus_days() {
+        assert_eq!(date_minus_days("2026-03-16", 1), "2026-03-15");
+        assert_eq!(date_minus_days("2026-03-01", 1), "2026-02-28");
+        assert_eq!(date_minus_days("2026-01-01", 1), "2025-12-31");
+    }
+
+    #[test]
+    fn test_is_leap() {
+        assert!(is_leap(2024));
+        assert!(!is_leap(2023));
+        assert!(!is_leap(2100));
+        assert!(is_leap(2000));
+    }
+
+    // --- CSV parsing tests ---
+
+    #[test]
+    fn test_parse_sensor_csv() {
+        let csv = "sensor_id;sensor_type;location;lat;lon;timestamp;P1;durP1;ratioP1;P2;durP2;ratioP2\n\
+                   77955;SDS011;67152;36.266;32.294;2026-03-14T00:02:12;6.25;;;2.97;;\n\
+                   77955;SDS011;67152;36.266;32.294;2026-03-14T00:04:38;6.55;;;3.72;;";
+        let mut readings = Vec::new();
+        parse_sensor_csv(csv, &mut readings);
+        assert_eq!(readings.len(), 2);
+        assert_eq!(readings[0].0, "2026-03-14T00:02:12");
+        assert!((readings[0].1 - 2.97).abs() < 0.01); // PM2.5 = P2
+        assert!((readings[1].1 - 3.72).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_sensor_csv_filters_outliers() {
+        let csv = "sensor_id;sensor_type;location;lat;lon;timestamp;P1;durP1;ratioP1;P2;durP2;ratioP2\n\
+                   1;SDS011;1;0;0;2026-03-14T00:00:00;10;;;999.9;;\n\
+                   1;SDS011;1;0;0;2026-03-14T00:05:00;10;;;5.0;;";
+        let mut readings = Vec::new();
+        parse_sensor_csv(csv, &mut readings);
+        assert_eq!(readings.len(), 1, "should filter PM2.5 >= 500");
+        assert!((readings[0].1 - 5.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_aggregate_sensor_to_hourly_median() {
+        let readings = vec![
+            ("2026-03-14T10:01:00".to_string(), 5.0),
+            ("2026-03-14T10:03:00".to_string(), 15.0),
+            ("2026-03-14T10:05:00".to_string(), 10.0), // median = 10
+            ("2026-03-14T11:01:00".to_string(), 20.0),
+        ];
+        let hourly = aggregate_sensor_to_hourly(&readings);
+        assert_eq!(hourly.len(), 2);
+        assert_eq!(hourly[0].0, "2026-03-14T10:00");
+        assert!((hourly[0].1 - 10.0).abs() < 0.01, "median of [5,10,15] = 10");
+        assert!((hourly[1].1 - 20.0).abs() < 0.01);
+    }
+
+    // --- SO2 and O3 status tests ---
+
+    #[test]
+    fn test_so2_status() {
+        assert!(matches!(get_so2_status(20.0), AqiCategory::Good));
+        assert!(matches!(get_so2_status(50.0), AqiCategory::Moderate));
+        assert!(matches!(get_so2_status(100.0), AqiCategory::Unhealthy));
+    }
+
+    #[test]
+    fn test_o3_status() {
+        assert!(matches!(get_o3_status(50.0), AqiCategory::Good));
+        assert!(matches!(get_o3_status(120.0), AqiCategory::Moderate));
+        assert!(matches!(get_o3_status(200.0), AqiCategory::Unhealthy));
+    }
+
+    // --- Comfort edge cases ---
+
+    #[test]
+    fn test_comfort_extreme_heat() {
+        let air = CurrentData {
+            pm2_5: Some(5.0), pm10: Some(10.0),
+            carbon_monoxide: None, nitrogen_dioxide: None, ozone: None,
+            sulphur_dioxide: None, uv_index: Some(12.0),
+            us_aqi: Some(20.0), european_aqi: None,
+        };
+        let weather = WeatherData {
+            pressure_hpa: Some(1015.0), humidity_pct: Some(90.0),
+            apparent_temp_c: Some(42.0), precipitation_mm: None, cloud_cover_pct: None,
+        };
+        let wind = WindData { wind_speed_10m: Some(2.0), wind_direction_10m: Some(180.0), wind_gusts_10m: None };
+        let comfort = calculate_comfort(&air, &weather, &wind);
+        assert!(comfort.temperature < 30, "42°C should score low on temp");
+        assert!(comfort.uv < 20, "UV 12 should score very low");
+        assert!(comfort.total < 70, "extreme heat should lower total, got {}", comfort.total);
+    }
 }
