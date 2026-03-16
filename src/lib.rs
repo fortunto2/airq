@@ -1,7 +1,12 @@
 // Re-export everything from airq-core so main.rs and external users see a flat API.
 pub use airq_core::*;
 
+pub mod api;
+pub mod collector;
 pub mod db;
+pub mod push;
+pub mod serve;
+pub mod web;
 
 use anyhow::{Context, Result};
 use serde::Deserialize;

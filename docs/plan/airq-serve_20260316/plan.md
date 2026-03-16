@@ -36,23 +36,23 @@ Foundation: database, schema, CRUD operations.
 Data ingestion from Sensor.Community API + local ESP8266 push.
 
 ### Tasks
-- [ ] Task 2.1: Create `src/collector.rs` — poll loop
+- [x] Task 2.1: Create `src/collector.rs` — poll loop
   - `async fn collect_once(db, city) -> Result<usize>` — fetch nearby sensors, insert readings
   - Uses existing `fetch_sensor_community_nearby` + individual sensor fetch
   - `async fn run_collector(db, cities, interval)` — tokio interval loop
-- [ ] Task 2.2: Create `src/push.rs` — ESP8266 receiver (Axum handler)
+- [x] Task 2.2: Create `src/push.rs` — ESP8266 receiver (Axum handler)
   - `POST /api/push` — parse Sensor.Community JSON format
   - Map `SDS_P1→pm10`, `SDS_P2→pm25`, `BME280_*→temp/humidity/pressure`
   - Insert into db, return 200 OK
   - Compatible with ESP8266 "Send to own API" config
-- [ ] Task 2.3: Wire collector + push into `src/serve.rs` entry point
+- [x] Task 2.3: Wire collector + push into `src/serve.rs` entry point
   - `async fn run_serve(config) -> Result<()>` — spawn collector task + start Axum server
-- [ ] Task 2.4: Tests — collector mock, push handler parse, concurrent db writes
+- [x] Task 2.4: Tests — collector mock, push handler parse, concurrent db writes
 
 ### Verification
-- [ ] `cargo run -- serve --city gazipasha --radius 15` collects data
-- [ ] `curl -X POST localhost:8080/api/push -d '{"sensordatavalues":[...]}' ` → 200
-- [ ] Readings appear in SQLite
+- [x] `cargo run -- serve --city gazipasha --radius 15` collects data
+- [x] `curl -X POST localhost:8080/api/push -d '{"sensordatavalues":[...]}' ` → 200
+- [x] Readings appear in SQLite
 
 ## Phase 3: REST API + Event Detection
 
