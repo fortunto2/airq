@@ -1,6 +1,6 @@
 /// Event detection demo: Open-Meteo grid + concordance analysis.
 /// Creates virtual sensor grid around city, fetches AQ data, detects anomalies.
-use airq_core::event::*;
+use airq_core::event::{self, *};
 use airq_core::front;
 use std::collections::HashMap;
 
@@ -60,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
                     lat: grid_lats[i],
                     lon: grid_lons[i],
                     pm25,
+                    pm10,
                 });
                 // Also print PM10
                 let dist = front::haversine(*lat, *lon, grid_lats[i], grid_lons[i]);
@@ -81,8 +82,14 @@ async fn main() -> anyhow::Result<()> {
         let median = pm_vals[pm_vals.len() / 2];
         let variance = pm_vals.iter().map(|v| (v - median).powi(2)).sum::<f64>() / pm_vals.len() as f64;
 
-        let baselines: HashMap<u64, EwmaBaseline> = readings.iter()
-            .map(|r| (r.sensor_id, EwmaBaseline::with_baseline(median, variance)))
+        let mut pm10_values: Vec<f64> = readings.iter().map(|r| r.pm10).collect();
+        pm10_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median_pm10 = pm10_values[pm10_values.len() / 2];
+        let variance_pm10 = pm10_values.iter().map(|v| (v - median_pm10).powi(2)).sum::<f64>()
+            / pm10_values.len() as f64;
+
+        let baselines: HashMap<u64, DualBaseline> = readings.iter()
+            .map(|r| (r.sensor_id, DualBaseline::with_baselines(median, variance, median_pm10, variance_pm10)))
             .collect();
 
         // Detect event
@@ -104,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
                 dir.bearing_label, dir.spread_deg, dir.is_directional);
         }
         println!("  Confidence: {:.0}%", result.confidence * 100.0);
+        println!("  PM10/PM2.5 ratio: {:.1} → {}", result.pm10_pm25_ratio, result.source_hint);
         println!("  >> {}", result.summary);
     }
 

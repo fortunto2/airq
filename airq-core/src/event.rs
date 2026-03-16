@@ -85,13 +85,56 @@ impl EwmaBaseline {
 // Sensor reading with location
 // ---------------------------------------------------------------------------
 
-/// A single sensor observation.
+/// A single sensor observation (PM2.5 + PM10).
 #[derive(Debug, Clone)]
 pub struct SensorReading {
     pub sensor_id: u64,
     pub lat: f64,
     pub lon: f64,
     pub pm25: f64,
+    pub pm10: f64,
+}
+
+/// Per-sensor dual-channel baseline (PM2.5 + PM10).
+#[derive(Debug, Clone)]
+pub struct DualBaseline {
+    pub pm25: EwmaBaseline,
+    pub pm10: EwmaBaseline,
+}
+
+impl DualBaseline {
+    pub fn new() -> Self {
+        Self { pm25: EwmaBaseline::default_hourly(), pm10: EwmaBaseline::default_hourly() }
+    }
+
+    pub fn with_baselines(pm25_baseline: f64, pm25_var: f64, pm10_baseline: f64, pm10_var: f64) -> Self {
+        Self {
+            pm25: EwmaBaseline::with_baseline(pm25_baseline, pm25_var),
+            pm10: EwmaBaseline::with_baseline(pm10_baseline, pm10_var),
+        }
+    }
+
+    /// True if EITHER channel is anomalous.
+    pub fn is_anomaly(&self, reading: &SensorReading, k: f64) -> bool {
+        self.pm25.is_anomaly(reading.pm25, k) || self.pm10.is_anomaly(reading.pm10, k)
+    }
+
+    /// Max z-score across both channels.
+    pub fn max_z(&self, reading: &SensorReading) -> f64 {
+        self.pm25.z_score(reading.pm25).max(self.pm10.z_score(reading.pm10))
+    }
+
+    /// Which channel triggered ("pm25", "pm10", "both", or "none").
+    pub fn trigger_channel(&self, reading: &SensorReading, k: f64) -> &'static str {
+        let p25 = self.pm25.is_anomaly(reading.pm25, k);
+        let p10 = self.pm10.is_anomaly(reading.pm10, k);
+        match (p25, p10) {
+            (true, true) => "both",
+            (true, false) => "pm25",
+            (false, true) => "pm10",
+            (false, false) => "none",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,13 +168,13 @@ pub enum EventType {
     Widespread,
 }
 
-/// Compute concordance from a set of sensor readings + their EWMA baselines.
+/// Compute concordance from sensor readings + dual-channel baselines.
 ///
-/// `baselines` maps sensor_id → EwmaBaseline.
-/// `k` is the anomaly threshold in standard deviations (default 3.0).
+/// Anomaly = EITHER PM2.5 or PM10 exceeds baseline + kσ.
+/// `baselines` maps sensor_id → DualBaseline.
 pub fn concordance(
     readings: &[SensorReading],
-    baselines: &std::collections::HashMap<u64, EwmaBaseline>,
+    baselines: &std::collections::HashMap<u64, DualBaseline>,
     k: f64,
 ) -> ConcordanceResult {
     if readings.is_empty() {
@@ -148,7 +191,7 @@ pub fn concordance(
 
     for r in readings {
         if let Some(bl) = baselines.get(&r.sensor_id) {
-            if bl.is_anomaly(r.pm25, k) {
+            if bl.is_anomaly(r, k) {
                 anomaly_ids.push(r.sensor_id);
             }
         }
@@ -263,25 +306,33 @@ pub struct EventAnalysis {
     pub directional: Option<DirectionalResult>,
     /// Median PM2.5 (all sensors).
     pub median_pm25: f64,
+    /// Median PM10 (all sensors).
+    pub median_pm10: f64,
     /// Median PM2.5 (anomaly sensors only).
     pub anomaly_median_pm25: Option<f64>,
-    /// Confidence: 0.0-1.0. Higher when concordance + directional agree.
+    /// Median PM10 (anomaly sensors only).
+    pub anomaly_median_pm10: Option<f64>,
+    /// PM10/PM2.5 ratio — high (>3) suggests dust, low (~1) suggests combustion.
+    pub pm10_pm25_ratio: f64,
+    /// Likely source type based on ratio.
+    pub source_hint: &'static str,
+    /// Confidence: 0.0-1.0.
     pub confidence: f64,
     /// Human-readable summary.
     pub summary: String,
 }
 
-/// Run full event detection.
+/// Run full event detection (dual-channel: PM2.5 + PM10).
 ///
 /// `center_lat/lon` — city center.
 /// `readings` — all current sensor readings.
-/// `baselines` — per-sensor EWMA baselines (updated externally).
+/// `baselines` — per-sensor dual baselines.
 /// `k` — anomaly threshold in σ (default 3.0).
 pub fn detect_event(
     center_lat: f64,
     center_lon: f64,
     readings: &[SensorReading],
-    baselines: &std::collections::HashMap<u64, EwmaBaseline>,
+    baselines: &std::collections::HashMap<u64, DualBaseline>,
     k: f64,
 ) -> EventAnalysis {
     let conc = concordance(readings, baselines, k);
@@ -304,13 +355,30 @@ pub fn detect_event(
         all_pm25[all_pm25.len() / 2]
     };
 
-    // Median PM2.5 (anomaly sensors)
-    let anomaly_median = if anomaly_readings.is_empty() {
-        None
+    // Median PM10 (all sensors)
+    let mut all_pm10: Vec<f64> = readings.iter().map(|r| r.pm10).collect();
+    all_pm10.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median_pm10 = if all_pm10.is_empty() { 0.0 } else { all_pm10[all_pm10.len() / 2] };
+
+    // Anomaly medians
+    let (anomaly_median_pm25, anomaly_median_pm10) = if anomaly_readings.is_empty() {
+        (None, None)
     } else {
-        let mut apm: Vec<f64> = anomaly_readings.iter().map(|r| r.pm25).collect();
-        apm.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        Some(apm[apm.len() / 2])
+        let mut apm25: Vec<f64> = anomaly_readings.iter().map(|r| r.pm25).collect();
+        let mut apm10: Vec<f64> = anomaly_readings.iter().map(|r| r.pm10).collect();
+        apm25.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        apm10.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        (Some(apm25[apm25.len() / 2]), Some(apm10[apm10.len() / 2]))
+    };
+
+    // PM10/PM2.5 ratio → source type hint
+    let pm10_pm25_ratio = if median_pm25 > 1.0 { median_pm10 / median_pm25 } else { 1.0 };
+    let source_hint = match pm10_pm25_ratio {
+        r if r > 4.0 => "dust/sand storm",
+        r if r > 2.5 => "construction/road dust",
+        r if r > 1.5 => "mixed sources",
+        r if r > 0.8 => "combustion (traffic/heating)",
+        _ => "fine particles (smoke/industrial)",
     };
 
     // Confidence scoring
@@ -352,7 +420,11 @@ pub fn detect_event(
         concordance: conc,
         directional: dir,
         median_pm25,
-        anomaly_median_pm25: anomaly_median,
+        median_pm10,
+        anomaly_median_pm25,
+        anomaly_median_pm10,
+        pm10_pm25_ratio,
+        source_hint,
         confidence,
         summary,
     }
@@ -377,7 +449,7 @@ mod tests {
     }
 
     fn sensor(id: u64, lat: f64, lon: f64, pm25: f64) -> SensorReading {
-        SensorReading { sensor_id: id, lat, lon, pm25 }
+        SensorReading { sensor_id: id, lat, lon, pm25, pm10: pm25 * 1.5 }
     }
 
     #[test]
@@ -421,10 +493,10 @@ mod tests {
             sensor(2, 55.76, 37.61, 11.0),
             sensor(3, 55.77, 37.62, 13.0),
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = vec![
-            (1, make_baseline(10.0, 4.0)),
-            (2, make_baseline(10.0, 4.0)),
-            (3, make_baseline(10.0, 4.0)),
+        let baselines: HashMap<u64, DualBaseline> = vec![
+            (1, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (2, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (3, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
         ].into_iter().collect();
 
         let result = concordance(&readings, &baselines, 3.0);
@@ -440,11 +512,11 @@ mod tests {
             sensor(3, 55.77, 37.62, 10.0),
             sensor(4, 55.78, 37.63, 12.0),
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = vec![
-            (1, make_baseline(10.0, 4.0)),
-            (2, make_baseline(10.0, 4.0)),
-            (3, make_baseline(10.0, 4.0)),
-            (4, make_baseline(10.0, 4.0)),
+        let baselines: HashMap<u64, DualBaseline> = vec![
+            (1, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (2, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (3, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (4, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
         ].into_iter().collect();
 
         let result = concordance(&readings, &baselines, 3.0);
@@ -460,11 +532,11 @@ mod tests {
             sensor(3, 55.77, 37.62, 10.0),
             sensor(4, 55.78, 37.63, 12.0),
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = vec![
-            (1, make_baseline(10.0, 4.0)),
-            (2, make_baseline(10.0, 4.0)),
-            (3, make_baseline(10.0, 4.0)),
-            (4, make_baseline(10.0, 4.0)),
+        let baselines: HashMap<u64, DualBaseline> = vec![
+            (1, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (2, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (3, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (4, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
         ].into_iter().collect();
 
         let result = concordance(&readings, &baselines, 3.0);
@@ -481,11 +553,11 @@ mod tests {
             sensor(3, 55.77, 37.62, 48.0), // 3 of 4 = 75%
             sensor(4, 55.78, 37.63, 12.0),
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = vec![
-            (1, make_baseline(10.0, 4.0)),
-            (2, make_baseline(10.0, 4.0)),
-            (3, make_baseline(10.0, 4.0)),
-            (4, make_baseline(10.0, 4.0)),
+        let baselines: HashMap<u64, DualBaseline> = vec![
+            (1, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (2, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (3, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
+            (4, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)),
         ].into_iter().collect();
 
         let result = concordance(&readings, &baselines, 3.0);
@@ -531,8 +603,8 @@ mod tests {
             sensor(3, 55.70, 37.55, 10.0), // SW, normal
             sensor(4, 55.72, 37.58, 11.0), // SW, normal
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = readings.iter()
-            .map(|r| (r.sensor_id, make_baseline(10.0, 4.0)))
+        let baselines: HashMap<u64, DualBaseline> = readings.iter()
+            .map(|r| (r.sensor_id, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)))
             .collect();
 
         let result = detect_event(center.0, center.1, &readings, &baselines, 3.0);
@@ -540,6 +612,7 @@ mod tests {
         assert!(result.directional.as_ref().unwrap().is_directional);
         assert!(result.confidence > 0.7, "confidence: {}", result.confidence);
         assert!(result.summary.contains("confirm from"));
+        assert!(result.pm10_pm25_ratio > 0.0);
     }
 
     #[test]
@@ -548,12 +621,48 @@ mod tests {
             sensor(1, 55.75, 37.60, 10.0),
             sensor(2, 55.76, 37.61, 11.0),
         ];
-        let baselines: HashMap<u64, EwmaBaseline> = readings.iter()
-            .map(|r| (r.sensor_id, make_baseline(10.0, 4.0)))
+        let baselines: HashMap<u64, DualBaseline> = readings.iter()
+            .map(|r| (r.sensor_id, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)))
             .collect();
 
         let result = detect_event(55.75, 37.60, &readings, &baselines, 3.0);
         assert_eq!(result.concordance.event_type, EventType::Normal);
         assert!(result.confidence < 0.1);
+    }
+
+    #[test]
+    fn test_dust_storm_pm10_trigger() {
+        // Dust storm: PM10 spikes but PM2.5 stays moderate
+        let readings = vec![
+            SensorReading { sensor_id: 1, lat: 37.1, lon: 79.9, pm25: 30.0, pm10: 150.0 },
+            SensorReading { sensor_id: 2, lat: 37.15, lon: 79.95, pm25: 28.0, pm10: 140.0 },
+            SensorReading { sensor_id: 3, lat: 37.05, lon: 79.85, pm25: 12.0, pm10: 50.0 },
+            SensorReading { sensor_id: 4, lat: 37.0, lon: 79.8, pm25: 10.0, pm10: 40.0 },
+        ];
+        let baselines: HashMap<u64, DualBaseline> = readings.iter()
+            .map(|r| (r.sensor_id, DualBaseline::with_baselines(15.0, 9.0, 60.0, 100.0)))
+            .collect();
+
+        let result = detect_event(37.1, 79.9, &readings, &baselines, 2.0);
+        // PM10 channel should trigger on sensors 1,2
+        assert!(result.pm10_pm25_ratio > 2.0, "ratio: {}", result.pm10_pm25_ratio);
+        assert!(result.source_hint.contains("dust"), "hint: {}", result.source_hint);
+    }
+
+    #[test]
+    fn test_source_hint_combustion() {
+        // Combustion: PM2.5 ≈ PM10 (ratio ~1.0-1.5)
+        let readings = vec![
+            SensorReading { sensor_id: 1, lat: 55.75, lon: 37.60, pm25: 50.0, pm10: 60.0 },
+            SensorReading { sensor_id: 2, lat: 55.76, lon: 37.61, pm25: 45.0, pm10: 55.0 },
+        ];
+        let baselines: HashMap<u64, DualBaseline> = readings.iter()
+            .map(|r| (r.sensor_id, DualBaseline::with_baselines(10.0, 4.0, 15.0, 6.0)))
+            .collect();
+
+        let result = detect_event(55.75, 37.60, &readings, &baselines, 3.0);
+        assert!(result.pm10_pm25_ratio < 2.0, "ratio: {}", result.pm10_pm25_ratio);
+        assert!(result.source_hint.contains("combustion") || result.source_hint.contains("mixed"),
+            "hint: {}", result.source_hint);
     }
 }
