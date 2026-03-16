@@ -2731,101 +2731,136 @@ mod tests {
 // ---------------------------------------------------------------------------
 
 pub mod signal {
-    /// Air quality: PM2.5 → AQI → comfort score.
-    /// AQI 0 = 100 (perfect), AQI 500 = 0 (hazardous).
+    // -----------------------------------------------------------------------
+    // Primitive curves (building blocks)
+    // -----------------------------------------------------------------------
+
+    /// Logistic sigmoid: 1 / (1 + e^(-k*(x - mid)))
+    /// Maps ℝ → (0, 1). k controls steepness.
+    #[inline]
+    fn sigmoid(x: f64, mid: f64, k: f64) -> f64 {
+        1.0 / (1.0 + (-k * (x - mid)).exp())
+    }
+
+    /// Descending sigmoid → comfort score.
+    /// High x = bad → low score. `s(x) = 100 * (1 - sigmoid(x, mid, k))`
+    #[inline]
+    fn sigmoid_desc(x: f64, mid: f64, k: f64) -> u32 {
+        (100.0 * (1.0 - sigmoid(x, mid, k))).round() as u32
+    }
+
+    /// Gaussian bell: 100 * e^(-((x - center) / σ)²)
+    /// Peaks at center, symmetric decay. For "ideal range" metrics.
+    #[inline]
+    fn gaussian(x: f64, center: f64, sigma: f64) -> u32 {
+        let z = (x - center) / sigma;
+        (100.0 * (-z * z).exp()).round() as u32
+    }
+
+    /// Ascending sigmoid → comfort score.
+    /// High x = good → high score. `s(x) = 100 * sigmoid(x, mid, k)`
+    #[inline]
+    fn sigmoid_asc(x: f64, mid: f64, k: f64) -> u32 {
+        (100.0 * sigmoid(x, mid, k)).round() as u32
+    }
+
+    // -----------------------------------------------------------------------
+    // Normalize functions (all → u32 0-100)
+    // -----------------------------------------------------------------------
+
+    /// Air quality: PM2.5 → AQI → sigmoid comfort.
+    /// Midpoint AQI=75 (unhealthy-sensitive), k=0.04.
+    /// AQI 0 ≈ 100, AQI 150 ≈ 5, AQI 300 ≈ 0.
     pub fn normalize_air(pm25: f64) -> u32 {
-        let aqi = super::pm25_aqi(pm25);
-        (100.0 - aqi as f64 * 0.2).max(0.0).round() as u32
+        let aqi = super::pm25_aqi(pm25) as f64;
+        sigmoid_desc(aqi, 75.0, 0.04)
     }
 
-    /// Temperature comfort. Ideal 18-28°C = 100. ±5°/step penalty.
+    /// Temperature: Gaussian around ideal 23°C, σ=12.
+    /// 23°C = 100, 10°C ≈ 38, 36°C ≈ 38, 0°C ≈ 7, -10°C ≈ 1.
     pub fn normalize_temperature(temp_c: f64) -> u32 {
-        if (18.0..=28.0).contains(&temp_c) {
-            100
-        } else if temp_c < 18.0 {
-            (100.0 - (18.0 - temp_c) * 5.0).max(0.0) as u32
-        } else {
-            (100.0 - (temp_c - 28.0) * 5.0).max(0.0) as u32
-        }
+        gaussian(temp_c, 23.0, 12.0)
     }
 
-    /// UV index comfort. 0-2 = 100, >11 = 0.
+    /// UV index: descending sigmoid, midpoint 6, k=0.6.
+    /// UV 0 ≈ 97, UV 3 ≈ 86, UV 8 ≈ 23, UV 11 ≈ 4.
     pub fn normalize_uv(uv: f64) -> u32 {
-        (100.0 - uv * 9.0).max(0.0).min(100.0).round() as u32
+        sigmoid_desc(uv, 6.0, 0.6)
     }
 
-    /// Marine/sea comfort. Wave height 0-1m = 100, >4m = 0.
+    /// Marine: wave height descending sigmoid, mid=2m, k=1.5.
+    /// 0m ≈ 95, 1m ≈ 82, 2m = 50, 4m ≈ 5.
     pub fn normalize_marine(wave_height_m: f64) -> u32 {
-        (100.0 - wave_height_m * 25.0).max(0.0).min(100.0).round() as u32
+        sigmoid_desc(wave_height_m, 2.0, 1.5)
     }
 
-    /// Earthquake comfort. Mag <3 = 100, >6 = 0. No recent quakes = 100.
+    /// Earthquake: descending sigmoid on magnitude, mid=4.5, k=1.2.
+    /// No data (mag < 0) = 100. Mag 3 ≈ 86, 4.5 = 50, 6 ≈ 14.
     pub fn normalize_earthquake(magnitude: f64) -> u32 {
         if magnitude < 0.0 {
             return 100; // no data sentinel
         }
-        (100.0 - (magnitude - 3.0).max(0.0) * 33.0).max(0.0).min(100.0).round() as u32
+        sigmoid_desc(magnitude, 4.5, 1.2)
     }
 
-    /// Fire proximity comfort. Distance in km. 100km+ = 100, 0km = 0.
+    /// Fire proximity: ascending sigmoid on distance, mid=30km, k=0.08.
+    /// 0km ≈ 8, 15km ≈ 23, 30km = 50, 60km ≈ 91, 100km ≈ 100.
     pub fn normalize_fire(distance_km: f64) -> u32 {
-        distance_km.max(0.0).min(100.0).round() as u32
+        sigmoid_asc(distance_km, 30.0, 0.08)
     }
 
-    /// Pollen comfort. Max pollen count → score. 0 = 100, ≥100 = 0.
+    /// Pollen: descending sigmoid, mid=50 grains/m³, k=0.06.
+    /// 0 ≈ 95, 20 ≈ 86, 50 = 50, 100 ≈ 5.
     pub fn normalize_pollen(max_pollen: f64) -> u32 {
-        (100.0 - max_pollen).max(0.0).min(100.0).round() as u32
+        sigmoid_desc(max_pollen, 50.0, 0.06)
     }
 
-    /// Pressure comfort. Ideal 1013 hPa. ±20 hPa → 0.
-    /// Optional: rapid change penalty (>5 hPa/3h).
+    /// Pressure: Gaussian around 1013 hPa, σ=10.
+    /// With rapid-change penalty: multiply by sigmoid_desc on |Δ|.
+    /// 1013 = 100, 1003 ≈ 37, 993 ≈ 2.
     pub fn normalize_pressure(current_hpa: f64, change_3h: Option<f64>) -> u32 {
-        let deviation_score = (100.0 - (current_hpa - 1013.0).abs() * 5.0).max(0.0);
-        if let Some(change) = change_3h {
-            if change.abs() > 5.0 {
-                return (deviation_score - change.abs() * 5.0).max(0.0).round() as u32;
+        let base = gaussian(current_hpa, 1013.0, 10.0) as f64;
+        let penalty = match change_3h {
+            Some(c) if c.abs() > 0.0 => {
+                // Rapid change penalty: sigmoid centered at 5 hPa/3h
+                1.0 - sigmoid(c.abs(), 5.0, 0.8) * 0.5
             }
-        }
-        deviation_score.round() as u32
+            _ => 1.0,
+        };
+        (base * penalty).round() as u32
     }
 
-    /// Geomagnetic comfort. Kp 0-2 quiet = 100, Kp 9 extreme = 0.
+    /// Geomagnetic: descending sigmoid on Kp, mid=4.0, k=0.8.
+    /// Kp 0 ≈ 96, Kp 3 ≈ 69, Kp 5 ≈ 31, Kp 9 ≈ 2.
     pub fn normalize_geomagnetic(kp: f64) -> u32 {
-        (100.0 - kp * 11.0).max(0.0).min(100.0).round() as u32
+        sigmoid_desc(kp, 4.0, 0.8)
     }
 
-    /// Moon phase comfort. 0 = new, 0.5 = full.
-    /// Full moon correlates with poorer sleep → lower score.
+    /// Moon phase: cosine comfort. phase 0..1, full=0.5.
+    /// cos(2π * phase) maps: new(0)=100, full(0.5)=0, quarter=50.
+    /// Smooth, no piecewise.
     pub fn normalize_moon(phase: f64) -> u32 {
-        let dist_from_full = (phase - 0.5).abs();
-        (dist_from_full * 200.0).min(100.0).round() as u32
+        let cos_val = (2.0 * std::f64::consts::PI * phase).cos();
+        // cos: new=+1, full=-1. Map [-1,1] → [0,100]
+        ((cos_val + 1.0) * 50.0).round() as u32
     }
 
-    /// Daylight comfort. Hours of daylight. 14+ = 100, 8 = 50, <6 = 0.
+    /// Daylight: ascending sigmoid on hours, mid=10h, k=0.5.
+    /// 6h ≈ 12, 8h ≈ 27, 10h = 50, 12h ≈ 73, 14h ≈ 88.
     pub fn normalize_daylight(hours: f64) -> u32 {
-        ((hours - 6.0) * 12.5).max(0.0).min(100.0).round() as u32
+        sigmoid_asc(hours, 10.0, 0.5)
     }
 
-    /// Humidity comfort. 40-60% = 100, drops 2.5 pts per % outside.
+    /// Humidity: Gaussian around ideal 50%, σ=25.
+    /// 50% = 100, 30% ≈ 55, 70% ≈ 55, 20% ≈ 28, 80% ≈ 28, 0% ≈ 2.
     pub fn normalize_humidity(humidity_pct: f64) -> u32 {
-        if (40.0..=60.0).contains(&humidity_pct) {
-            100
-        } else if humidity_pct < 40.0 {
-            (100.0 - (40.0 - humidity_pct) * 2.5).max(0.0) as u32
-        } else {
-            (100.0 - (humidity_pct - 60.0) * 2.5).max(0.0) as u32
-        }
+        gaussian(humidity_pct, 50.0, 25.0)
     }
 
-    /// Noise comfort. ≤40dB = 100, ≥85dB = 0, linear between.
+    /// Noise: descending sigmoid on dB, mid=60dB, k=0.15.
+    /// 40dB ≈ 95, 50dB ≈ 82, 60dB = 50, 75dB ≈ 10, 85dB ≈ 2.
     pub fn normalize_noise(db: f64) -> u32 {
-        if db <= 40.0 {
-            100
-        } else if db >= 85.0 {
-            0
-        } else {
-            (100.0 - ((db - 40.0) / 45.0) * 100.0).max(0.0).round() as u32
-        }
+        sigmoid_desc(db, 60.0, 0.15)
     }
 
     /// Moon phase calculation (Conway's algorithm). Returns 0-1.
@@ -2843,6 +2878,117 @@ pub mod signal {
             result += 30;
         }
         result as f64 / 30.0
+    }
+
+    // -------------------------------------------------------------------
+    // Tests: sigmoid properties (monotonicity, bounds, smoothness)
+    // -------------------------------------------------------------------
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_sigmoid_primitives() {
+            // sigmoid(mid, mid, k) = 0.5 for any k
+            assert!((sigmoid(5.0, 5.0, 1.0) - 0.5).abs() < 0.001);
+            // sigmoid(-∞) → 0, sigmoid(+∞) → 1
+            assert!(sigmoid(-100.0, 0.0, 1.0) < 0.001);
+            assert!(sigmoid(100.0, 0.0, 1.0) > 0.999);
+        }
+
+        #[test]
+        fn test_air_monotone_decreasing() {
+            // Higher PM2.5 → lower score (monotone)
+            let s0 = normalize_air(0.0);
+            let s12 = normalize_air(12.0);
+            let s35 = normalize_air(35.0);
+            let s150 = normalize_air(150.0);
+            assert!(s0 > s12, "0 > 12: {} > {}", s0, s12);
+            assert!(s12 > s35, "12 > 35: {} > {}", s12, s35);
+            assert!(s35 > s150, "35 > 150: {} > {}", s35, s150);
+            assert!(s0 >= 90, "clean air ≥ 90, got {}", s0);
+            assert!(s150 < 20, "hazardous < 20, got {}", s150);
+        }
+
+        #[test]
+        fn test_temperature_bell() {
+            // Peak at 23°C, symmetric decay
+            let peak = normalize_temperature(23.0);
+            let warm = normalize_temperature(30.0);
+            let cold = normalize_temperature(10.0);
+            let extreme = normalize_temperature(0.0);
+            assert_eq!(peak, 100);
+            assert!(warm > 25 && warm < 80, "30°C: {warm}");
+            assert!(cold > 15 && cold < 60, "10°C: {cold}");
+            assert!(extreme < 15, "0°C: {extreme}");
+        }
+
+        #[test]
+        fn test_pressure_gaussian_with_penalty() {
+            let ideal = normalize_pressure(1013.0, None);
+            let off10 = normalize_pressure(1023.0, None);
+            let off20 = normalize_pressure(993.0, None);
+            assert_eq!(ideal, 100);
+            assert!(off10 > 30, "±10 hPa: {off10}");
+            assert!(off20 < 20, "±20 hPa: {off20}");
+            // Rapid change penalty
+            let with_change = normalize_pressure(1013.0, Some(8.0));
+            assert!(with_change < ideal, "rapid change should penalize: {with_change} < {ideal}");
+        }
+
+        #[test]
+        fn test_humidity_gaussian() {
+            let ideal = normalize_humidity(50.0);
+            let dry = normalize_humidity(20.0);
+            let wet = normalize_humidity(80.0);
+            assert_eq!(ideal, 100);
+            assert!(dry > 10 && dry < 50, "20%: {dry}");
+            assert!(wet > 10 && wet < 50, "80%: {wet}");
+            // Symmetric
+            assert!((normalize_humidity(40.0) as i32 - normalize_humidity(60.0) as i32).abs() <= 1);
+        }
+
+        #[test]
+        fn test_moon_cosine() {
+            let new_moon = normalize_moon(0.0);
+            let full_moon = normalize_moon(0.5);
+            let quarter = normalize_moon(0.25);
+            assert_eq!(new_moon, 100);
+            assert_eq!(full_moon, 0);
+            assert_eq!(quarter, 50);
+        }
+
+        #[test]
+        fn test_fire_ascending_sigmoid() {
+            let at_0 = normalize_fire(0.0);
+            let at_30 = normalize_fire(30.0);
+            let at_100 = normalize_fire(100.0);
+            assert!(at_0 < 15, "0km: {at_0}");
+            assert!((at_30 as i32 - 50).abs() <= 5, "30km ≈ 50: {at_30}");
+            assert!(at_100 > 95, "100km: {at_100}");
+        }
+
+        #[test]
+        fn test_all_bounded_0_100() {
+            // Every normalize function must return 0..=100
+            for x in [0.0, 1.0, 5.0, 10.0, 50.0, 100.0, 200.0, 500.0] {
+                assert!(normalize_air(x) <= 100);
+                assert!(normalize_uv(x) <= 100);
+                assert!(normalize_marine(x) <= 100);
+                assert!(normalize_pollen(x) <= 100);
+                assert!(normalize_noise(x) <= 100);
+                assert!(normalize_geomagnetic(x.min(9.0)) <= 100);
+                assert!(normalize_daylight(x.min(24.0)) <= 100);
+                assert!(normalize_fire(x) <= 100);
+            }
+            for t in [-20.0, 0.0, 23.0, 40.0, 50.0] {
+                assert!(normalize_temperature(t) <= 100);
+            }
+            for h in [0.0, 20.0, 50.0, 80.0, 100.0] {
+                assert!(normalize_humidity(h) <= 100);
+            }
+        }
     }
 
     /// Full comfort index for Air Signal (11 modules, weighted).
