@@ -39,7 +39,9 @@ NO2   1.9 μg/m³
 O3    73.0 μg/m³
 SO2   1.1 μg/m³
 UV Index: 0 ☀️ (Low)
+Humidity: 59% | Pressure: 1009 hPa (normal)
 Wind:   5.2 km/h ↙ NE (gusts 8)
+Comfort: 90/100 🟢 Excellent
 --------------------------------------------------
 🟢 US AQI: 40 | EU AQI: 29 — Good
 ```
@@ -60,6 +62,34 @@ airq --city анталья
 ```bash
 airq --lat 55.75 --lon 37.62
 ```
+
+### Comfort index
+
+```bash
+airq comfort --city berlin
+```
+
+```
+Berlin, Germany — Comfort Index: 67/100 — Good
+
+  Air Quality   80/100  ████████░░  AQI 38 (Good)
+  Temperature   21/100  ██░░░░░░░░  2°C
+  Wind          80/100  ████████░░  17 km/h SW
+  UV           100/100  ██████████  0.6 (Low)
+  Pressure      84/100  ████████░░  1005 hPa
+  Humidity      75/100  ███████░░░  74%
+```
+
+### Extended data (pollen, earthquakes, geomagnetic)
+
+```bash
+airq --city gazipasa --full
+```
+
+Shows additional data only when significant:
+- Pollen levels (grass, birch, alder, ragweed)
+- Nearby earthquakes (M3+, 200km, 7 days)
+- Geomagnetic Kp index (when unsettled/storm)
 
 ### History (sparkline)
 
@@ -183,9 +213,7 @@ Identify which factories, power plants, or highways contribute to local air poll
 airq blame --city hamburg --radius 20 --days 7
 ```
 
-Auto-discovers factories, power plants, and highways from OpenStreetMap. CPF = probability that high PM2.5 occurs when wind blows from that source direction.
-
-Sources auto-discovered from OpenStreetMap (Overpass API). CPF = probability that high PM2.5 occurs when wind blows from that source. You can also add custom sources in config:
+Auto-discovers factories, power plants, and highways from OpenStreetMap (Overpass API). CPF = probability that high PM2.5 occurs when wind blows from that source direction. Custom sources in config:
 
 ```toml
 [[sources]]
@@ -273,11 +301,16 @@ See [examples/](examples/) for sample reports.
 
 ## Data sources
 
-- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — free, no key, global atmospheric model
-- [Open-Meteo Weather API](https://open-meteo.com/en/docs) — wind speed, direction, gusts
+All free, no API keys needed:
+
+- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — PM2.5, PM10, CO, NO2, O3, SO2, pollen, AQI
+- [Open-Meteo Weather API](https://open-meteo.com/en/docs) — wind, pressure, humidity, temperature, UV
 - [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) — city → coordinates
-- [Sensor.Community](https://sensor.community/) — citizen science, 15,000+ real SDS011/PM sensors
-- [Sensor.Community Archive](https://archive.sensor.community/) — historical CSV data per sensor (cached locally)
+- [Sensor.Community](https://sensor.community/) — 15,000+ citizen science PM sensors
+- [Sensor.Community Archive](https://archive.sensor.community/) — historical CSV (cached locally)
+- [USGS Earthquake API](https://earthquake.usgs.gov/fdsnws/event/1/) — global seismic data
+- [NOAA SWPC](https://services.swpc.noaa.gov/) — geomagnetic Kp index
+- [OpenStreetMap / Overpass API](https://overpass-api.de/) — factories, power plants, highways for blame
 
 ## License
 

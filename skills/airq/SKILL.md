@@ -63,7 +63,19 @@ airq --city tokyo                 # specific city
 airq --lat 55.75 --lon 37.62     # by coordinates
 ```
 
-Output shows PM2.5, PM10, CO, NO2, O3, SO2, UV index with color-coded AQI.
+Default output includes PM2.5, PM10, CO, NO2, O3, SO2, UV, humidity, pressure, wind, and comfort score (0-100).
+
+### Comfort index breakdown
+```bash
+airq comfort --city berlin
+```
+Detailed breakdown: air quality, temperature, wind, UV, pressure, humidity — each scored 0-100 with progress bars.
+
+### Extended data
+```bash
+airq --city gazipasa --full
+```
+Shows pollen (grass, birch, alder, ragweed), nearby earthquakes (M3+, USGS), geomagnetic Kp (NOAA). Only displayed when significant.
 
 ### History (sparkline trend)
 ```bash
