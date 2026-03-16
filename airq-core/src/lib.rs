@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use wasm_bindgen::prelude::*;
 
 pub mod matrix;
+pub mod event;
 
 // ---------------------------------------------------------------------------
 // Data types
