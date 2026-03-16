@@ -167,7 +167,13 @@ airq report --city hamburg --radius 150 --days 3         # HTML only
 airq report --city hamburg --radius 150 --days 3 --pdf   # HTML + PDF
 ```
 
-Opens in any browser. PDF export uses Chrome headless or wkhtmltopdf.
+Opens in any browser. For PDF export (`--pdf`) you need one of:
+- **Google Chrome** (recommended) — already installed on most systems, used in headless mode
+- **wkhtmltopdf** — lightweight alternative:
+  ```bash
+  brew install wkhtmltopdf        # macOS
+  sudo apt install wkhtmltopdf    # Ubuntu/Debian
+  ```
 
 ### Find nearby sensors
 
