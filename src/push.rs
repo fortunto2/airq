@@ -117,6 +117,8 @@ pub async fn push_handler(
 mod tests {
     use super::*;
 
+    // -- Parse tests --
+
     #[test]
     fn test_parse_push_sds011() {
         let payload = PushPayload {
@@ -137,7 +139,7 @@ mod tests {
         assert!((pm10.unwrap() - 12.5).abs() < 0.01);
         assert!((temp.unwrap() - 22.1).abs() < 0.01);
         assert!((hum.unwrap() - 45.0).abs() < 0.01);
-        assert!((press.unwrap() - 1013.25).abs() < 0.1); // Pa → hPa conversion
+        assert!((press.unwrap() - 1013.25).abs() < 0.1); // Pa → hPa
     }
 
     #[test]
@@ -164,5 +166,233 @@ mod tests {
         let (_, pm25, pm10, _, _, _) = parse_push(&payload);
         assert!((pm25.unwrap() - 10.0).abs() < 0.01);
         assert!((pm10.unwrap() - 20.0).abs() < 0.01);
+    }
+
+    // -- BashAir fixture tests (from bashair/back/tests/api/data/) --
+
+    /// Full measurement: SDS011 + BME280 + metadata (measurement.json from BashAir)
+    #[test]
+    fn test_bashair_full_measurement() {
+        let json = r#"{
+            "esp8266id": "11545355",
+            "software_version": "NRZ-2020-133",
+            "test": "1",
+            "sensordatavalues": [
+                {"value_type": "SDS_P1", "value": "6.35"},
+                {"value_type": "SDS_P2", "value": "3.83"},
+                {"value_type": "BME280_temperature", "value": "26.43"},
+                {"value_type": "BME280_pressure", "value": "99505.19"},
+                {"value_type": "BME280_humidity", "value": "23.77"},
+                {"value_type": "samples", "value": "1039137"},
+                {"value_type": "min_micro", "value": "27"},
+                {"value_type": "max_micro", "value": "20370"},
+                {"value_type": "interval", "value": "30000"},
+                {"value_type": "signal", "value": "-50"}
+            ]
+        }"#;
+
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(payload.esp8266id.as_deref(), Some("11545355"));
+        assert_eq!(payload.software_version.as_deref(), Some("NRZ-2020-133"));
+        assert_eq!(payload.sensordatavalues.len(), 10);
+
+        let (sid, pm25, pm10, temp, hum, press) = parse_push(&payload);
+        assert_eq!(sid, 11545355);
+        assert!((pm25.unwrap() - 3.83).abs() < 0.01); // SDS_P2 = PM2.5
+        assert!((pm10.unwrap() - 6.35).abs() < 0.01); // SDS_P1 = PM10
+        assert!((temp.unwrap() - 26.43).abs() < 0.01);
+        assert!((hum.unwrap() - 23.77).abs() < 0.01);
+        assert!((press.unwrap() - 995.05).abs() < 0.1); // 99505 Pa → 995.05 hPa
+    }
+
+    /// Bad sensor: SDS011 only, no BME280 (measurement_bad.json from BashAir)
+    #[test]
+    fn test_bashair_bad_sensor_no_bme280() {
+        let json = r#"{
+            "esp8266id": "11545355",
+            "software_version": "NRZ-2020-133",
+            "test": "1",
+            "sensordatavalues": [
+                {"value_type": "SDS_P1", "value": "6.35"},
+                {"value_type": "SDS_P2", "value": "3.83"},
+                {"value_type": "samples", "value": "1039137"},
+                {"value_type": "min_micro", "value": "27"},
+                {"value_type": "max_micro", "value": "20370"},
+                {"value_type": "interval", "value": "30000"},
+                {"value_type": "signal", "value": "-50"}
+            ]
+        }"#;
+
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        let (sid, pm25, pm10, temp, hum, press) = parse_push(&payload);
+        assert_eq!(sid, 11545355);
+        assert!((pm25.unwrap() - 3.83).abs() < 0.01);
+        assert!((pm10.unwrap() - 6.35).abs() < 0.01);
+        assert!(temp.is_none());  // no BME280
+        assert!(hum.is_none());
+        assert!(press.is_none());
+    }
+
+    /// Unknown value types are silently ignored
+    #[test]
+    fn test_unknown_value_types_ignored() {
+        let json = r#"{
+            "esp8266id": "99999",
+            "sensordatavalues": [
+                {"value_type": "SDS_P2", "value": "5.0"},
+                {"value_type": "unknown_sensor", "value": "123"},
+                {"value_type": "GPS_lat", "value": "36.27"},
+                {"value_type": "GPS_lon", "value": "32.30"}
+            ]
+        }"#;
+
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        let (_, pm25, pm10, temp, _, _) = parse_push(&payload);
+        assert!((pm25.unwrap() - 5.0).abs() < 0.01);
+        assert!(pm10.is_none());
+        assert!(temp.is_none());
+    }
+
+    /// Invalid numeric values don't crash
+    #[test]
+    fn test_invalid_values_handled() {
+        let json = r#"{
+            "esp8266id": "99999",
+            "sensordatavalues": [
+                {"value_type": "SDS_P1", "value": "not_a_number"},
+                {"value_type": "SDS_P2", "value": ""},
+                {"value_type": "BME280_temperature", "value": "NaN"}
+            ]
+        }"#;
+
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        let (_, pm25, pm10, temp, _, _) = parse_push(&payload);
+        assert!(pm25.is_none()); // "" can't parse
+        assert!(pm10.is_none()); // "not_a_number" can't parse
+        // NaN parses as f64 but is still a valid float
+    }
+
+    /// Pressure: BME280 reports Pa (>10000), should convert to hPa
+    #[test]
+    fn test_pressure_pa_to_hpa() {
+        let json = r#"{
+            "esp8266id": "99999",
+            "sensordatavalues": [
+                {"value_type": "BME280_pressure", "value": "101325"}
+            ]
+        }"#;
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        let (_, _, _, _, _, press) = parse_push(&payload);
+        assert!((press.unwrap() - 1013.25).abs() < 0.01);
+    }
+
+    /// Pressure: if already in hPa (<10000), don't convert
+    #[test]
+    fn test_pressure_hpa_no_convert() {
+        let json = r#"{
+            "esp8266id": "99999",
+            "sensordatavalues": [
+                {"value_type": "BME280_pressure", "value": "1013.25"}
+            ]
+        }"#;
+        let payload: PushPayload = serde_json::from_str(json).unwrap();
+        let (_, _, _, _, _, press) = parse_push(&payload);
+        assert!((press.unwrap() - 1013.25).abs() < 0.01);
+    }
+
+    // -- HTTP handler integration tests --
+
+    #[tokio::test]
+    async fn test_push_handler_ok() {
+        let db = Db::open_memory().unwrap();
+        let db = Arc::new(db);
+
+        let payload = PushPayload {
+            sensordatavalues: vec![
+                SensorDataValue { value_type: "SDS_P1".into(), value: "6.35".into() },
+                SensorDataValue { value_type: "SDS_P2".into(), value: "3.83".into() },
+            ],
+            esp8266id: Some("11545355".into()),
+            software_version: Some("NRZ-2020-133".into()),
+        };
+
+        let result = push_handler(
+            axum::extract::State(db.clone()),
+            Json(payload),
+        ).await;
+
+        assert!(result.is_ok());
+        let resp = result.unwrap().0;
+        assert_eq!(resp.status, "ok");
+        assert_eq!(resp.sensor_id, 11545355);
+
+        // Verify data in DB
+        assert_eq!(db.sensor_count().unwrap(), 1);
+        let readings = db.query_readings(11545355, 0, i64::MAX).unwrap();
+        assert_eq!(readings.len(), 1);
+        assert!((readings[0].pm25.unwrap() - 3.83).abs() < 0.01);
+        assert!((readings[0].pm10.unwrap() - 6.35).abs() < 0.01);
+    }
+
+    #[tokio::test]
+    async fn test_push_handler_no_id_rejected() {
+        let db = Db::open_memory().unwrap();
+        let db = Arc::new(db);
+
+        let payload = PushPayload {
+            sensordatavalues: vec![
+                SensorDataValue { value_type: "SDS_P1".into(), value: "6.35".into() },
+            ],
+            esp8266id: None, // no ID
+            software_version: None,
+        };
+
+        let result = push_handler(
+            axum::extract::State(db.clone()),
+            Json(payload),
+        ).await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_push_handler_multiple_pushes() {
+        let db = Db::open_memory().unwrap();
+        let db = Arc::new(db);
+
+        // Push twice from same sensor
+        for pm in &["3.83", "5.50"] {
+            let payload = PushPayload {
+                sensordatavalues: vec![
+                    SensorDataValue { value_type: "SDS_P2".into(), value: pm.to_string() },
+                ],
+                esp8266id: Some("11545355".into()),
+                software_version: None,
+            };
+            push_handler(axum::extract::State(db.clone()), Json(payload)).await.unwrap();
+        }
+
+        // Same sensor, but readings at different timestamps
+        assert_eq!(db.sensor_count().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_push_handler_sensor_marked_local() {
+        let db = Db::open_memory().unwrap();
+        let db = Arc::new(db);
+
+        let payload = PushPayload {
+            sensordatavalues: vec![
+                SensorDataValue { value_type: "SDS_P2".into(), value: "5.0".into() },
+            ],
+            esp8266id: Some("99999".into()),
+            software_version: None,
+        };
+        push_handler(axum::extract::State(db.clone()), Json(payload)).await.unwrap();
+
+        let sensors = db.all_sensors().unwrap();
+        assert_eq!(sensors.len(), 1);
+        assert_eq!(sensors[0].source.as_deref(), Some("local")); // marked as local push
     }
 }
