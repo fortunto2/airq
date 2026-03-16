@@ -83,7 +83,7 @@ JSON API for data access + real-time event detection on each poll.
 Phone-first HTML dashboard served by Axum.
 
 ### Tasks
-- [ ] Task 4.1: Create `src/web.rs` — embedded HTML/CSS/JS dashboard
+- [x] Task 4.1: Create `src/web.rs` — embedded HTML/CSS/JS dashboard
   - Single-page: Leaflet map + chart + event list + sensor table
   - `GET /` serves HTML (embedded in binary, no separate files)
   - Fetches data from REST API via fetch()
@@ -91,7 +91,7 @@ Phone-first HTML dashboard served by Axum.
   - Chart: last 24h PM2.5 line (Canvas or lightweight chart lib)
   - Map: sensors colored by PM2.5, city radius circle
   - Events: colored badges with source classification + advice
-- [ ] Task 4.2: Add `serve` subcommand to `src/main.rs`
+- [x] Task 4.2: Add `serve` subcommand to `src/main.rs`
   - `airq serve --city gazipasha --radius 15 --port 8080`
   - Multiple `--city` flags for multi-city
   - `--db-path` optional (default `~/.local/share/airq/airq.db`)
@@ -100,9 +100,9 @@ Phone-first HTML dashboard served by Axum.
   - Graceful shutdown on Ctrl+C (save baselines)
 
 ### Verification
-- [ ] `airq serve --city gazipasha` → opens http://localhost:8080
-- [ ] Dashboard works on mobile (phone-first)
-- [ ] Chart shows real data after first poll cycle
+- [x] `airq serve --city gazipasha` → opens http://localhost:8080
+- [x] Dashboard works on mobile (phone-first)
+- [x] Chart shows real data after first poll cycle
 
 ## Phase 5: Docs & Cleanup
 

@@ -192,6 +192,24 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Run local monitoring daemon (collector + web dashboard + event detection)
+    Serve {
+        /// City name (can be specified multiple times for multi-city)
+        #[arg(long, required = true)]
+        city: Vec<String>,
+        /// Search radius in km for each city
+        #[arg(long, default_value_t = 15.0)]
+        radius: f64,
+        /// HTTP port for web dashboard and API
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
+        /// SQLite database path
+        #[arg(long)]
+        db_path: Option<String>,
+        /// Poll interval in seconds
+        #[arg(long, default_value_t = 300)]
+        interval: u64,
+    },
     /// Generate shell completions
     Completions {
         /// Shell type
@@ -214,6 +232,40 @@ async fn main() -> Result<()> {
             &mut std::io::stdout(),
         );
         return Ok(());
+    }
+
+    if let Some(Commands::Serve { city, radius, port, db_path, interval }) = cli.command.as_ref() {
+        let db_path = match db_path {
+            Some(p) => std::path::PathBuf::from(p),
+            None => dirs::data_local_dir()
+                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share"))
+                .join("airq")
+                .join("airq.db"),
+        };
+
+        // Geocode all cities
+        let mut city_configs = Vec::new();
+        for city_name in city {
+            let (lat, lon, resolved) = geocode(city_name).await?;
+            eprintln!("City: {} ({:.2}, {:.2})", resolved, lat, lon);
+            city_configs.push(airq::serve::CityConfig {
+                name: city_name.clone(),
+                lat,
+                lon,
+                radius_km: *radius,
+            });
+        }
+
+        airq::api::init_start_time();
+
+        let config = airq::serve::ServeConfig {
+            cities: city_configs,
+            port: *port,
+            db_path,
+            interval_secs: *interval,
+        };
+
+        return airq::serve::run_serve(config).await;
     }
 
     if let Some(Commands::Init { city }) = &cli.command {
