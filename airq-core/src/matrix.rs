@@ -478,6 +478,43 @@ impl SignalMatrix {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Storage: bincode file persistence (feature-gated)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "storage")]
+impl SignalMatrix {
+    /// Save matrix to bincode file.
+    pub fn save(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        let bytes = bincode::serde::encode_to_vec(self, bincode::config::standard())?;
+        std::fs::write(path, bytes)?;
+        Ok(())
+    }
+
+    /// Load matrix from bincode file.
+    pub fn load(path: &std::path::Path) -> anyhow::Result<Self> {
+        let bytes = std::fs::read(path)?;
+        let (matrix, _) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard())?;
+        Ok(matrix)
+    }
+
+    /// Load (or create new) → push row → save.
+    pub fn append_and_save(
+        path: &std::path::Path,
+        ts: f64,
+        row: SignalRow,
+    ) -> anyhow::Result<Self> {
+        let mut matrix = if path.exists() {
+            Self::load(path)?
+        } else {
+            Self::new()
+        };
+        matrix.push(ts, row);
+        matrix.save(path)?;
+        Ok(matrix)
+    }
+}
+
 impl Default for SignalMatrix {
     fn default() -> Self {
         Self::new()
@@ -754,6 +791,105 @@ mod tests {
     fn test_ml_vector_empty() {
         let m = SignalMatrix::new();
         assert!(m.to_ml_vector().is_none());
+    }
+
+    // -- Phase 3: Storage tests --
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn test_save_load_roundtrip() {
+        let dir = std::env::temp_dir().join("airq_test_storage");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_roundtrip.bin");
+
+        let mut m = SignalMatrix::new();
+        for i in 0..100 {
+            m.push(i as f64 * 3600.0, sample_row(i as f64));
+        }
+        m.save(&path).unwrap();
+
+        let m2 = SignalMatrix::load(&path).unwrap();
+        assert_eq!(m2.len(), 100);
+        assert_eq!(m2.data[0], m.data[0]);
+        assert_eq!(m2.data[99], m.data[99]);
+        assert_eq!(m2.timestamps[50], m.timestamps[50]);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn test_save_file_size() {
+        let dir = std::env::temp_dir().join("airq_test_storage");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_size.bin");
+
+        let mut m = SignalMatrix::new();
+        for i in 0..8760 {
+            m.push(i as f64 * 3600.0, sample_row((i % 100) as f64));
+        }
+        m.save(&path).unwrap();
+
+        let size = std::fs::metadata(&path).unwrap().len();
+        assert!(size < 1_000_000, "file too large: {} bytes", size);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn test_append_and_save() {
+        let dir = std::env::temp_dir().join("airq_test_storage");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_append.bin");
+        let _ = std::fs::remove_file(&path);
+
+        // First append creates file
+        SignalMatrix::append_and_save(&path, 1000.0, sample_row(50.0)).unwrap();
+        let m = SignalMatrix::load(&path).unwrap();
+        assert_eq!(m.len(), 1);
+
+        // Second append adds row
+        SignalMatrix::append_and_save(&path, 2000.0, sample_row(60.0)).unwrap();
+        let m = SignalMatrix::load(&path).unwrap();
+        assert_eq!(m.len(), 2);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn test_load_corrupt_file() {
+        let dir = std::env::temp_dir().join("airq_test_storage");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_corrupt.bin");
+
+        std::fs::write(&path, b"not valid bincode").unwrap();
+        assert!(SignalMatrix::load(&path).is_err());
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn test_compact_and_save() {
+        let dir = std::env::temp_dir().join("airq_test_storage");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_compact.bin");
+
+        let mut m = SignalMatrix::new();
+        for i in 0..1000 {
+            m.push(i as f64, sample_row(i as f64));
+        }
+        m.compact(100);
+        assert_eq!(m.len(), 100);
+        m.save(&path).unwrap();
+
+        let m2 = SignalMatrix::load(&path).unwrap();
+        assert_eq!(m2.len(), 100);
+        assert_eq!(m2.timestamps[0], 900.0);
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
