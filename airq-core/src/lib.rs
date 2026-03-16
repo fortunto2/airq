@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod matrix;
 pub mod event;
+pub mod merge;
 
 // ---------------------------------------------------------------------------
 // Data types
