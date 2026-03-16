@@ -12,10 +12,10 @@ pub struct MergedReading {
     pub pm25: f64,
     /// Final PM10 after merge.
     pub pm10: f64,
-    /// Model value (Open-Meteo).
+    /// Forecast value (Open-Meteo CAMS model, not real measurement).
     pub model_pm25: Option<f64>,
     pub model_pm10: Option<f64>,
-    /// Sensor median (Sensor.Community).
+    /// Sensor median (Sensor.Community, real measurements).
     pub sensor_pm25: Option<f64>,
     pub sensor_pm10: Option<f64>,
     /// Number of sensors used.
@@ -113,6 +113,20 @@ fn model_weight_from_divergence(divergence: f64, sensor_count: u32) -> f64 {
     };
 
     (div_weight * sensor_discount).min(0.3)
+}
+
+// ---------------------------------------------------------------------------
+// Convenience: single-source (partial merge)
+// ---------------------------------------------------------------------------
+
+/// Sensor-only reading (no model).
+pub fn from_sensors(pm25: f64, pm10: f64, sensor_count: u32) -> MergedReading {
+    merge(None, None, Some(pm25), Some(pm10), sensor_count)
+}
+
+/// Model-only reading (no sensors).
+pub fn from_model(pm25: f64, pm10: f64) -> MergedReading {
+    merge(Some(pm25), Some(pm10), None, None, 0)
 }
 
 // ---------------------------------------------------------------------------

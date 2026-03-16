@@ -841,37 +841,26 @@ async fn main() -> Result<()> {
         let om_aqi = om.as_ref().and_then(|d| d.current.us_aqi).map(|v| v.round() as u32);
 
         // Fetch Sensor.Community: single sensor or area average
-        let (sc_pm25, sc_pm10, sc_label, sensor_info) = if let Some(sid) = sensor_id {
+        let (sc_pm25, sc_pm10, sc_label, sensor_info, sc_count) = if let Some(sid) = sensor_id {
             let sc = fetch_sensor_community(*sid).await.ok();
             let pm25 = sc.as_ref().and_then(|d| d.current.pm2_5);
             let pm10 = sc.as_ref().and_then(|d| d.current.pm10);
-            (pm25, pm10, format!("Sensor #{}", sid), String::new())
+            (pm25, pm10, format!("Sensor #{}", sid), String::new(), 1u32)
         } else {
             match fetch_area_average(lat, lon, *radius).await.ok() {
                 Some(a) if a.sensor_count > 0 => {
                     let info = format!("{} sensors, {}km radius", a.sensor_count, radius);
-                    (a.pm2_5_median, a.pm10_median, "Area Median".into(), info)
+                    (a.pm2_5_median, a.pm10_median, "Area Median".into(), info, a.sensor_count as u32)
                 }
-                _ => (None, None, "No sensors".into(), String::new()),
+                _ => (None, None, "No sensors".into(), String::new(), 0u32),
             }
         };
         let sc_aqi = sc_pm25.map(|v| pm25_aqi(v));
 
-        let avg_pm25 = match (om_pm25, sc_pm25) {
-            (Some(a), Some(b)) => Some((a + b) / 2.0),
-            (Some(a), None) | (None, Some(a)) => Some(a),
-            _ => None,
-        };
-        let avg_pm10 = match (om_pm10, sc_pm10) {
-            (Some(a), Some(b)) => Some((a + b) / 2.0),
-            (Some(a), None) | (None, Some(a)) => Some(a),
-            _ => None,
-        };
-        let avg_aqi = match (om_aqi, sc_aqi) {
-            (Some(a), Some(b)) => Some((a + b) / 2),
-            (Some(a), None) | (None, Some(a)) => Some(a),
-            _ => None,
-        };
+        let merged = airq_core::merge::merge(om_pm25, om_pm10, sc_pm25, sc_pm10, sc_count);
+        let avg_pm25 = if merged.pm25 > 0.0 { Some(merged.pm25) } else { None };
+        let avg_pm10 = if merged.pm10 > 0.0 { Some(merged.pm10) } else { None };
+        let avg_aqi = avg_pm25.map(|v| pm25_aqi(v));
 
         if *json {
             let data = serde_json::json!({
@@ -1328,13 +1317,10 @@ async fn main() -> Result<()> {
                         sensor_count
                     );
 
-                    // Merge: average if both available
-                    if let (Some(om), Some(sc)) = (om_pm25, sc_pm25) {
-                        data.current.pm2_5 = Some((om + sc) / 2.0);
-                    }
-                    if let (Some(om), Some(sc)) = (om_pm10, sc_pm10) {
-                        data.current.pm10 = Some((om + sc) / 2.0);
-                    }
+                    // Merge: dynamic weighting by divergence
+                    let merged = airq_core::merge::merge(om_pm25, om_pm10, sc_pm25, sc_pm10, sensor_count as u32);
+                    data.current.pm2_5 = Some(merged.pm25);
+                    data.current.pm10 = Some(merged.pm10);
                     data.current.us_aqi = overall_aqi(&data.current).map(|v| v as f64);
                 }
             }
