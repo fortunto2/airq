@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "airq"
-version = "1.3.0"
+version = "2.0.0"
 dependencies = [
  "airq-core",
  "anyhow",
@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "airq-core"
-version = "1.3.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",

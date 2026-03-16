@@ -1,6 +1,6 @@
 [package]
 name = "airq-core"
-version = "1.3.0"
+version = "2.0.0"
 edition = "2024"
 description = "Air quality core: AQI, 14-signal comfort (sigmoid), event detection (EWMA+concordance), source classification, time-series matrix, sensor/model merge"
 license = "MIT"
