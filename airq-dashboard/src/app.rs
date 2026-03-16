@@ -3,7 +3,7 @@
 //! Layout: left sidebar (nav) + main content area.
 //! Views: Dashboard, Map, Comfort, Events, History, Sources, Settings.
 
-use crate::state::{self, MonitorSnapshot, SensorWithReading};
+use crate::state::{self, CityData, MonitorSnapshot, SensorWithReading};
 use airq::db::Db;
 use airq::AppConfig;
 use dioxus::prelude::*;
@@ -82,6 +82,7 @@ pub fn App() -> Element {
     let mut suggestions: Signal<Vec<String>> = use_signal(Vec::new);
     // Keep shutdown_tx alive — dropping it kills the collector
     let mut shutdown_handle: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
+    let mut city_data: Signal<CityData> = use_signal(CityData::default);
 
     // Settings state
     let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
@@ -104,12 +105,15 @@ pub fn App() -> Element {
 
         spawn(async move {
             match start_collector(&city_name, radius, interval).await {
-                Ok((db_handle, snap, stx)) => {
+                Ok((db_handle, snap, stx, lat, lon)) => {
                     db.set(Some(db_handle));
                     snapshot.set(snap);
                     collector_running.set(true);
                     error_msg.set(None);
                     shutdown_handle.set(Some(stx));
+                    // Fetch live API data for comfort matrix
+                    let cd = state::fetch_city_data(lat, lon).await;
+                    city_data.set(cd);
                 }
                 Err(e) => {
                     error_msg.set(Some(e));
@@ -214,12 +218,14 @@ pub fn App() -> Element {
                                                         let interval = (interval_input)();
                                                         spawn(async move {
                                                             match start_collector(&city_name, radius, interval).await {
-                                                                Ok((db_handle, snap, stx)) => {
+                                                                Ok((db_handle, snap, stx, lat, lon)) => {
                                                                     db.set(Some(db_handle));
                                                                     snapshot.set(snap);
                                                                     collector_running.set(true);
                                                                     error_msg.set(None);
                                                                     shutdown_handle.set(Some(stx));
+                                                                    let cd = state::fetch_city_data(lat, lon).await;
+                                                                    city_data.set(cd);
                                                                 }
                                                                 Err(e) => error_msg.set(Some(e)),
                                                             }
@@ -290,12 +296,14 @@ pub fn App() -> Element {
                                         let interval = (interval_input)();
                                         spawn(async move {
                                             match start_collector(&city_name, radius, interval).await {
-                                                Ok((db_handle, snap, stx)) => {
+                                                Ok((db_handle, snap, stx, lat, lon)) => {
                                                     db.set(Some(db_handle));
                                                     snapshot.set(snap);
                                                     collector_running.set(true);
                                                     error_msg.set(None);
                                                     shutdown_handle.set(Some(stx));
+                                                    let cd = state::fetch_city_data(lat, lon).await;
+                                                    city_data.set(cd);
                                                 }
                                                 Err(e) => error_msg.set(Some(e)),
                                             }
@@ -341,13 +349,13 @@ pub fn App() -> Element {
                 main { class: "content",
                 match current_view {
                     View::Dashboard => rsx! {
-                        DashboardView { snap: snap.clone(), is_running: is_running }
+                        DashboardView { snap: snap.clone(), is_running: is_running, city_data: (city_data)() }
                     },
                     View::Map => rsx! {
                         MapView { snap: snap.clone() }
                     },
                     View::Comfort => rsx! {
-                        ComfortView { snap: snap.clone() }
+                        ComfortView { snap: snap.clone(), city_data: (city_data)() }
                     },
                     View::Events => rsx! {
                         EventsView { snap: snap.clone() }
@@ -377,11 +385,12 @@ pub fn App() -> Element {
 }
 
 /// Return type includes shutdown_tx — MUST be kept alive or collector stops.
+/// Return type includes lat/lon for city data fetching.
 async fn start_collector(
     city: &str,
     radius: f64,
     interval: u64,
-) -> Result<(Arc<Db>, MonitorSnapshot, tokio::sync::watch::Sender<bool>), String> {
+) -> Result<(Arc<Db>, MonitorSnapshot, tokio::sync::watch::Sender<bool>, f64, f64), String> {
     let (lat, lon, resolved) = airq::geocode(city).await
         .map_err(|e| format!("Geocode failed: {e}"))?;
     tracing::info!("Resolved: {} ({:.2}, {:.2})", resolved, lat, lon);
@@ -407,7 +416,7 @@ async fn start_collector(
     ));
 
     let snap = state::build_snapshot(&db_handle, Some(city));
-    Ok((db_handle, snap, shutdown_tx))
+    Ok((db_handle, snap, shutdown_tx, lat, lon))
 }
 
 // ---------------------------------------------------------------------------
@@ -416,7 +425,7 @@ async fn start_collector(
 
 /// Dashboard: stats + sensor table + recent events
 #[component]
-fn DashboardView(snap: MonitorSnapshot, is_running: bool) -> Element {
+fn DashboardView(snap: MonitorSnapshot, is_running: bool, city_data: CityData) -> Element {
     rsx! {
         div { class: "view-header",
             h1 { "Dashboard" }
@@ -434,10 +443,27 @@ fn DashboardView(snap: MonitorSnapshot, is_running: bool) -> Element {
         // Stats
         if is_running {
             div { class: "stats-grid",
-                StatCard { label: "PM2.5", value: fmt_pm(snap.avg_pm25), unit: "μg/m³", color: pm25_color(snap.avg_pm25) }
-                StatCard { label: "PM10", value: fmt_pm(snap.avg_pm10), unit: "μg/m³", color: pm25_color(snap.avg_pm10) }
+                StatCard { label: "PM2.5", value: fmt_pm(snap.avg_pm25), unit: "\u{00b5}g/m\u{00b3}", color: pm25_color(snap.avg_pm25) }
+                StatCard { label: "PM10", value: fmt_pm(snap.avg_pm10), unit: "\u{00b5}g/m\u{00b3}", color: pm25_color(snap.avg_pm10) }
                 StatCard { label: "Sensors", value: format!("{}", snap.sensor_count), unit: "active", color: "normal" }
                 StatCard { label: "Readings", value: format!("{}", snap.reading_count), unit: "total", color: "normal" }
+            }
+        }
+
+        // Compact comfort score widget
+        if city_data.loaded {
+            div { class: "card comfort-compact",
+                div { class: "comfort-compact-row",
+                    div { class: "comfort-score-compact {score_color(city_data.comfort_total)}",
+                        "{city_data.comfort_total}"
+                    }
+                    div { class: "comfort-compact-info",
+                        div { class: "comfort-compact-label", "Comfort: {city_data.comfort_label}" }
+                        div { class: "comfort-compact-details",
+                            "Air {city_data.air_score} · Temp {city_data.temperature_score} · Wind {city_data.wind_score} · UV {city_data.uv_score} · Press {city_data.pressure_score} · Hum {city_data.humidity_score}"
+                        }
+                    }
+                }
             }
         }
 
@@ -558,26 +584,109 @@ fn MapView(snap: MonitorSnapshot) -> Element {
     }
 }
 
-/// Comfort: 14-signal breakdown
+/// Color class for a comfort score (0-100).
+fn score_color(score: u32) -> &'static str {
+    match score {
+        80..=100 => "green",
+        50..=79 => "yellow",
+        30..=49 => "orange",
+        _ => "red",
+    }
+}
+
+/// Format an optional f64 with given precision, or "--" if None.
+fn fmt_opt(val: Option<f64>, precision: usize) -> String {
+    match val {
+        Some(v) => format!("{v:.prec$}", prec = precision),
+        None => "--".to_string(),
+    }
+}
+
+/// Comfort: full 6-signal matrix + source + WHO
 #[component]
-fn ComfortView(snap: MonitorSnapshot) -> Element {
+fn ComfortView(snap: MonitorSnapshot, city_data: CityData) -> Element {
     let pm25 = snap.avg_pm25.unwrap_or(0.0);
     let pm10 = snap.avg_pm10.unwrap_or(0.0);
 
-    // Calculate AQI from PM2.5
-    let aqi = airq::pm25_aqi(pm25);
-    let category = airq::AqiCategory::from_aqi(aqi);
-    let cat_label = category.label().to_string();
+    // Signal matrix rows: (label, raw_value_str, unit, score, weight_pct)
+    let signals: Vec<(&str, String, &str, u32, u32)> = if city_data.loaded {
+        vec![
+            ("Air (AQI)", format!("{}", city_data.aqi), "", city_data.air_score, 30),
+            ("Temperature", fmt_opt(city_data.temperature_c, 1), "\u{00b0}C", city_data.temperature_score, 25),
+            ("Wind", fmt_opt(city_data.wind_kmh, 1), "km/h", city_data.wind_score, 10),
+            ("UV", fmt_opt(city_data.uv_index, 1), "", city_data.uv_score, 10),
+            ("Pressure", fmt_opt(city_data.pressure_hpa, 0), "hPa", city_data.pressure_score, 15),
+            ("Humidity", fmt_opt(city_data.humidity_pct, 0), "%", city_data.humidity_score, 10),
+        ]
+    } else {
+        vec![]
+    };
 
     rsx! {
         div { class: "view-header",
             h1 { "Air Comfort" }
         }
 
-        div { class: "stats-grid",
-            StatCard { label: "AQI", value: format!("{aqi}"), unit: cat_label, color: aqi_color(aqi) }
-            StatCard { label: "PM2.5", value: format!("{pm25:.1}"), unit: "μg/m³".to_string(), color: pm25_color(Some(pm25)) }
-            StatCard { label: "PM10", value: format!("{pm10:.1}"), unit: "μg/m³".to_string(), color: pm25_color(Some(pm10)) }
+        // Total comfort score (hero)
+        if city_data.loaded {
+            div { class: "card comfort-hero",
+                div { class: "comfort-score-big {score_color(city_data.comfort_total)}",
+                    "{city_data.comfort_total}"
+                }
+                div { class: "comfort-label", "{city_data.comfort_label}" }
+            }
+
+            // Signal matrix table
+            div { class: "card",
+                h2 { "Signal Matrix" }
+                table { class: "data-table",
+                    thead {
+                        tr {
+                            th { "Signal" }
+                            th { class: "num", "Raw Value" }
+                            th { class: "num", "Score" }
+                            th { class: "num", "Weight" }
+                            th { class: "num", "Weighted" }
+                            th { style: "width:120px", "Bar" }
+                        }
+                    }
+                    tbody {
+                        for (label, raw, unit, score, weight) in signals.iter() {
+                            {
+                                let weighted = (*score as f64 * *weight as f64 / 100.0).round() as u32;
+                                let bar_width = format!("{}%", score);
+                                let bar_color = score_color(*score);
+                                let raw_display = if unit.is_empty() {
+                                    raw.clone()
+                                } else {
+                                    format!("{raw} {unit}")
+                                };
+                                rsx! {
+                                    tr {
+                                        td { "{label}" }
+                                        td { class: "num", "{raw_display}" }
+                                        td { class: "num {bar_color}", "{score}/100" }
+                                        td { class: "num", "{weight}%" }
+                                        td { class: "num", "{weighted}" }
+                                        td {
+                                            div { class: "progress-bar",
+                                                div {
+                                                    class: "progress-fill {bar_color}",
+                                                    style: "width:{bar_width}",
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            div { class: "card empty-state",
+                p { "Loading comfort data from APIs..." }
+            }
         }
 
         // Source classification
@@ -616,13 +725,13 @@ fn ComfortView(snap: MonitorSnapshot) -> Element {
                 tbody {
                     tr {
                         td { "PM2.5" }
-                        td { class: "num", "15 μg/m³" }
+                        td { class: "num", "15 \u{00b5}g/m\u{00b3}" }
                         td { class: "num {pm25_color(Some(pm25))}", "{pm25:.1}" }
                         td { if pm25 <= 15.0 { "OK" } else { "Exceeded" } }
                     }
                     tr {
                         td { "PM10" }
-                        td { class: "num", "45 μg/m³" }
+                        td { class: "num", "45 \u{00b5}g/m\u{00b3}" }
                         td { class: "num {pm25_color(Some(pm10))}", "{pm10:.1}" }
                         td { if pm10 <= 45.0 { "OK" } else { "Exceeded" } }
                     }
@@ -880,8 +989,8 @@ fn SensorRow(sr: SensorWithReading) -> Element {
     rsx! {
         tr {
             td { "#{sr.sensor.id}" }
-            td { class: "num {pm25_color(pm25)}", {fmt_opt(pm25)} }
-            td { class: "num", {fmt_opt(pm10)} }
+            td { class: "num {pm25_color(pm25)}", {fmt_opt(pm25, 1)} }
+            td { class: "num", {fmt_opt(pm10, 1)} }
             td { class: "num", {temp.map(|v| format!("{v:.0}°")).unwrap_or("—".into())} }
             td { class: "num", {humidity.map(|v| format!("{v:.0}%")).unwrap_or("—".into())} }
             td { "{source}" }
@@ -929,10 +1038,6 @@ fn aqi_color(aqi: u32) -> &'static str {
 }
 
 fn fmt_pm(val: Option<f64>) -> String {
-    val.map(|v| format!("{v:.1}")).unwrap_or("—".into())
-}
-
-fn fmt_opt(val: Option<f64>) -> String {
     val.map(|v| format!("{v:.1}")).unwrap_or("—".into())
 }
 
@@ -1071,4 +1176,38 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .chip { display: inline-block; padding: 4px 12px; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.2); border-radius: 16px; font-size: 0.8rem; color: var(--blue); }
 .muted { color: var(--muted); }
 .small { font-size: 0.75rem; }
+
+/* Comfort hero */
+.comfort-hero { text-align: center; padding: 24px; }
+.comfort-score-big { font-size: 4rem; font-weight: 800; line-height: 1; }
+.comfort-score-big.green { color: var(--green); }
+.comfort-score-big.yellow { color: var(--yellow); }
+.comfort-score-big.orange { color: var(--orange); }
+.comfort-score-big.red { color: var(--red); }
+.comfort-label { font-size: 1.2rem; color: var(--muted); margin-top: 4px; }
+
+/* Progress bar in matrix table */
+.progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+.progress-fill.green { background: var(--green); }
+.progress-fill.yellow { background: var(--yellow); }
+.progress-fill.orange { background: var(--orange); }
+.progress-fill.red { background: var(--red); }
+
+/* Score colors in table cells */
+td.green, .num.green { color: var(--green); }
+td.yellow, .num.yellow { color: var(--yellow); }
+td.orange, .num.orange { color: var(--orange); }
+td.red, .num.red { color: var(--red); }
+
+/* Compact comfort widget on dashboard */
+.comfort-compact { padding: 16px; }
+.comfort-compact-row { display: flex; align-items: center; gap: 16px; }
+.comfort-score-compact { font-size: 2.4rem; font-weight: 800; min-width: 64px; text-align: center; }
+.comfort-score-compact.green { color: var(--green); }
+.comfort-score-compact.yellow { color: var(--yellow); }
+.comfort-score-compact.orange { color: var(--orange); }
+.comfort-score-compact.red { color: var(--red); }
+.comfort-compact-label { font-size: 1rem; font-weight: 600; }
+.comfort-compact-details { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
 "#;
