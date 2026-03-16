@@ -1070,7 +1070,7 @@ fn SourcesView(snap: MonitorSnapshot, city_data: CityData) -> Element {
     }
 }
 
-/// Settings: city, radius, interval, DB info
+/// Settings: monitoring, server, cities, DB info — with save to config.toml
 #[component]
 fn SettingsView(
     city_input: Signal<String>,
@@ -1084,22 +1084,56 @@ fn SettingsView(
     let mut city_input = city_input;
     let mut radius_input = radius_input;
     let mut interval_input = interval_input;
+    let mut port_input: Signal<u16> = use_signal(|| 8080);
+    let mut cities_text: Signal<String> = use_signal(move || config_cities.join(", "));
+    let mut save_status: Signal<Option<String>> = use_signal(|| None);
+
+    let save_config = move |_| {
+        let city = (city_input)();
+        let radius = (radius_input)();
+        let cities_str = (cities_text)();
+        let cities: Vec<String> = cities_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let config = AppConfig {
+            default_city: Some(city),
+            cities: Some(cities),
+            sensor_id: None,
+            radius: Some(radius),
+            sources: None,
+        };
+
+        match config.save() {
+            Ok(()) => {
+                let path = format!("{}", AppConfig::path().display());
+                save_status.set(Some(format!("Saved to {path}")));
+            }
+            Err(e) => {
+                save_status.set(Some(format!("Error: {e}")));
+            }
+        }
+    };
+
+    let config_path = format!("{}", AppConfig::path().display());
 
     rsx! {
         div { class: "view-header",
             h1 { "Settings" }
         }
 
+        // Monitoring
         div { class: "card",
             h2 { "Monitoring" }
             div { class: "settings-form",
                 div { class: "form-row",
-                    label { "City" }
+                    label { "Default City" }
                     input {
                         r#type: "text",
                         value: "{city_input}",
                         oninput: move |e| city_input.set(e.value()),
-                        disabled: is_running,
                     }
                 }
                 div { class: "form-row",
@@ -1108,54 +1142,115 @@ fn SettingsView(
                         r#type: "number",
                         value: "{radius_input}",
                         oninput: move |e| { if let Ok(v) = e.value().parse::<f64>() { radius_input.set(v); } },
-                        disabled: is_running,
                     }
                 }
                 div { class: "form-row",
-                    label { "Interval (s)" }
+                    label { "Poll Interval" }
                     input {
                         r#type: "number",
                         value: "{interval_input}",
                         oninput: move |e| { if let Ok(v) = e.value().parse::<u64>() { interval_input.set(v); } },
-                        disabled: is_running,
                     }
+                    span { class: "form-hint", "sec" }
                 }
-            }
-            if let Some(ref err) = error_msg {
-                div { class: "error", "{err}" }
             }
             if is_running {
                 div { class: "settings-status good", "Collector running" }
             }
-        }
-
-        // Config cities from airq config.toml
-        if !config_cities.is_empty() {
-            div { class: "card",
-                h2 { "Configured Cities" }
-                div { class: "city-chips",
-                    for city in config_cities.iter() {
-                        span { class: "chip", "{city}" }
-                    }
-                }
-                p { class: "muted small", "From ~/.config/airq/config.toml (shared with CLI)" }
+            if let Some(ref err) = error_msg {
+                div { class: "error", "{err}" }
             }
         }
 
-        // DB info
+        // Server (headless mode)
+        div { class: "card",
+            h2 { "Server (headless)" }
+            p { class: "muted small", "Settings for `airq serve` daemon mode (without dashboard)" }
+            div { class: "settings-form",
+                div { class: "form-row",
+                    label { "Port" }
+                    input {
+                        r#type: "number",
+                        value: "{port_input}",
+                        oninput: move |e| { if let Ok(v) = e.value().parse::<u16>() { port_input.set(v); } },
+                    }
+                }
+                div { class: "form-row",
+                    label { "Bind Address" }
+                    input { r#type: "text", value: "0.0.0.0", disabled: true }
+                }
+                div { class: "form-row",
+                    label { "API Endpoints" }
+                    div { class: "settings-endpoints",
+                        code { "/api/status" }
+                        code { "/api/readings" }
+                        code { "/api/sensors" }
+                        code { "/api/events" }
+                        code { "/api/cities" }
+                        code { "/api/push" }
+                    }
+                }
+            }
+            {
+                let port = (port_input)();
+                let cmd = format!("airq serve --city gazipasa --radius 15 --port {port}");
+                rsx! {
+                    div { class: "settings-cmd",
+                        span { class: "muted", "Run: " }
+                        code { "{cmd}" }
+                    }
+                }
+            }
+        }
+
+        // Cities (editable)
+        div { class: "card",
+            h2 { "Cities" }
+            div { class: "settings-form",
+                div { class: "form-row",
+                    label { "City List" }
+                    input {
+                        r#type: "text",
+                        value: "{cities_text}",
+                        oninput: move |e| cities_text.set(e.value()),
+                        placeholder: "gazipasa, istanbul, moscow",
+                    }
+                }
+            }
+            p { class: "muted small", "Comma-separated. Used for top bar switcher." }
+        }
+
+        // Save button
+        div { class: "card",
+            button {
+                class: "btn-save",
+                onclick: save_config,
+                "Save to config.toml"
+            }
+            if let Some(ref status) = (save_status)() {
+                {
+                    let is_err = status.starts_with("Error");
+                    let cls = if is_err { "error" } else { "save-ok" };
+                    rsx! { div { class: "{cls}", "{status}" } }
+                }
+            }
+            p { class: "muted small", "Config: {config_path}" }
+        }
+
+        // Database
         div { class: "card",
             h2 { "Database" }
             {
                 let db_path = format!("{}", state::default_db_path().display());
-                let readings = snap.reading_count;
+                let total = snap.total_reading_count;
                 let sensors = snap.sensor_count;
-                let cities = snap.cities.len();
+                let n_cities = snap.cities.len();
                 rsx! {
                     div { class: "settings-info",
                         div { "Path: {db_path}" }
-                        div { "Readings: {readings}" }
+                        div { "Total readings: {total}" }
                         div { "Sensors: {sensors}" }
-                        div { "Cities: {cities}" }
+                        div { "Cities: {n_cities}" }
                     }
                 }
             }
@@ -1383,6 +1478,14 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .settings-info div { font-variant-numeric: tabular-nums; }
 .city-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .chip { display: inline-block; padding: 4px 12px; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.2); border-radius: 16px; font-size: 0.8rem; color: var(--blue); }
+.form-hint { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+.btn-save { background: var(--blue); color: #000; border: none; border-radius: 10px; padding: 10px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.btn-save:hover { opacity: 0.9; }
+.save-ok { color: var(--green); font-size: 0.8rem; margin-top: 8px; }
+.settings-endpoints { display: flex; flex-wrap: wrap; gap: 6px; }
+.settings-endpoints code { background: var(--bg); padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; color: var(--blue); }
+.settings-cmd { margin-top: 10px; padding: 8px 12px; background: var(--bg); border-radius: 8px; font-size: 0.8rem; }
+.settings-cmd code { color: var(--green); }
 .muted { color: var(--muted); }
 .small { font-size: 0.75rem; }
 
