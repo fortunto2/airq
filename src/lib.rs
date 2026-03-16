@@ -953,6 +953,49 @@ pub mod front {
         arrows[idx.min(7)]
     }
 
+    /// A sensor cluster — group of nearby sensors aggregated into one node.
+    #[derive(Debug, Clone)]
+    pub struct SensorCluster {
+        pub id: String,           // "cluster_0" or "sensor_12345"
+        pub lat: f64,
+        pub lon: f64,
+        pub sensor_ids: Vec<u64>,
+        pub sensor_count: usize,
+    }
+
+    /// Cluster sensors by proximity (grid-based, ~5km cells).
+    /// Returns clusters with centroid coordinates and member sensor IDs.
+    pub fn cluster_sensors(sensors: &[(u64, f64, f64)], cell_km: f64) -> Vec<SensorCluster> {
+        // Grid-based clustering: round lat/lon to grid cells
+        let cell_lat = cell_km / 111.0; // ~111km per degree latitude
+        let mut grid: std::collections::HashMap<(i32, i32), Vec<(u64, f64, f64)>> =
+            std::collections::HashMap::new();
+
+        for &(id, lat, lon) in sensors {
+            let cell_lon = cell_km / (111.0 * lat.to_radians().cos().max(0.01));
+            let gx = (lon / cell_lon).floor() as i32;
+            let gy = (lat / cell_lat).floor() as i32;
+            grid.entry((gx, gy)).or_default().push((id, lat, lon));
+        }
+
+        grid.into_iter()
+            .enumerate()
+            .map(|(i, ((_, _), members))| {
+                let n = members.len() as f64;
+                let lat = members.iter().map(|(_, la, _)| la).sum::<f64>() / n;
+                let lon = members.iter().map(|(_, _, lo)| lo).sum::<f64>() / n;
+                let ids: Vec<u64> = members.iter().map(|(id, _, _)| *id).collect();
+                SensorCluster {
+                    id: format!("zone_{}", i),
+                    lat,
+                    lon,
+                    sensor_count: ids.len(),
+                    sensor_ids: ids,
+                }
+            })
+            .collect()
+    }
+
     /// Find cities within `radius_km` of a given point from the cities crate.
     pub fn nearby_cities(lat: f64, lon: f64, radius_km: f64, max: usize) -> Vec<super::CityInfo> {
         let mut nearby: Vec<(f64, super::CityInfo)> = cities::all()
@@ -1314,6 +1357,144 @@ pub mod front {
         }
     }
 
+    /// Build graph from sensor clusters with archive history data.
+    pub fn build_sensor_graph(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        clusters: &[SensorCluster],
+        cluster_data: &std::collections::HashMap<String, Vec<(String, f64)>>,
+    ) -> FrontAnalysis {
+        let mut graph = Graph::new();
+
+        let target_node = graph.add_node(StationNode {
+            name: target_name.to_string(),
+            lat: target_lat,
+            lon: target_lon,
+            distance_from_target: 0.0,
+        });
+
+        // Find target cluster (closest to target point)
+        let target_cluster_id = clusters.iter()
+            .min_by(|a, b| {
+                haversine(target_lat, target_lon, a.lat, a.lon)
+                    .partial_cmp(&haversine(target_lat, target_lon, b.lat, b.lon))
+                    .unwrap()
+            })
+            .map(|c| c.id.clone());
+
+        // Add cluster nodes + their hourly data
+        struct NodeData {
+            idx: NodeIndex,
+            times: Vec<String>,
+            pm25: Vec<Option<f64>>,
+        }
+
+        let mut nodes: Vec<NodeData> = Vec::new();
+        let mut all_spikes = Vec::new();
+
+        // Add target with its cluster data if available
+        let target_hourly = target_cluster_id.as_ref()
+            .and_then(|id| cluster_data.get(id));
+        let (target_times, target_pm25): (Vec<String>, Vec<Option<f64>>) =
+            if let Some(data) = target_hourly {
+                (data.iter().map(|(t, _)| t.clone()).collect(),
+                 data.iter().map(|(_, v)| Some(*v)).collect())
+            } else {
+                (Vec::new(), Vec::new())
+            };
+        all_spikes.push((target_node, detect_spikes(&target_times, &target_pm25, 2.0)));
+        nodes.push(NodeData { idx: target_node, times: target_times, pm25: target_pm25 });
+
+        for cluster in clusters {
+            // Skip target cluster (already added)
+            if Some(&cluster.id) == target_cluster_id.as_ref() {
+                continue;
+            }
+            let dist = haversine(target_lat, target_lon, cluster.lat, cluster.lon);
+            let node = graph.add_node(StationNode {
+                name: format!("Zone {} ({} sensors)", cluster.id.replace("zone_", ""), cluster.sensor_count),
+                lat: cluster.lat,
+                lon: cluster.lon,
+                distance_from_target: dist,
+            });
+
+            let (times, pm25): (Vec<String>, Vec<Option<f64>>) =
+                if let Some(data) = cluster_data.get(&cluster.id) {
+                    (data.iter().map(|(t, _)| t.clone()).collect(),
+                     data.iter().map(|(_, v)| Some(*v)).collect())
+                } else {
+                    (Vec::new(), Vec::new())
+                };
+            all_spikes.push((node, detect_spikes(&times, &pm25, 2.0)));
+            nodes.push(NodeData { idx: node, times, pm25 });
+        }
+
+        // Pairwise cross-correlation (only between nearby clusters, <80km)
+        let mut fronts = Vec::new();
+        for i in 0..nodes.len() {
+            for j in (i + 1)..nodes.len() {
+                let a = &graph[nodes[i].idx];
+                let b = &graph[nodes[j].idx];
+                let dist = haversine(a.lat, a.lon, b.lat, b.lon);
+                if dist > 80.0 { continue; } // skip distant pairs
+
+                let brng = bearing(a.lat, a.lon, b.lat, b.lon);
+                let (lag, corr) = cross_correlate(&nodes[i].pm25, &nodes[j].pm25, 24);
+
+                if corr > 0.5 && lag != 0 {
+                    let speed = dist / (lag.unsigned_abs() as f64);
+                    if speed > 100.0 { continue; } // unrealistic
+                    let (from, to, actual_bearing) = if lag > 0 {
+                        (nodes[i].idx, nodes[j].idx, brng)
+                    } else {
+                        (nodes[j].idx, nodes[i].idx, (brng + 180.0) % 360.0)
+                    };
+
+                    let edge = PropagationEdge {
+                        distance_km: dist,
+                        bearing_deg: actual_bearing,
+                        lag_hours: lag.abs(),
+                        correlation: corr,
+                        speed_kmh: speed,
+                        om_lag: None,
+                        om_correlation: None,
+                        sc_lag: Some(lag),
+                        sc_correlation: Some(corr),
+                        confidence: corr,
+                    };
+                    graph.add_edge(from, to, edge);
+
+                    let from_spikes = all_spikes.iter().find(|(n, _)| *n == from);
+                    let to_spikes = all_spikes.iter().find(|(n, _)| *n == to);
+                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes) {
+                        if let (Some(f), Some(t)) = (fs.first(), ts.first()) {
+                            fronts.push(FrontEvent {
+                                from_city: graph[from].name.clone(),
+                                to_city: graph[to].name.clone(),
+                                speed_kmh: speed,
+                                bearing_deg: actual_bearing,
+                                lag_hours: lag.abs(),
+                                correlation: corr,
+                                from_spike_time: f.time.clone(),
+                                to_spike_time: t.time.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        fronts.sort_by(|a, b| b.correlation.partial_cmp(&a.correlation).unwrap());
+
+        FrontAnalysis {
+            graph,
+            target: target_node,
+            spikes: all_spikes,
+            fronts,
+        }
+    }
+
     /// Generate a self-contained HTML report with Leaflet.js map and pollution analysis.
     pub fn generate_report(
         target_name: &str,
@@ -1323,10 +1504,34 @@ pub mod front {
         wind: Option<&super::WindData>,
         days: u32,
     ) -> String {
+        generate_report_with_sensors(
+            target_name, target_lat, target_lon,
+            analysis, wind, days, &[],
+        )
+    }
+
+    /// Generate report with individual sensor locations shown on map.
+    pub fn generate_report_with_sensors(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        analysis: &FrontAnalysis,
+        wind: Option<&super::WindData>,
+        days: u32,
+        raw_sensors: &[(u64, f64, f64)], // (id, lat, lon)
+    ) -> String {
         // Build markers JS
         let mut markers_js = String::new();
 
-        // Target marker (red)
+        // Individual sensor markers (small gray dots)
+        for (sid, slat, slon) in raw_sensors {
+            markers_js.push_str(&format!(
+                "L.circleMarker([{}, {}], {{radius: 3, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.5, weight: 1}}).addTo(map).bindPopup('Sensor #{}');\n",
+                slat, slon, sid,
+            ));
+        }
+
+        // Target marker (red, on top)
         markers_js.push_str(&format!(
             "L.circleMarker([{}, {}], {{radius: 10, color: '#f44336', fillColor: '#f44336', fillOpacity: 0.8}}).addTo(map).bindPopup('<b>{}</b><br>Target city');\n",
             target_lat, target_lon,

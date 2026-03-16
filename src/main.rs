@@ -510,16 +510,30 @@ async fn main() -> Result<()> {
             neighbor_data.extend(batch);
         }
 
-        // Fetch Sensor.Community archive data
-        let mut sensor_data: std::collections::HashMap<String, airq::front::SensorHourlyData> =
+        // Cluster sensors and fetch archive data per cluster
+        let clusters = airq::front::cluster_sensors(&dust_sensors, 5.0);
+        let mut cluster_data: std::collections::HashMap<String, Vec<(String, f64)>> =
             std::collections::HashMap::new();
-        if !dust_sensors.is_empty() {
-            println!("Found {} dust sensors, fetching history...", dust_sensors.len());
-            let sensor_ids: Vec<u64> = dust_sensors.iter().map(|(id, _, _)| *id).take(20).collect();
-            let sensor_futures = sensor_ids.iter().map(|sid| {
+
+        if !clusters.is_empty() {
+            println!("Found {} sensors in {} zones, fetching history...",
+                dust_sensors.len(), clusters.len());
+
+            // Pick 1-2 representative sensors per cluster (max 30 total)
+            let mut fetch_list: Vec<(String, u64)> = Vec::new();
+            for cluster in &clusters {
+                for sid in cluster.sensor_ids.iter().take(2) {
+                    fetch_list.push((cluster.id.clone(), *sid));
+                }
+            }
+            fetch_list.truncate(30);
+
+            // Fetch in parallel
+            let sensor_futures = fetch_list.iter().map(|(cid, sid)| {
+                let cid = cid.clone();
                 let sid = *sid;
                 async move {
-                    airq::fetch_sensor_archive(sid, *days).await.ok().map(|data| (sid, data))
+                    airq::fetch_sensor_archive(sid, *days).await.ok().map(|data| (cid, data))
                 }
             });
             let sensor_results: Vec<_> = futures::future::join_all(sensor_futures)
@@ -528,47 +542,81 @@ async fn main() -> Result<()> {
                 .flatten()
                 .collect();
 
-            for (sid, readings) in &sensor_results {
-                if readings.is_empty() { continue; }
-                let sensor_loc = dust_sensors.iter().find(|(id, _, _)| id == sid);
-                if let Some((_, slat, slon)) = sensor_loc {
-                    let mut best_city = resolved_name.clone();
-                    let mut best_dist = airq::front::haversine(lat, lon, *slat, *slon);
-                    for (name, _, _, _, _, _) in &neighbor_data {
-                        if let Some(nb) = nearby.iter().find(|n| n.name == name) {
-                            let d = airq::front::haversine(nb.lat, nb.lon, *slat, *slon);
-                            if d < best_dist {
-                                best_dist = d;
-                                best_city = name.clone();
-                            }
-                        }
-                    }
-                    let entry = sensor_data.entry(best_city).or_default();
+            for (cid, readings) in sensor_results {
+                if !readings.is_empty() {
+                    let entry = cluster_data.entry(cid).or_default();
                     for (ts, val) in readings {
-                        entry.entry(ts.clone()).or_insert(*val);
+                        // Merge: keep first value per timestamp (or could median)
+                        if !entry.iter().any(|(t, _)| t == &ts) {
+                            entry.push((ts, val));
+                        }
                     }
                 }
             }
-            if !sensor_data.is_empty() {
-                println!("Sensor data for {} cities", sensor_data.len());
+            // Sort each cluster's data by time
+            for data in cluster_data.values_mut() {
+                data.sort_by(|a, b| a.0.cmp(&b.0));
+            }
+            println!("Sensor data for {} zones", cluster_data.len());
+        }
+
+        // Build two analyses: city-level (Open-Meteo) + sensor-level (clusters)
+        let mut sensor_data_map: std::collections::HashMap<String, airq::front::SensorHourlyData> =
+            std::collections::HashMap::new();
+        // Map cluster data to nearest city for dual-source
+        for (cid, data) in &cluster_data {
+            if let Some(cluster) = clusters.iter().find(|c| &c.id == cid) {
+                let mut best_city = resolved_name.clone();
+                let mut best_dist = airq::front::haversine(lat, lon, cluster.lat, cluster.lon);
+                for (name, _, _, _, _, _) in &neighbor_data {
+                    if let Some(nb) = nearby.iter().find(|n| n.name == name) {
+                        let d = airq::front::haversine(nb.lat, nb.lon, cluster.lat, cluster.lon);
+                        if d < best_dist {
+                            best_dist = d;
+                            best_city = name.clone();
+                        }
+                    }
+                }
+                let entry = sensor_data_map.entry(best_city).or_default();
+                for (ts, val) in data {
+                    entry.entry(ts.clone()).or_insert(*val);
+                }
             }
         }
 
-        let analysis = airq::front::build_graph_dual(
-            &resolved_name,
-            lat, lon,
+        // City-level analysis (dual-source)
+        let city_analysis = airq::front::build_graph_dual(
+            &resolved_name, lat, lon,
             neighbor_data,
             &target_history.hourly.time,
             &target_history.hourly.pm2_5,
-            &sensor_data,
+            &sensor_data_map,
         );
 
-        let html = airq::front::generate_report(
+        // Sensor cluster analysis (if we have enough clusters with data)
+        let analysis = if cluster_data.len() >= 3 {
+            let sensor_analysis = airq::front::build_sensor_graph(
+                &resolved_name, lat, lon,
+                &clusters, &cluster_data,
+            );
+            // Use sensor analysis if it found more fronts, otherwise city-level
+            if sensor_analysis.fronts.len() > city_analysis.fronts.len() {
+                println!("Using sensor-level analysis ({} zones)", clusters.len());
+                sensor_analysis
+            } else {
+                city_analysis
+            }
+        } else {
+            city_analysis
+        };
+
+        let html = airq::front::generate_report_with_sensors(
             &resolved_name,
             lat, lon,
             &analysis,
             wind.as_ref(),
             *days,
+            &dust_sensors,
         );
 
         std::fs::write(output, &html)?;
