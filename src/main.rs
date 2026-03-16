@@ -20,6 +20,7 @@ use clap::{Parser, Subcommand};
   airq top --country turkey                Top cities by AQI
   airq compare --city berlin               Side-by-side providers
   airq nearby --city gazipasa              Find sensors nearby
+  airq blame --city moscow --radius 30    Find pollution sources (CPF)
 
 \x1b[1mData sources:\x1b[0m
   Open-Meteo (global model) + Sensor.Community (15K+ real sensors)
@@ -159,6 +160,21 @@ enum Commands {
         /// List all available countries
         #[arg(long)]
         list: bool,
+    },
+    /// Identify pollution sources using wind-direction analysis (CPF)
+    Blame {
+        /// City name (or uses default from config)
+        #[arg(long)]
+        city: Option<String>,
+        /// Search radius for sources in km
+        #[arg(long, default_value_t = 20.0)]
+        radius: f64,
+        /// Number of past days to analyze
+        #[arg(long, default_value_t = 7)]
+        days: u32,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -902,6 +918,169 @@ async fn main() -> Result<()> {
             );
             println!("{}", cat.colorize(&text));
         }
+        return Ok(());
+    }
+
+    if let Some(Commands::Blame {
+        city,
+        radius,
+        days,
+        json,
+    }) = &cli.command
+    {
+        let city_name = city
+            .clone()
+            .or(config.default_city.clone())
+            .context("Specify --city or set default with `airq init`")?;
+        let (lat, lon, resolved_name) = geocode(&city_name).await?;
+
+        if !*json {
+            println!("Searching pollution sources near {}...", resolved_name);
+        }
+
+        // Fetch PM2.5 history + wind history + pollution sources in parallel
+        let (pm_history, wind_history, sources) = tokio::join!(
+            fetch_history(lat, lon, *days),
+            airq::fetch_wind_history(lat, lon, *days),
+            airq::fetch_pollution_sources(lat, lon, *radius)
+        );
+        let pm_history = pm_history?;
+        let wind_history = wind_history?;
+        let mut sources = sources?;
+
+        // Merge manual sources from config
+        if let Some(config_sources) = &config.sources {
+            for cs in config_sources {
+                let ps = airq::PollutionSource::from_config(cs, lat, lon);
+                if ps.distance_km <= *radius {
+                    sources.push(ps);
+                }
+            }
+        }
+
+        if sources.is_empty() {
+            println!("No pollution sources found within {}km", radius);
+            return Ok(());
+        }
+
+        // Align PM2.5 and wind data by timestamp
+        let pm_times = &pm_history.hourly.time;
+        let wind_times = &wind_history.hourly.time;
+
+        // Build lookup of wind data by timestamp
+        let mut wind_map: std::collections::HashMap<&str, (f64, f64)> =
+            std::collections::HashMap::new();
+        for (i, t) in wind_times.iter().enumerate() {
+            if let (Some(dir), Some(spd)) = (
+                wind_history.hourly.wind_direction_10m.get(i).and_then(|v| *v),
+                wind_history.hourly.wind_speed_10m.get(i).and_then(|v| *v),
+            ) {
+                wind_map.insert(t.as_str(), (dir, spd));
+            }
+        }
+
+        // Collect aligned data
+        let mut pm25_vals: Vec<f64> = Vec::new();
+        let mut wind_dirs: Vec<f64> = Vec::new();
+        let mut wind_speeds: Vec<f64> = Vec::new();
+
+        for (i, t) in pm_times.iter().enumerate() {
+            if let Some(pm) = pm_history.hourly.pm2_5.get(i).and_then(|v| *v)
+                && let Some(&(dir, spd)) = wind_map.get(t.as_str())
+            {
+                pm25_vals.push(pm);
+                wind_dirs.push(dir);
+                wind_speeds.push(spd);
+            }
+        }
+
+        if pm25_vals.is_empty() {
+            println!("No aligned PM2.5 + wind data found.");
+            return Ok(());
+        }
+
+        // Calculate CPF
+        let results =
+            airq::front::calculate_cpf(lat, lon, &sources, &pm25_vals, &wind_dirs, &wind_speeds, 0.75);
+
+        if *json {
+            println!("{}", serde_json::to_string_pretty(&results)?);
+            return Ok(());
+        }
+
+        // Count source types
+        let mut type_counts: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::new();
+        for s in &sources {
+            *type_counts.entry(s.source_type.as_str()).or_default() += 1;
+        }
+        let type_summary: Vec<String> = type_counts
+            .iter()
+            .map(|(t, c)| format!("{} {}s", c, t.replace('_', " ")))
+            .collect();
+
+        println!(
+            "\nPollution source attribution — {} ({} days)",
+            resolved_name, days
+        );
+        println!(
+            "Sources found: {} ({})",
+            sources.len(),
+            type_summary.join(", ")
+        );
+        println!("Aligned hourly observations: {}", pm25_vals.len());
+
+        // Table header
+        println!();
+        println!(
+            "{:<3} {:<26} {:<14} {:<6} {:<6} {:>10}",
+            "#", "Source", "Type", "Dist", "CPF", "Avg PM2.5"
+        );
+        println!("{}", "-".repeat(70));
+
+        for (i, r) in results.iter().enumerate() {
+            if r.hours_in_sector == 0 {
+                continue; // skip sources with no wind from that direction
+            }
+            let name = if r.source.name.chars().count() > 25 {
+                let truncated: String = r.source.name.chars().take(22).collect();
+                format!("{}...", truncated)
+            } else {
+                r.source.name.clone()
+            };
+
+            let type_label = r.source.source_type.replace('_', " ");
+
+            // Color CPF: green < 0.3, yellow < 0.6, red >= 0.6
+            let cpf_str = format!("{:.2}", r.cpf_score);
+            let line = format!(
+                "{:<3} {:<26} {:<14} {:<6} {:<6} {:>7.1} ug/m3",
+                i + 1,
+                name,
+                type_label,
+                format!("{}km", r.source.distance_km as u32),
+                cpf_str,
+                r.avg_pm25_in_sector,
+            );
+
+            use colored::Colorize;
+            if r.cpf_score >= 0.6 {
+                println!("{}", line.red());
+            } else if r.cpf_score >= 0.3 {
+                println!("{}", line.yellow());
+            } else {
+                println!("{}", line);
+            }
+        }
+
+        // Background average
+        if let Some(first_with_other) = results.iter().find(|r| r.hours_in_sector > 0) {
+            println!(
+                "  {:<28} {:>30} {:>7.1} ug/m3",
+                "Background (other dirs)", "", first_with_other.avg_pm25_other
+            );
+        }
+
         return Ok(());
     }
 

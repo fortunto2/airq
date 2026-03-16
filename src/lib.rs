@@ -160,6 +160,22 @@ pub struct AppConfig {
     pub cities: Option<Vec<String>>,
     pub sensor_id: Option<u64>,
     pub radius: Option<f64>,
+    pub sources: Option<Vec<ConfigSource>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ConfigSource {
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    #[serde(default = "default_source_type")]
+    pub source_type: String,
+    #[serde(default)]
+    pub height: f64,
+}
+
+fn default_source_type() -> String {
+    "custom".to_string()
 }
 
 impl AppConfig {
@@ -910,6 +926,257 @@ fn normalize_country(input: &str) -> String {
         "uae" | "emirates" => "united arab emirates".into(),
         other => other.into(),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Wind history (Open-Meteo Weather API, hourly)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct WindHistoryResponse {
+    pub hourly: WindHourlyData,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WindHourlyData {
+    pub time: Vec<String>,
+    pub wind_speed_10m: Vec<Option<f64>>,
+    pub wind_direction_10m: Vec<Option<f64>>,
+}
+
+pub async fn fetch_wind_history(lat: f64, lon: f64, days: u32) -> Result<WindHistoryResponse> {
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&hourly=wind_speed_10m,wind_direction_10m&past_days={}&forecast_days=0&timezone=auto",
+        lat, lon, days
+    );
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to fetch wind history")?
+        .json::<WindHistoryResponse>()
+        .await
+        .context("Failed to parse wind history JSON")?;
+    Ok(response)
+}
+
+// ---------------------------------------------------------------------------
+// Pollution sources (Overpass / OpenStreetMap)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PollutionSource {
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    pub source_type: String,
+    pub distance_km: f64,
+}
+
+impl PollutionSource {
+    /// Create from config source entry with distance from a reference point.
+    pub fn from_config(src: &ConfigSource, ref_lat: f64, ref_lon: f64) -> Self {
+        Self {
+            name: src.name.clone(),
+            lat: src.lat,
+            lon: src.lon,
+            source_type: src.source_type.clone(),
+            distance_km: front::haversine(ref_lat, ref_lon, src.lat, src.lon),
+        }
+    }
+}
+
+/// Cache directory for Overpass API responses.
+fn overpass_cache_path(lat: f64, lon: f64, radius_km: f64) -> std::path::PathBuf {
+    let cache_dir = dirs::cache_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".cache"))
+        .join("airq")
+        .join("overpass");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    cache_dir.join(format!("{:.2}_{:.2}_{:.0}km.json", lat, lon, radius_km))
+}
+
+fn urlencoding(s: &str) -> String {
+    s.bytes().map(|b| match b {
+        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+            format!("{}", b as char)
+        }
+        _ => format!("%{:02X}", b),
+    }).collect()
+}
+
+pub async fn fetch_pollution_sources(lat: f64, lon: f64, radius_km: f64) -> Result<Vec<PollutionSource>> {
+    // Check cache first (valid for 7 days)
+    let cache_path = overpass_cache_path(lat, lon, radius_km);
+    if let Ok(meta) = std::fs::metadata(&cache_path) {
+        if let Ok(modified) = meta.modified() {
+            if let Ok(age) = modified.elapsed() {
+                if age.as_secs() < 7 * 86400 {
+                    if let Ok(text) = std::fs::read_to_string(&cache_path) {
+                        if let Ok(cached) = serde_json::from_str::<Vec<PollutionSource>>(&text) {
+                            return Ok(cached);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let radius_m = (radius_km * 1000.0) as u32;
+    let query = format!(
+        r#"[out:json][timeout:25];
+(
+  nwr["power"="plant"](around:{},{},{});
+  nwr["man_made"="works"](around:{},{},{});
+  nwr["landuse"="industrial"](around:{},{},{});
+  way["highway"="motorway"](around:{},{},{});
+  way["highway"="trunk"](around:{},{},{});
+);
+out center tags 50;"#,
+        radius_m, lat, lon,
+        radius_m, lat, lon,
+        radius_m, lat, lon,
+        radius_m, lat, lon,
+        radius_m, lat, lon,
+    );
+
+    let client = reqwest::Client::builder()
+        .user_agent("airq/1.1")
+        .build()
+        .context("client")?;
+
+    let overpass_servers = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+    ];
+
+    let mut text = String::new();
+    for server in &overpass_servers {
+        let result = client
+            .post(*server)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(format!("data={}", urlencoding(&query)))
+            .send()
+            .await;
+        if let Ok(r) = result {
+            if let Ok(t) = r.text().await {
+                if t.starts_with('{') {
+                    text = t;
+                    break;
+                }
+            }
+        }
+    }
+    if text.is_empty() {
+        anyhow::bail!("All Overpass API servers busy or unavailable. Try again later.");
+    }
+
+    let resp: serde_json::Value = serde_json::from_str(&text)
+        .context("Parse Overpass JSON")?;
+
+    let elements = resp
+        .get("elements")
+        .and_then(|e| e.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut sources: Vec<PollutionSource> = Vec::new();
+
+    for el in &elements {
+        let tags = el.get("tags");
+
+        // Determine source type
+        let source_type = if tags.and_then(|t| t.get("power")).and_then(|v| v.as_str()) == Some("plant") {
+            "power_plant"
+        } else if tags.and_then(|t| t.get("man_made")).and_then(|v| v.as_str()) == Some("works") {
+            "factory"
+        } else if tags.and_then(|t| t.get("landuse")).and_then(|v| v.as_str()) == Some("industrial") {
+            "industrial"
+        } else if let Some(hw) = tags.and_then(|t| t.get("highway")).and_then(|v| v.as_str()) {
+            if hw == "motorway" || hw == "trunk" {
+                "highway"
+            } else {
+                continue;
+            }
+        } else {
+            continue;
+        };
+
+        // Get coordinates: node → lat/lon, way/relation → center.lat/center.lon
+        let (elat, elon) = {
+            let el_type = el.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            if el_type == "node" {
+                let la = el.get("lat").and_then(|v| v.as_f64());
+                let lo = el.get("lon").and_then(|v| v.as_f64());
+                match (la, lo) {
+                    (Some(a), Some(o)) => (a, o),
+                    _ => continue,
+                }
+            } else {
+                let center = el.get("center");
+                let la = center.and_then(|c| c.get("lat")).and_then(|v| v.as_f64());
+                let lo = center.and_then(|c| c.get("lon")).and_then(|v| v.as_f64());
+                match (la, lo) {
+                    (Some(a), Some(o)) => (a, o),
+                    _ => continue,
+                }
+            }
+        };
+
+        // Name from tags
+        let name = tags
+            .and_then(|t| {
+                t.get("name")
+                    .or_else(|| t.get("ref"))
+                    .and_then(|v| v.as_str())
+            })
+            .map(|s| s.to_string());
+
+        let distance_km = front::haversine(lat, lon, elat, elon);
+
+        let name = name.unwrap_or_else(|| {
+            format!(
+                "{} ({:.1}km)",
+                match source_type {
+                    "power_plant" => "Power plant",
+                    "factory" => "Factory",
+                    "industrial" => "Industrial zone",
+                    "highway" => "Highway segment",
+                    _ => "Unknown",
+                },
+                distance_km
+            )
+        });
+
+        sources.push(PollutionSource {
+            name,
+            lat: elat,
+            lon: elon,
+            source_type: source_type.to_string(),
+            distance_km,
+        });
+    }
+
+    // Deduplicate: if two sources within 1km, keep the one with a name (non-generated)
+    sources.sort_by(|a, b| a.distance_km.partial_cmp(&b.distance_km).unwrap());
+    let mut deduped: Vec<PollutionSource> = Vec::new();
+    for src in sources {
+        let dominated = deduped.iter().any(|existing| {
+            front::haversine(existing.lat, existing.lon, src.lat, src.lon) < 1.0
+                && existing.source_type == src.source_type
+        });
+        if !dominated {
+            deduped.push(src);
+        }
+    }
+
+    // Limit to 30 closest
+    deduped.truncate(30);
+
+    // Cache for 7 days
+    if let Ok(json) = serde_json::to_string_pretty(&deduped) {
+        let _ = std::fs::write(&cache_path, json);
+    }
+
+    Ok(deduped)
 }
 
 // ---------------------------------------------------------------------------
@@ -1957,6 +2224,120 @@ pub mod front {
         )
     }
 
+    // -----------------------------------------------------------------------
+    // CPF (Conditional Probability Function) for blame analysis
+    // -----------------------------------------------------------------------
+
+    /// CPF result for a single pollution source.
+    #[derive(Debug, serde::Serialize)]
+    pub struct CpfResult {
+        pub source: super::PollutionSource,
+        /// CPF score 0.0–1.0
+        pub cpf_score: f64,
+        /// Bearing from sensor to source (degrees)
+        pub bearing_deg: f64,
+        /// Total hours where wind came from source sector (and speed > threshold)
+        pub hours_in_sector: usize,
+        /// Hours in sector where PM2.5 exceeded threshold
+        pub high_hours_in_sector: usize,
+        /// Average PM2.5 when wind is from source direction
+        pub avg_pm25_in_sector: f64,
+        /// Average PM2.5 from other directions (background)
+        pub avg_pm25_other: f64,
+    }
+
+    /// Calculate CPF for each source given hourly observations.
+    ///
+    /// `wind_dirs` and `wind_speeds` must be same length as `pm25_values`.
+    /// `percentile` — fraction (0.75 or 0.90) to compute the high-pollution threshold.
+    pub fn calculate_cpf(
+        sensor_lat: f64,
+        sensor_lon: f64,
+        sources: &[super::PollutionSource],
+        pm25_values: &[f64],
+        wind_dirs: &[f64],
+        wind_speeds: &[f64],
+        percentile: f64,
+    ) -> Vec<CpfResult> {
+        if pm25_values.is_empty() {
+            return Vec::new();
+        }
+
+        // 1. Calculate threshold = percentile of pm25_values
+        let mut sorted_pm = pm25_values.to_vec();
+        sorted_pm.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let idx = ((sorted_pm.len() as f64 * percentile) as usize).min(sorted_pm.len() - 1);
+        let threshold = sorted_pm[idx];
+
+        let half_sector = 15.0_f64; // ±15° sector width
+        let min_wind_speed = 5.0; // km/h — filter calm winds
+
+        let mut results: Vec<CpfResult> = Vec::new();
+
+        for source in sources {
+            let brng = bearing(sensor_lat, sensor_lon, source.lat, source.lon);
+
+            let mut sector_count = 0usize;
+            let mut high_count = 0usize;
+            let mut sector_pm_sum = 0.0;
+            let mut other_pm_sum = 0.0;
+            let mut other_count = 0usize;
+
+            for i in 0..pm25_values.len() {
+                if wind_speeds[i] < min_wind_speed {
+                    continue; // calm wind — unreliable direction
+                }
+
+                // Angular difference (wind comes FROM wind_dir, source is at brng)
+                let diff = ((wind_dirs[i] - brng + 540.0) % 360.0) - 180.0;
+                let in_sector = diff.abs() <= half_sector;
+
+                if in_sector {
+                    sector_count += 1;
+                    sector_pm_sum += pm25_values[i];
+                    if pm25_values[i] > threshold {
+                        high_count += 1;
+                    }
+                } else {
+                    other_pm_sum += pm25_values[i];
+                    other_count += 1;
+                }
+            }
+
+            let cpf = if sector_count > 0 {
+                high_count as f64 / sector_count as f64
+            } else {
+                0.0
+            };
+
+            let avg_in = if sector_count > 0 {
+                sector_pm_sum / sector_count as f64
+            } else {
+                0.0
+            };
+
+            let avg_other = if other_count > 0 {
+                other_pm_sum / other_count as f64
+            } else {
+                0.0
+            };
+
+            results.push(CpfResult {
+                source: source.clone(),
+                cpf_score: cpf,
+                bearing_deg: brng,
+                hours_in_sector: sector_count,
+                high_hours_in_sector: high_count,
+                avg_pm25_in_sector: avg_in,
+                avg_pm25_other: avg_other,
+            });
+        }
+
+        // Sort by CPF descending
+        results.sort_by(|a, b| b.cpf_score.partial_cmp(&a.cpf_score).unwrap());
+        results
+    }
+
     /// Minimal HTML escaping for user-provided strings.
     fn html_escape(s: &str) -> String {
         s.replace('&', "&amp;")
@@ -2172,5 +2553,57 @@ mod tests {
         assert!(countries.len() > 100);
         assert!(countries.contains(&"France"));
         assert!(countries.contains(&"Japan"));
+    }
+
+    // --- CPF tests ---
+
+    #[test]
+    fn test_cpf_high_correlation() {
+        // Source is due north (bearing ~0°), wind from north on high-PM hours
+        let source = PollutionSource {
+            name: "Factory North".to_string(),
+            lat: 56.0,
+            lon: 37.0,
+            source_type: "factory".to_string(),
+            distance_km: 111.0,
+        };
+        // 10 observations, use 50th percentile so threshold is median
+        // sorted: [5,6,7,8,10,55,60,65,70,80], p50 idx=5 → threshold=55
+        let pm25: Vec<f64> = vec![5.0, 8.0, 55.0, 60.0, 10.0, 65.0, 70.0, 80.0, 6.0, 7.0];
+        // Wind from north (0°) on the high-PM hours, south (180°) on low
+        let wind_dirs: Vec<f64> = vec![180.0, 180.0, 0.0, 5.0, 180.0, 355.0, 10.0, 0.0, 180.0, 180.0];
+        let wind_speeds: Vec<f64> = vec![10.0; 10];
+
+        let results = front::calculate_cpf(55.0, 37.0, &[source], &pm25, &wind_dirs, &wind_speeds, 0.50);
+        assert_eq!(results.len(), 1);
+        // 5 hours in sector (indices 2,3,5,6,7 with PM 55,60,65,70,80), all > 55 threshold
+        // CPF = 4/5 = 0.8 (60,65,70,80 > 55)
+        assert!(results[0].cpf_score > 0.5, "CPF should be high, got {}", results[0].cpf_score);
+        assert!(results[0].avg_pm25_in_sector > results[0].avg_pm25_other);
+    }
+
+    #[test]
+    fn test_cpf_calm_wind_filtered() {
+        let source = PollutionSource {
+            name: "Plant".to_string(),
+            lat: 56.0,
+            lon: 37.0,
+            source_type: "power_plant".to_string(),
+            distance_km: 50.0,
+        };
+        // All calm winds → no valid observations
+        let pm25: Vec<f64> = vec![50.0, 60.0, 70.0];
+        let wind_dirs: Vec<f64> = vec![0.0, 0.0, 0.0];
+        let wind_speeds: Vec<f64> = vec![2.0, 3.0, 1.0]; // all below 5 km/h
+
+        let results = front::calculate_cpf(55.0, 37.0, &[source], &pm25, &wind_dirs, &wind_speeds, 0.75);
+        assert_eq!(results[0].cpf_score, 0.0);
+        assert_eq!(results[0].hours_in_sector, 0);
+    }
+
+    #[test]
+    fn test_cpf_empty_input() {
+        let results = front::calculate_cpf(55.0, 37.0, &[], &[], &[], &[], 0.75);
+        assert!(results.is_empty());
     }
 }
