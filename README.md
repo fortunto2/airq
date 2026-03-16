@@ -3,7 +3,11 @@
 [![Crates.io](https://img.shields.io/crates/v/airq)](https://crates.io/crates/airq)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Check air quality from your terminal. Any city in the world, no API key needed.
+Check air quality from your terminal. Any city in the world, no API key needed. Detects pollution fronts, generates visual reports with maps and heatmaps.
+
+![Hamburg Air Quality Report](examples/hamburg-report.png)
+
+*Pollution front analysis for Hamburg — 522 sensors, cross-correlation tracking, heatmap overlay. Generated with `airq report --city hamburg --radius 150 --pdf`*
 
 By default merges two data sources for more accurate results:
 - **Open-Meteo** — global model (PM2.5, PM10, CO, NO2, O3, SO2, UV)
