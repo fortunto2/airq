@@ -5,6 +5,8 @@ use std::path::PathBuf;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+pub mod matrix;
+
 // ---------------------------------------------------------------------------
 // Data types
 // ---------------------------------------------------------------------------
@@ -2875,6 +2877,59 @@ pub mod signal {
         // wind weight goes into temperature via apparent_temp
     ];
 
+    /// Feature vector for ML classification.
+    /// 11 floats normalized 0.0-1.0, ordered by weight (most important first).
+    /// Suitable for: kNN, random forest, neural net input layer.
+    #[derive(Debug, Clone, serde::Serialize)]
+    pub struct SignalVector {
+        /// 11 features in fixed order: air, temp, sea, uv, earthquake, fire, pollen, pressure, geomagnetic, daylight, moon
+        pub features: [f64; 11],
+        /// Weighted comfort score 0.0-1.0
+        pub comfort: f64,
+        /// Classification label
+        pub label: &'static str,
+    }
+
+    /// Build normalized feature vector from sub-scores.
+    pub fn to_feature_vector(scores: &SignalComfort) -> SignalVector {
+        let features = [
+            scores.air as f64 / 100.0,
+            scores.temperature as f64 / 100.0,
+            scores.sea as f64 / 100.0,
+            scores.uv as f64 / 100.0,
+            scores.earthquake as f64 / 100.0,
+            scores.fire as f64 / 100.0,
+            scores.pollen as f64 / 100.0,
+            scores.pressure as f64 / 100.0,
+            scores.geomagnetic as f64 / 100.0,
+            scores.daylight as f64 / 100.0,
+            scores.moon as f64 / 100.0,
+        ];
+
+        // Weighted sum using WEIGHTS order
+        let weights = [0.22, 0.18, 0.12, 0.08, 0.08, 0.05, 0.05, 0.05, 0.03, 0.02, 0.0];
+        let total_w: f64 = weights.iter().sum();
+        let comfort: f64 = features.iter().zip(weights.iter())
+            .map(|(f, w)| f * w)
+            .sum::<f64>() / total_w;
+
+        let label = match (comfort * 100.0).round() as u32 {
+            80..=100 => "excellent",
+            60..=79 => "good",
+            40..=59 => "fair",
+            20..=39 => "poor",
+            _ => "bad",
+        };
+
+        SignalVector { features, comfort, label }
+    }
+
+    /// Feature names in the same order as the vector.
+    pub const FEATURE_NAMES: [&str; 11] = [
+        "air", "temperature", "sea", "uv", "earthquake",
+        "fire", "pollen", "pressure", "geomagnetic", "daylight", "moon",
+    ];
+
     /// Calculate full Signal comfort from sub-scores.
     pub fn calculate_signal_comfort(scores: &SignalComfort) -> u32 {
         let pairs: &[(&str, u32)] = &[
@@ -3052,6 +3107,27 @@ pub mod wasm {
         let mut result = scores;
         result.total = total;
         serde_json::to_string(&result).unwrap_or_default()
+    }
+
+    // -- Feature vector for ML --
+
+    /// Returns normalized feature vector + comfort + label.
+    /// Input: same as wasm_signal_comfort.
+    /// Output: `{"features":[0.8,0.9,...],"comfort":0.75,"label":"good"}`
+    #[wasm_bindgen]
+    pub fn wasm_signal_vector(json: &str) -> String {
+        let scores: signal::SignalComfort = match serde_json::from_str(json) {
+            Ok(s) => s,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        let vec = signal::to_feature_vector(&scores);
+        serde_json::to_string(&vec).unwrap_or_default()
+    }
+
+    /// Feature names in vector order.
+    #[wasm_bindgen]
+    pub fn wasm_feature_names() -> String {
+        serde_json::to_string(&signal::FEATURE_NAMES).unwrap_or_default()
     }
 
     // -- Comfort (original 6-component for CLI) --
