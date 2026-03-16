@@ -483,9 +483,15 @@ async fn main() -> Result<()> {
             return Ok(());
         }
 
-        // Fetch history for target + neighbors (same pattern as Front)
-        let target_history = fetch_history(lat, lon, *days).await?;
-        let wind = airq::fetch_wind(lat, lon).await.ok();
+        // Fetch Open-Meteo + wind + sensors in parallel
+        let (target_history, wind, dust_sensors) = tokio::join!(
+            fetch_history(lat, lon, *days),
+            airq::fetch_wind(lat, lon),
+            airq::fetch_nearby_dust_sensors(lat, lon, *radius)
+        );
+        let target_history = target_history?;
+        let wind = wind.ok();
+        let dust_sensors = dust_sensors.unwrap_or_default();
 
         let mut neighbor_data = Vec::new();
         for chunk in nearby.chunks(5) {
@@ -504,12 +510,57 @@ async fn main() -> Result<()> {
             neighbor_data.extend(batch);
         }
 
-        let analysis = airq::front::build_graph(
+        // Fetch Sensor.Community archive data
+        let mut sensor_data: std::collections::HashMap<String, airq::front::SensorHourlyData> =
+            std::collections::HashMap::new();
+        if !dust_sensors.is_empty() {
+            println!("Found {} dust sensors, fetching history...", dust_sensors.len());
+            let sensor_ids: Vec<u64> = dust_sensors.iter().map(|(id, _, _)| *id).take(20).collect();
+            let sensor_futures = sensor_ids.iter().map(|sid| {
+                let sid = *sid;
+                async move {
+                    airq::fetch_sensor_archive(sid, *days).await.ok().map(|data| (sid, data))
+                }
+            });
+            let sensor_results: Vec<_> = futures::future::join_all(sensor_futures)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+
+            for (sid, readings) in &sensor_results {
+                if readings.is_empty() { continue; }
+                let sensor_loc = dust_sensors.iter().find(|(id, _, _)| id == sid);
+                if let Some((_, slat, slon)) = sensor_loc {
+                    let mut best_city = resolved_name.clone();
+                    let mut best_dist = airq::front::haversine(lat, lon, *slat, *slon);
+                    for (name, _, _, _, _, _) in &neighbor_data {
+                        if let Some(nb) = nearby.iter().find(|n| n.name == name) {
+                            let d = airq::front::haversine(nb.lat, nb.lon, *slat, *slon);
+                            if d < best_dist {
+                                best_dist = d;
+                                best_city = name.clone();
+                            }
+                        }
+                    }
+                    let entry = sensor_data.entry(best_city).or_default();
+                    for (ts, val) in readings {
+                        entry.entry(ts.clone()).or_insert(*val);
+                    }
+                }
+            }
+            if !sensor_data.is_empty() {
+                println!("Sensor data for {} cities", sensor_data.len());
+            }
+        }
+
+        let analysis = airq::front::build_graph_dual(
             &resolved_name,
             lat, lon,
             neighbor_data,
             &target_history.hourly.time,
             &target_history.hourly.pm2_5,
+            &sensor_data,
         );
 
         let html = airq::front::generate_report(

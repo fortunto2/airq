@@ -606,6 +606,14 @@ pub async fn fetch_history(lat: f64, lon: f64, days: u32) -> Result<HistoryRespo
 
 /// Fetch sensor history from archive.sensor.community CSV.
 /// Returns hourly-aggregated PM2.5 values aligned with Open-Meteo timestamps.
+/// Cache directory for sensor CSV files.
+fn sensor_cache_dir() -> std::path::PathBuf {
+    dirs::cache_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".cache"))
+        .join("airq")
+        .join("sensors")
+}
+
 pub async fn fetch_sensor_archive(
     sensor_id: u64,
     days: u32,
@@ -615,11 +623,23 @@ pub async fn fetch_sensor_archive(
         .build()
         .context("client")?;
 
+    let cache_dir = sensor_cache_dir();
+    let _ = std::fs::create_dir_all(&cache_dir);
+
     let mut all_readings: Vec<(String, f64)> = Vec::new();
     let today = chrono_date_now();
 
     for d in 0..days {
         let date = date_minus_days(&today, d);
+        let cache_file = cache_dir.join(format!("{}_sds011_{}.csv", date, sensor_id));
+
+        // Try cache first
+        if let Ok(text) = std::fs::read_to_string(&cache_file) {
+            parse_sensor_csv(&text, &mut all_readings);
+            continue;
+        }
+
+        // Fetch from archive
         let url = format!(
             "https://archive.sensor.community/{}/{}_sds011_sensor_{}.csv",
             date, date, sensor_id
@@ -628,6 +648,10 @@ pub async fn fetch_sensor_archive(
         if let Ok(r) = resp {
             if r.status().is_success() {
                 if let Ok(text) = r.text().await {
+                    // Cache if not today (today's data is still updating)
+                    if d > 0 {
+                        let _ = std::fs::write(&cache_file, &text);
+                    }
                     parse_sensor_csv(&text, &mut all_readings);
                 }
             }
