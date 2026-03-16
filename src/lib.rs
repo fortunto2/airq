@@ -4,6 +4,7 @@ pub use airq_core::*;
 pub mod api;
 pub mod collector;
 pub mod db;
+pub mod detector;
 pub mod push;
 pub mod serve;
 pub mod web;

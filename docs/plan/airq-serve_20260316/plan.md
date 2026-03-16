@@ -59,24 +59,24 @@ Data ingestion from Sensor.Community API + local ESP8266 push.
 JSON API for data access + real-time event detection on each poll.
 
 ### Tasks
-- [ ] Task 3.1: Create `src/api.rs` — Axum REST routes
+- [x] Task 3.1: Create `src/api.rs` — Axum REST routes
   - `GET /api/readings?sensor=X&from=Y&to=Z` — paginated readings
   - `GET /api/sensors?city=X` — sensors for a city
   - `GET /api/events?city=X&from=Y` — detected events
   - `GET /api/status` — uptime, cities, sensor count, last poll time
   - `GET /api/cities` — configured cities
-- [ ] Task 3.2: Create `src/detector.rs` — event detection loop
+- [x] Task 3.2: Create `src/detector.rs` — event detection loop
   - Runs after each collector poll
   - Maintains `HashMap<u64, DualBaseline>` in memory (per-sensor EWMA)
   - Calls `airq_core::event::detect_event()` per city
   - If event detected → insert into events table
   - Uses `classify_source()` for PM10/PM2.5 ratio classification
-- [ ] Task 3.3: Tests — API endpoints, event detection integration
+- [x] Task 3.3: Tests — API endpoints, event detection integration
 
 ### Verification
-- [ ] `curl localhost:8080/api/readings?sensor=77955&from=0&to=9999999999` → JSON
-- [ ] `curl localhost:8080/api/status` → JSON with stats
-- [ ] Events appear in `/api/events` when anomaly detected
+- [x] `curl localhost:8080/api/readings?sensor=77955&from=0&to=9999999999` → JSON
+- [x] `curl localhost:8080/api/status` → JSON with stats
+- [x] Events appear in `/api/events` when anomaly detected
 
 ## Phase 4: Web Dashboard
 

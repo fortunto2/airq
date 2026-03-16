@@ -1,6 +1,7 @@
 //! Collector: periodic poll of Sensor.Community for nearby sensors.
 
 use crate::db::{Db, Reading};
+use crate::detector::Baselines;
 use anyhow::{Context, Result};
 use std::sync::Arc;
 use std::time::Duration;
@@ -114,25 +115,43 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
     Ok(count)
 }
 
-/// Run collector loop: poll all cities every `interval`.
+/// Run collector loop: poll all cities every `interval`, then run event detection.
 pub async fn run_collector(
     db: Arc<Db>,
     cities: Vec<(String, f64, f64, f64)>, // (name, lat, lon, radius_km)
     interval: Duration,
     mut shutdown: watch::Receiver<bool>,
 ) {
+    let baselines = crate::detector::new_baselines();
+
     log(&format!(
         "[collector] started — {} cities, interval {}s",
         cities.len(),
         interval.as_secs()
     ));
 
-    // Initial poll immediately
-    for (name, lat, lon, radius) in &cities {
-        if let Err(e) = collect_once(&db, name, *lat, *lon, *radius).await {
-            log(&format!("[collector] error collecting {}: {}", name, e));
+    // Collect + detect cycle
+    let poll = |db: &Arc<Db>, baselines: &Baselines, cities: &[(String, f64, f64, f64)]| {
+        let db = db.clone();
+        let baselines = baselines.clone();
+        let cities: Vec<_> = cities.to_vec();
+        async move {
+            for (name, lat, lon, radius) in &cities {
+                if let Err(e) = collect_once(&db, name, *lat, *lon, *radius).await {
+                    log(&format!("[collector] error collecting {}: {}", name, e));
+                    continue;
+                }
+                // Run event detection after each city poll
+                let city_id = db.upsert_city(name, *lat, *lon, *radius).unwrap_or(0);
+                if let Err(e) = crate::detector::detect_for_city(&db, &baselines, city_id, name, *lat, *lon).await {
+                    log(&format!("[detector] error for {}: {}", name, e));
+                }
+            }
         }
-    }
+    };
+
+    // Initial poll immediately
+    poll(&db, &baselines, &cities).await;
 
     let mut tick = tokio::time::interval(interval);
     tick.tick().await; // consume first immediate tick
@@ -140,11 +159,7 @@ pub async fn run_collector(
     loop {
         tokio::select! {
             _ = tick.tick() => {
-                for (name, lat, lon, radius) in &cities {
-                    if let Err(e) = collect_once(&db, name, *lat, *lon, *radius).await {
-                        log(&format!("[collector] error collecting {}: {}", name, e));
-                    }
-                }
+                poll(&db, &baselines, &cities).await;
             }
             _ = shutdown.changed() => {
                 log("[collector] shutting down");
