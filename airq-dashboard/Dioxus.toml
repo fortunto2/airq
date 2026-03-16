@@ -1,0 +1,13 @@
+[application]
+name = "air-signal"
+default_platform = "desktop"
+
+[desktop]
+title = "Air Signal"
+
+[desktop.window]
+width = 480
+height = 800
+
+[web.resource]
+style = ["assets/style.css"]

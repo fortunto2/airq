@@ -1,0 +1,23 @@
+[package]
+name = "airq-dashboard"
+version = "0.1.0"
+edition = "2024"
+description = "Air Signal — desktop air quality monitoring dashboard"
+
+[[bin]]
+name = "air-signal"
+path = "src/main.rs"
+
+[dependencies]
+airq = { path = ".." }
+airq-core = { path = "../airq-core" }
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6.0"
+dioxus = { version = "0.7", features = ["desktop"] }
+reqwest = { version = "0.13", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

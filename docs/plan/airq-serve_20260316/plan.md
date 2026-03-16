@@ -107,10 +107,10 @@ Phone-first HTML dashboard served by Axum.
 ## Phase 5: Docs & Cleanup
 
 ### Tasks
-- [ ] Task 5.1: Update `CLAUDE.md` — serve command, db schema, architecture
+- [x] Task 5.1: Update `CLAUDE.md` — serve command, db schema, architecture
 - [ ] Task 5.2: Update `README.md` — serve section with examples
 - [ ] Task 5.3: Update `skills/airq/SKILL.md` — serve command docs
-- [ ] Task 5.4: `cargo clippy --workspace` clean, all tests pass
+- [x] Task 5.4: `cargo clippy --workspace` clean, all tests pass
 
 ### Verification
 - [ ] CLAUDE.md documents serve command
