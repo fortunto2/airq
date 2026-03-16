@@ -1,7 +1,8 @@
 use airq::{
-    AppConfig, AqiCategory, Provider, aggregate_history, fetch_history, fetch_open_meteo,
-    fetch_sensor_community, fetch_sensor_community_nearby, geocode, get_co_status,
-    get_major_cities, get_no2_status, get_pm10_status, get_pm25_status, get_so2_status, get_o3_status, overall_aqi, pm25_aqi,
+    AppConfig, AqiCategory, Provider, aggregate_history, calculate_comfort,
+    fetch_history, fetch_open_meteo, fetch_sensor_community, fetch_sensor_community_nearby,
+    geocode, get_co_status, get_major_cities, get_no2_status, get_pm10_status, get_pm25_status,
+    get_so2_status, get_o3_status, overall_aqi, pm25_aqi, progress_bar,
 };
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -15,7 +16,9 @@ use clap::{Parser, Subcommand};
     after_help = "\x1b[1mExamples:\x1b[0m
   airq --city tokyo                        Current air quality (model + sensors)
   airq --city gazipasa --json              JSON output
+  airq --city tokyo --full                Extended (pollen, quakes, Kp)
   airq --city berlin --provider open-meteo Model only
+  airq comfort --city tokyo               Detailed comfort breakdown
   airq history --city istanbul --days 7    Last 7 days sparkline
   airq top --country turkey                Top cities by AQI
   airq compare --city berlin               Side-by-side providers
@@ -58,6 +61,10 @@ struct Cli {
     /// Show all cities from config
     #[arg(long)]
     all: bool,
+
+    /// Show extended data (pollen, earthquakes, geomagnetic)
+    #[arg(long)]
+    full: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -160,6 +167,15 @@ enum Commands {
         /// List all available countries
         #[arg(long)]
         list: bool,
+    },
+    /// Show detailed comfort index breakdown
+    Comfort {
+        /// City name
+        #[arg(long)]
+        city: Option<String>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Identify pollution sources using wind-direction analysis (CPF)
     Blame {
@@ -1122,6 +1138,75 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if let Some(Commands::Comfort { city, json }) = &cli.command {
+        let city_name = city
+            .clone()
+            .or(config.default_city.clone())
+            .context("Specify --city or set default with `airq init`")?;
+        let (lat, lon, resolved_name) = geocode(&city_name).await?;
+
+        let (air_res, wind_res, weather_res) = tokio::join!(
+            fetch_open_meteo(lat, lon),
+            airq::fetch_wind(lat, lon),
+            airq::fetch_weather(lat, lon)
+        );
+        let air = air_res?;
+        let wind = wind_res?;
+        let weather = weather_res?;
+
+        let comfort = calculate_comfort(&air.current, &weather, &wind);
+
+        if *json {
+            let data = serde_json::json!({
+                "city": resolved_name,
+                "comfort": comfort,
+            });
+            println!("{}", serde_json::to_string_pretty(&data)?);
+            return Ok(());
+        }
+
+        println!("{} — Comfort Index: {}/100 — {}\n", resolved_name, comfort.total, comfort.label());
+
+        let aqi = overall_aqi(&air.current).unwrap_or(0);
+        let aqi_cat = AqiCategory::from_aqi(aqi);
+        let temp_str = weather.apparent_temp_c
+            .map(|t| format!("{:.0}\u{00b0}C", t))
+            .unwrap_or_else(|| "N/A".into());
+        let wind_str = wind.wind_speed_10m
+            .map(|s| {
+                let dir = wind.direction_label().unwrap_or("");
+                format!("{:.0} km/h {}", s, dir)
+            })
+            .unwrap_or_else(|| "N/A".into());
+        let uv_str = air.current.uv_index
+            .map(|u| {
+                let label = match u {
+                    v if v < 3.0 => "Low",
+                    v if v < 6.0 => "Moderate",
+                    v if v < 8.0 => "High",
+                    v if v < 11.0 => "Very High",
+                    _ => "Extreme",
+                };
+                format!("{:.1} ({})", u, label)
+            })
+            .unwrap_or_else(|| "N/A".into());
+        let pressure_str = weather.pressure_hpa
+            .map(|p| format!("{:.0} hPa", p))
+            .unwrap_or_else(|| "N/A".into());
+        let humidity_str = weather.humidity_pct
+            .map(|h| format!("{:.0}%", h))
+            .unwrap_or_else(|| "N/A".into());
+
+        println!("  Air Quality  {:>3}/100  {}  AQI {} ({})", comfort.air, progress_bar(comfort.air), aqi, aqi_cat.label());
+        println!("  Temperature  {:>3}/100  {}  {}", comfort.temperature, progress_bar(comfort.temperature), temp_str);
+        println!("  Wind         {:>3}/100  {}  {}", comfort.wind, progress_bar(comfort.wind), wind_str);
+        println!("  UV           {:>3}/100  {}  {}", comfort.uv, progress_bar(comfort.uv), uv_str);
+        println!("  Pressure     {:>3}/100  {}  {}", comfort.pressure, progress_bar(comfort.pressure), pressure_str);
+        println!("  Humidity     {:>3}/100  {}  {}", comfort.humidity, progress_bar(comfort.humidity), humidity_str);
+
+        return Ok(());
+    }
+
     if cli.all {
         let cities = config.cities.unwrap_or_default();
         if cities.is_empty() {
@@ -1191,12 +1276,22 @@ async fn main() -> Result<()> {
         sensor_count: usize,
     }
 
-    let (data, sources_msg, breakdown, wind) = match cli.provider {
+    // Per-source raw values for breakdown display
+    #[allow(dead_code)]
+    struct ExtendedData {
+        weather: Option<airq::WeatherData>,
+        pollen: Option<airq::PollenData>,
+        earthquakes: Option<Vec<airq::EarthquakeInfo>>,
+        geomagnetic: Option<airq::GeomagneticData>,
+    }
+
+    let (data, sources_msg, breakdown, wind, extended) = match cli.provider {
         Provider::All => {
-            let (om_res, sc_res, wind_res) = tokio::join!(
+            let (om_res, sc_res, wind_res, weather_res) = tokio::join!(
                 fetch_open_meteo(lat, lon),
                 airq::fetch_area_average(lat, lon, 5.0),
-                airq::fetch_wind(lat, lon)
+                airq::fetch_wind(lat, lon),
+                airq::fetch_weather(lat, lon)
             );
             let mut data = om_res?;
             let om_pm25 = data.current.pm2_5;
@@ -1227,24 +1322,61 @@ async fn main() -> Result<()> {
                 }
             }
             let bd = SourceBreakdown { om_pm25, om_pm10, sc_pm25, sc_pm10, sensor_count };
-            (data, msg, Some(bd), wind_res.ok())
+
+            // Fetch extended data in parallel if --full
+            let ext = if cli.full {
+                let (pollen_res, eq_res, geo_res) = tokio::join!(
+                    airq::fetch_pollen(lat, lon),
+                    airq::fetch_nearby_earthquakes(lat, lon, 200.0, 7),
+                    airq::fetch_geomagnetic()
+                );
+                ExtendedData {
+                    weather: weather_res.ok(),
+                    pollen: pollen_res.ok(),
+                    earthquakes: eq_res.ok(),
+                    geomagnetic: geo_res.ok(),
+                }
+            } else {
+                ExtendedData {
+                    weather: weather_res.ok(),
+                    pollen: None,
+                    earthquakes: None,
+                    geomagnetic: None,
+                }
+            };
+
+            (data, msg, Some(bd), wind_res.ok(), ext)
         }
         Provider::OpenMeteo => {
-            let (om_res, wind_res) = tokio::join!(
+            let (om_res, wind_res, weather_res) = tokio::join!(
                 fetch_open_meteo(lat, lon),
-                airq::fetch_wind(lat, lon)
+                airq::fetch_wind(lat, lon),
+                airq::fetch_weather(lat, lon)
             );
-            (om_res?, "Open-Meteo".to_string(), None, wind_res.ok())
+            let ext = ExtendedData {
+                weather: weather_res.ok(),
+                pollen: None,
+                earthquakes: None,
+                geomagnetic: None,
+            };
+            (om_res?, "Open-Meteo".to_string(), None, wind_res.ok(), ext)
         }
         Provider::SensorCommunity => {
             let sensor_id = cli
                 .sensor_id
                 .context("sensor-id is required for sensor-community provider")?;
-            let (sc_res, wind_res) = tokio::join!(
+            let (sc_res, wind_res, weather_res) = tokio::join!(
                 fetch_sensor_community(sensor_id),
-                airq::fetch_wind(lat, lon)
+                airq::fetch_wind(lat, lon),
+                airq::fetch_weather(lat, lon)
             );
-            (sc_res?, format!("Sensor.Community (#{})", sensor_id), None, wind_res.ok())
+            let ext = ExtendedData {
+                weather: weather_res.ok(),
+                pollen: None,
+                earthquakes: None,
+                geomagnetic: None,
+            };
+            (sc_res?, format!("Sensor.Community (#{})", sensor_id), None, wind_res.ok(), ext)
         }
     };
 
@@ -1317,13 +1449,36 @@ async fn main() -> Result<()> {
 
     if let Some(uv) = data.current.uv_index {
         let (emoji, label) = match uv {
-            v if v < 3.0 => ("☀️", "Low"),
-            v if v < 6.0 => ("🌤️", "Moderate"),
-            v if v < 8.0 => ("🌞", "High"),
-            v if v < 11.0 => ("🥵", "Very High"),
-            _ => ("🔥", "Extreme"),
+            v if v < 3.0 => ("\u{2600}\u{fe0f}", "Low"),
+            v if v < 6.0 => ("\u{1f324}\u{fe0f}", "Moderate"),
+            v if v < 8.0 => ("\u{1f31e}", "High"),
+            v if v < 11.0 => ("\u{1f975}", "Very High"),
+            _ => ("\u{1f525}", "Extreme"),
         };
         println!("UV Index: {} {} ({})", uv, emoji, label);
+    }
+
+    // Humidity & Pressure (compact, one line)
+    if let Some(ref w) = extended.weather {
+        let mut parts = Vec::new();
+        if let Some(h) = w.humidity_pct {
+            parts.push(format!("Humidity: {:.0}%", h));
+        }
+        if let Some(p) = w.pressure_hpa {
+            let p_label = if (1010.0..=1020.0).contains(&p) {
+                "stable"
+            } else if p < 1005.0 {
+                "low"
+            } else if p > 1025.0 {
+                "high"
+            } else {
+                "normal"
+            };
+            parts.push(format!("Pressure: {:.0} hPa ({})", p, p_label));
+        }
+        if !parts.is_empty() {
+            println!("{}", parts.join(" | "));
+        }
     }
 
     // Wind
@@ -1338,24 +1493,84 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Comfort score (always shown, one line)
+    {
+        let default_weather = airq::WeatherData {
+            pressure_hpa: None,
+            humidity_pct: None,
+            apparent_temp_c: None,
+            precipitation_mm: None,
+            cloud_cover_pct: None,
+        };
+        let default_wind = airq::WindData {
+            wind_speed_10m: None,
+            wind_direction_10m: None,
+            wind_gusts_10m: None,
+        };
+        let w_ref = extended.weather.as_ref().unwrap_or(&default_weather);
+        let wind_ref = wind.as_ref().unwrap_or(&default_wind);
+        let comfort = calculate_comfort(&data.current, w_ref, wind_ref);
+        println!("Comfort: {}/100 {} {}", comfort.total, comfort.emoji(), comfort.label());
+    }
+
     // Overall AQI
     if let Some(api_aqi) = data.current.us_aqi {
         let aqi = api_aqi.round() as u32;
         let cat = AqiCategory::from_aqi(aqi);
         println!("--------------------------------------------------");
-        
+
         let mut text = format!("US AQI: {}", aqi);
         if let Some(eu_aqi) = data.current.european_aqi {
             text.push_str(&format!(" | EU AQI: {}", eu_aqi.round() as u32));
         }
-        text.push_str(&format!(" — {}", cat.label()));
-        
+        text.push_str(&format!(" \u{2014} {}", cat.label()));
+
         println!("{} {}", cat.emoji(), cat.colorize(&text));
     } else if let Some(aqi) = overall_aqi(&data.current) {
         let cat = AqiCategory::from_aqi(aqi);
         println!("--------------------------------------------------");
-        let text = format!("US AQI: {} — {}", aqi, cat.label());
+        let text = format!("US AQI: {} \u{2014} {}", aqi, cat.label());
         println!("{} {}", cat.emoji(), cat.colorize(&text));
+    }
+
+    // Extended data (--full flag)
+    if cli.full {
+        // Pollen
+        if let Some(ref pollen) = extended.pollen {
+            if pollen.is_significant() {
+                println!("\n\u{1f33e} Pollen levels:");
+                let show_pollen = |name: &str, val: Option<f64>| {
+                    if let Some(v) = val {
+                        if v > 10.0 {
+                            println!("  {}: {:.0} grains/m\u{00b3} ({})", name, v, airq::PollenData::pollen_label(v));
+                        }
+                    }
+                };
+                show_pollen("Grass", pollen.grass_pollen);
+                show_pollen("Birch", pollen.birch_pollen);
+                show_pollen("Alder", pollen.alder_pollen);
+                show_pollen("Ragweed", pollen.ragweed_pollen);
+            }
+        }
+
+        // Earthquakes (only M3+ within 200km in last 7 days)
+        if let Some(ref quakes) = extended.earthquakes {
+            let significant: Vec<_> = quakes.iter().filter(|q| q.magnitude >= 3.0).take(3).collect();
+            if !significant.is_empty() {
+                println!("\n\u{1f30d} Recent earthquakes (M3+, 200km, 7d):");
+                for q in &significant {
+                    println!("  M{:.1} \u{2014} {} ({:.0}km away, {})", q.magnitude, q.place, q.distance_km, q.time);
+                }
+            }
+        }
+
+        // Geomagnetic (only if Kp >= 3)
+        if let Some(ref geo) = extended.geomagnetic {
+            if geo.kp_index >= 3.0 {
+                let emoji = if geo.kp_index >= 5.0 { "\u{26a1}" } else { "\u{1f9f2}" };
+                println!("\n{} Geomagnetic: Kp {:.1} ({})", emoji, geo.kp_index, geo.label);
+            }
+        }
     }
 
     Ok(())

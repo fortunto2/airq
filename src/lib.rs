@@ -1180,6 +1180,395 @@ out center tags 50;"#,
 }
 
 // ---------------------------------------------------------------------------
+// Weather data (Open-Meteo Weather API)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, Serialize)]
+struct WeatherResponse {
+    current: WeatherCurrentRaw,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct WeatherCurrentRaw {
+    surface_pressure: Option<f64>,
+    relative_humidity_2m: Option<f64>,
+    apparent_temperature: Option<f64>,
+    precipitation: Option<f64>,
+    cloud_cover: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WeatherData {
+    pub pressure_hpa: Option<f64>,
+    pub humidity_pct: Option<f64>,
+    pub apparent_temp_c: Option<f64>,
+    pub precipitation_mm: Option<f64>,
+    pub cloud_cover_pct: Option<f64>,
+}
+
+pub async fn fetch_weather(lat: f64, lon: f64) -> Result<WeatherData> {
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=surface_pressure,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover&timezone=auto",
+        lat, lon
+    );
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to fetch weather data")?
+        .json::<WeatherResponse>()
+        .await
+        .context("Failed to parse weather JSON")?;
+    Ok(WeatherData {
+        pressure_hpa: response.current.surface_pressure,
+        humidity_pct: response.current.relative_humidity_2m,
+        apparent_temp_c: response.current.apparent_temperature,
+        precipitation_mm: response.current.precipitation,
+        cloud_cover_pct: response.current.cloud_cover,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Pollen data (Open-Meteo Air Quality API)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+struct PollenResponse {
+    current: PollenCurrentRaw,
+}
+
+#[derive(Debug, Deserialize)]
+struct PollenCurrentRaw {
+    grass_pollen: Option<f64>,
+    birch_pollen: Option<f64>,
+    alder_pollen: Option<f64>,
+    ragweed_pollen: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PollenData {
+    pub grass_pollen: Option<f64>,
+    pub birch_pollen: Option<f64>,
+    pub alder_pollen: Option<f64>,
+    pub ragweed_pollen: Option<f64>,
+}
+
+impl PollenData {
+    /// Returns true if any pollen level is significant (> 10).
+    pub fn is_significant(&self) -> bool {
+        [self.grass_pollen, self.birch_pollen, self.alder_pollen, self.ragweed_pollen]
+            .iter()
+            .any(|v| v.map_or(false, |x| x > 10.0))
+    }
+
+    /// Label for a pollen level.
+    pub fn pollen_label(val: f64) -> &'static str {
+        if val < 10.0 {
+            "Low"
+        } else if val < 30.0 {
+            "Moderate"
+        } else if val < 60.0 {
+            "High"
+        } else {
+            "Very High"
+        }
+    }
+}
+
+pub async fn fetch_pollen(lat: f64, lon: f64) -> Result<PollenData> {
+    let url = format!(
+        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,ragweed_pollen&timezone=auto",
+        lat, lon
+    );
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to fetch pollen data")?
+        .json::<PollenResponse>()
+        .await
+        .context("Failed to parse pollen JSON")?;
+    Ok(PollenData {
+        grass_pollen: response.current.grass_pollen,
+        birch_pollen: response.current.birch_pollen,
+        alder_pollen: response.current.alder_pollen,
+        ragweed_pollen: response.current.ragweed_pollen,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Earthquake data (USGS API)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EarthquakeInfo {
+    pub magnitude: f64,
+    pub place: String,
+    pub distance_km: f64,
+    pub time: String,
+}
+
+pub async fn fetch_nearby_earthquakes(
+    lat: f64,
+    lon: f64,
+    radius_km: f64,
+    days: u32,
+) -> Result<Vec<EarthquakeInfo>> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let start_epoch = now - (days as u64 * 86400);
+    let start_date = epoch_days_to_date(start_epoch / 86400);
+
+    let url = format!(
+        "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude={}&longitude={}&maxradiuskm={}&starttime={}&minmagnitude=3",
+        lat, lon, radius_km, start_date
+    );
+    let response = reqwest::get(&url)
+        .await
+        .context("Failed to fetch earthquake data")?
+        .json::<serde_json::Value>()
+        .await
+        .context("Failed to parse earthquake JSON")?;
+
+    let features = response
+        .get("features")
+        .and_then(|f| f.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut quakes: Vec<EarthquakeInfo> = Vec::new();
+    for feature in &features {
+        let props = match feature.get("properties") {
+            Some(p) => p,
+            None => continue,
+        };
+        let geom = match feature.get("geometry") {
+            Some(g) => g,
+            None => continue,
+        };
+        let coords = geom.get("coordinates").and_then(|c| c.as_array());
+        let (qlon, qlat) = match coords {
+            Some(c) if c.len() >= 2 => {
+                let lo = c[0].as_f64().unwrap_or(0.0);
+                let la = c[1].as_f64().unwrap_or(0.0);
+                (lo, la)
+            }
+            _ => continue,
+        };
+
+        let magnitude = props.get("mag").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let place = props
+            .get("place")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let time_ms = props.get("time").and_then(|v| v.as_u64()).unwrap_or(0);
+        let time_secs = time_ms / 1000;
+        let time_str = epoch_days_to_date(time_secs / 86400);
+        let distance_km = front::haversine(lat, lon, qlat, qlon);
+
+        quakes.push(EarthquakeInfo {
+            magnitude,
+            place,
+            distance_km,
+            time: time_str,
+        });
+    }
+
+    quakes.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(quakes)
+}
+
+// ---------------------------------------------------------------------------
+// Geomagnetic Kp index (NOAA SWPC)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GeomagneticData {
+    pub kp_index: f64,
+    pub label: String,
+}
+
+impl GeomagneticData {
+    fn from_kp(kp: f64) -> Self {
+        let label = if kp < 3.0 {
+            "Quiet"
+        } else if kp < 5.0 {
+            "Unsettled"
+        } else {
+            "Storm"
+        };
+        Self {
+            kp_index: kp,
+            label: label.to_string(),
+        }
+    }
+}
+
+pub async fn fetch_geomagnetic() -> Result<GeomagneticData> {
+    let url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json";
+    let response = reqwest::get(url)
+        .await
+        .context("Failed to fetch geomagnetic data")?
+        .json::<Vec<Vec<String>>>()
+        .await
+        .context("Failed to parse geomagnetic JSON")?;
+
+    // Last entry is current, format: [time_tag, Kp, a_running, station_count]
+    // Skip header row (index 0)
+    let last = response
+        .last()
+        .context("No geomagnetic data")?;
+    let kp: f64 = last
+        .get(1)
+        .context("No Kp value")?
+        .parse()
+        .context("Invalid Kp value")?;
+
+    Ok(GeomagneticData::from_kp(kp))
+}
+
+// ---------------------------------------------------------------------------
+// Comfort Index
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ComfortScore {
+    pub total: u32,
+    pub air: u32,
+    pub temperature: u32,
+    pub wind: u32,
+    pub uv: u32,
+    pub pressure: u32,
+    pub humidity: u32,
+}
+
+impl ComfortScore {
+    pub fn label(&self) -> &'static str {
+        match self.total {
+            80..=100 => "Excellent",
+            60..=79 => "Good",
+            40..=59 => "Fair",
+            20..=39 => "Poor",
+            _ => "Bad",
+        }
+    }
+
+    pub fn emoji(&self) -> &'static str {
+        match self.total {
+            80..=100 => "\u{1f7e2}", // green circle
+            60..=79 => "\u{1f7e1}",  // yellow circle
+            40..=59 => "\u{1f7e0}",  // orange circle
+            20..=39 => "\u{1f534}",  // red circle
+            _ => "\u{1f7e4}",        // brown circle
+        }
+    }
+}
+
+pub fn calculate_comfort(
+    air: &CurrentData,
+    weather: &WeatherData,
+    wind: &WindData,
+) -> ComfortScore {
+    // Air: based on AQI
+    let aqi = overall_aqi(air).unwrap_or(0);
+    let air_score = match aqi {
+        0..=25 => 100,
+        26..=50 => 80,
+        51..=100 => 50,
+        101..=200 => 20,
+        _ => 0,
+    };
+
+    // Temperature: 18-26°C = 100, linear decrease outside
+    let temp_score = if let Some(t) = weather.apparent_temp_c {
+        if (18.0..=26.0).contains(&t) {
+            100
+        } else if t < 18.0 {
+            (100.0 - (18.0 - t) * 5.0).max(0.0) as u32
+        } else {
+            (100.0 - (t - 26.0) * 5.0).max(0.0) as u32
+        }
+    } else {
+        50 // unknown
+    };
+
+    // Wind: lower is better for comfort
+    let wind_score = if let Some(s) = wind.wind_speed_10m {
+        match s {
+            v if v < 10.0 => 100,
+            v if v < 20.0 => 80,
+            v if v < 40.0 => 50,
+            _ => 20,
+        }
+    } else {
+        50
+    };
+
+    // UV: lower is better
+    let uv_score = if let Some(uv) = air.uv_index {
+        match uv {
+            v if v < 3.0 => 100,
+            v if v < 6.0 => 80,
+            v if v < 8.0 => 60,
+            v if v < 11.0 => 30,
+            _ => 10,
+        }
+    } else {
+        50
+    };
+
+    // Pressure: 1010-1020 optimal
+    let pressure_score = if let Some(p) = weather.pressure_hpa {
+        if (1010.0..=1020.0).contains(&p) {
+            100
+        } else {
+            let diff = if p < 1010.0 { 1010.0 - p } else { p - 1020.0 };
+            (100.0 - diff * 3.0).max(0.0) as u32
+        }
+    } else {
+        50
+    };
+
+    // Humidity: 30-60% optimal
+    let humidity_score = if let Some(h) = weather.humidity_pct {
+        if (30.0..=60.0).contains(&h) {
+            100
+        } else if h < 20.0 || h > 80.0 {
+            50
+        } else {
+            75
+        }
+    } else {
+        50
+    };
+
+    // Weighted average: air 30%, temp 25%, wind 10%, uv 10%, pressure 15%, humidity 10%
+    let total = (air_score as f64 * 0.30
+        + temp_score as f64 * 0.25
+        + wind_score as f64 * 0.10
+        + uv_score as f64 * 0.10
+        + pressure_score as f64 * 0.15
+        + humidity_score as f64 * 0.10)
+        .round() as u32;
+
+    ComfortScore {
+        total: total.min(100),
+        air: air_score,
+        temperature: temp_score,
+        wind: wind_score,
+        uv: uv_score,
+        pressure: pressure_score,
+        humidity: humidity_score,
+    }
+}
+
+/// Render a progress bar: filled blocks + empty blocks (10 chars total).
+pub fn progress_bar(score: u32) -> String {
+    let filled = (score / 10).min(10) as usize;
+    let empty = 10 - filled;
+    format!("{}{}", "\u{2588}".repeat(filled), "\u{2591}".repeat(empty))
+}
+
+// ---------------------------------------------------------------------------
 // Front analysis — pollution front detection and tracking
 // ---------------------------------------------------------------------------
 
@@ -2691,5 +3080,119 @@ mod tests {
     fn test_cpf_empty_input() {
         let results = front::calculate_cpf(55.0, 37.0, &[], &[], &[], &[], 0.75);
         assert!(results.is_empty());
+    }
+
+    // --- Comfort score tests ---
+
+    #[test]
+    fn test_comfort_ideal_conditions() {
+        let air = CurrentData {
+            pm2_5: Some(5.0),
+            pm10: Some(10.0),
+            carbon_monoxide: None,
+            nitrogen_dioxide: None,
+            ozone: None,
+            sulphur_dioxide: None,
+            uv_index: Some(2.0),
+            us_aqi: Some(20.0),
+            european_aqi: None,
+        };
+        let weather = WeatherData {
+            pressure_hpa: Some(1015.0),
+            humidity_pct: Some(45.0),
+            apparent_temp_c: Some(22.0),
+            precipitation_mm: Some(0.0),
+            cloud_cover_pct: Some(20.0),
+        };
+        let wind = WindData {
+            wind_speed_10m: Some(5.0),
+            wind_direction_10m: Some(180.0),
+            wind_gusts_10m: Some(10.0),
+        };
+        let score = calculate_comfort(&air, &weather, &wind);
+        assert!(score.total >= 90, "Ideal conditions should score 90+, got {}", score.total);
+        assert_eq!(score.air, 100);
+        assert_eq!(score.temperature, 100);
+        assert_eq!(score.wind, 100);
+        assert_eq!(score.uv, 100);
+        assert_eq!(score.pressure, 100);
+        assert_eq!(score.humidity, 100);
+    }
+
+    #[test]
+    fn test_comfort_poor_conditions() {
+        let air = CurrentData {
+            pm2_5: Some(200.0),
+            pm10: Some(300.0),
+            carbon_monoxide: None,
+            nitrogen_dioxide: None,
+            ozone: None,
+            sulphur_dioxide: None,
+            uv_index: Some(12.0),
+            us_aqi: Some(250.0),
+            european_aqi: None,
+        };
+        let weather = WeatherData {
+            pressure_hpa: Some(990.0),
+            humidity_pct: Some(95.0),
+            apparent_temp_c: Some(40.0),
+            precipitation_mm: Some(10.0),
+            cloud_cover_pct: Some(100.0),
+        };
+        let wind = WindData {
+            wind_speed_10m: Some(50.0),
+            wind_direction_10m: Some(0.0),
+            wind_gusts_10m: Some(80.0),
+        };
+        let score = calculate_comfort(&air, &weather, &wind);
+        assert!(score.total <= 30, "Poor conditions should score <=30, got {}", score.total);
+    }
+
+    #[test]
+    fn test_comfort_unknown_data() {
+        // All None values should produce a middle score (50ish)
+        let air = CurrentData {
+            pm2_5: None, pm10: None, carbon_monoxide: None, nitrogen_dioxide: None,
+            ozone: None, sulphur_dioxide: None, uv_index: None, us_aqi: None, european_aqi: None,
+        };
+        let weather = WeatherData {
+            pressure_hpa: None, humidity_pct: None, apparent_temp_c: None,
+            precipitation_mm: None, cloud_cover_pct: None,
+        };
+        let wind = WindData {
+            wind_speed_10m: None, wind_direction_10m: None, wind_gusts_10m: None,
+        };
+        let score = calculate_comfort(&air, &weather, &wind);
+        // With no data, air defaults to AQI 0 (good=100), others default to 50
+        assert!(score.total >= 50 && score.total <= 70, "Unknown data should score ~50-70, got {}", score.total);
+    }
+
+    #[test]
+    fn test_pollen_significance() {
+        let low = PollenData {
+            grass_pollen: Some(5.0), birch_pollen: Some(3.0),
+            alder_pollen: Some(2.0), ragweed_pollen: Some(1.0),
+        };
+        assert!(!low.is_significant());
+
+        let high = PollenData {
+            grass_pollen: Some(50.0), birch_pollen: Some(3.0),
+            alder_pollen: Some(2.0), ragweed_pollen: Some(1.0),
+        };
+        assert!(high.is_significant());
+    }
+
+    #[test]
+    fn test_geomagnetic_labels() {
+        assert_eq!(GeomagneticData::from_kp(1.0).label, "Quiet");
+        assert_eq!(GeomagneticData::from_kp(3.5).label, "Unsettled");
+        assert_eq!(GeomagneticData::from_kp(6.0).label, "Storm");
+    }
+
+    #[test]
+    fn test_progress_bar() {
+        assert_eq!(progress_bar(100), "\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}");
+        assert_eq!(progress_bar(0), "\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}");
+        assert_eq!(progress_bar(50).len(), progress_bar(100).len());
     }
 }
