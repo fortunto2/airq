@@ -299,6 +299,137 @@ pub fn directional_cluster(
 // Full event analysis: EWMA + concordance + directional
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Source classification: PM10/PM2.5 ratio + absolute levels + patterns
+// ---------------------------------------------------------------------------
+
+/// Pollution source classification.
+#[derive(Debug, Clone, Serialize)]
+pub struct SourceClassification {
+    /// Primary category.
+    pub category: SourceCategory,
+    /// Human-readable label.
+    pub label: &'static str,
+    /// Confidence in classification (0.0-1.0).
+    pub confidence: f64,
+    /// Explanation.
+    pub reason: String,
+    /// Typical sources for this category.
+    pub typical_sources: &'static [&'static str],
+    /// Health advice.
+    pub advice: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum SourceCategory {
+    /// PM10/PM2.5 > 4: Saharan dust, sand storm, volcanic ash
+    DustStorm,
+    /// PM10/PM2.5 2.5-4: construction sites, unpaved roads, demolition
+    ConstructionDust,
+    /// PM10/PM2.5 1.5-2.5: multiple sources, urban mix
+    MixedUrban,
+    /// PM10/PM2.5 0.8-1.5, PM2.5 > 35: vehicle exhaust, heating, industrial combustion
+    Combustion,
+    /// PM10/PM2.5 < 0.8 or PM2.5 > 55 with low PM10 ratio: wildfire smoke, industrial fumes
+    Smoke,
+    /// PM2.5 < 12: background/clean air
+    Clean,
+    /// PM2.5 12-35: slightly elevated, typical urban background
+    UrbanBackground,
+}
+
+/// Classify pollution source from PM2.5 + PM10 levels.
+///
+/// Based on EPA, WHO, and academic research on PM ratio fingerprints:
+/// - Chow et al. (1996): PM ratios by source type
+/// - Querol et al. (2004): Saharan dust episodes PM10/PM2.5 > 4
+/// - Putaud et al. (2010): European urban PM composition
+pub fn classify_source(ratio: f64, pm25: f64, pm10: f64) -> SourceClassification {
+    // Clean air — no classification needed
+    if pm25 < 12.0 && pm10 < 25.0 {
+        return SourceClassification {
+            category: SourceCategory::Clean,
+            label: "clean air",
+            confidence: 0.9,
+            reason: format!("PM2.5={:.1} PM10={:.1} — within WHO guidelines", pm25, pm10),
+            typical_sources: &["natural background", "ocean air", "forest"],
+            advice: "Air quality is good. Enjoy outdoor activities.",
+        };
+    }
+
+    // Urban background — slightly elevated but no clear source
+    if pm25 < 35.0 && ratio > 0.8 && ratio < 2.5 {
+        return SourceClassification {
+            category: SourceCategory::UrbanBackground,
+            label: "urban background",
+            confidence: 0.6,
+            reason: format!("PM2.5={:.1}, ratio={:.1} — typical urban levels", pm25, ratio),
+            typical_sources: &["traffic", "heating", "cooking", "general urban activity"],
+            advice: "Normal urban air. Sensitive groups may want to limit prolonged outdoor exertion.",
+        };
+    }
+
+    // Dust storm / Saharan dust
+    if ratio > 4.0 {
+        let conf = (ratio / 6.0).min(1.0); // higher ratio = more confident
+        return SourceClassification {
+            category: SourceCategory::DustStorm,
+            label: "dust/sand storm",
+            confidence: conf,
+            reason: format!("PM10/PM2.5={:.1} — coarse particles dominate (PM10={:.0})", ratio, pm10),
+            typical_sources: &["desert dust (Saharan/Taklamakan)", "sand storm", "volcanic ash", "dry lake bed"],
+            advice: "Wear N95 mask outdoors. Close windows. Rinse eyes if irritated.",
+        };
+    }
+
+    // Construction / road dust
+    if ratio > 2.5 {
+        return SourceClassification {
+            category: SourceCategory::ConstructionDust,
+            label: "construction/road dust",
+            confidence: 0.6,
+            reason: format!("PM10/PM2.5={:.1} — elevated coarse fraction", ratio),
+            typical_sources: &["construction site", "unpaved road", "demolition", "quarry", "agricultural tilling"],
+            advice: "Coarse dust — standard mask helps. Keep windows closed nearby.",
+        };
+    }
+
+    // Smoke / fine particles (wildfire, industrial)
+    if ratio < 0.9 || (pm25 > 55.0 && ratio < 1.5) {
+        let conf = if pm25 > 100.0 { 0.9 } else if pm25 > 55.0 { 0.7 } else { 0.5 };
+        return SourceClassification {
+            category: SourceCategory::Smoke,
+            label: "smoke/fine particles",
+            confidence: conf,
+            reason: format!("PM2.5={:.1} high, ratio={:.1} — fine particles dominate", pm25, ratio),
+            typical_sources: &["wildfire smoke", "agricultural burning", "industrial fumes", "incinerator"],
+            advice: "Fine particles penetrate deep into lungs. Use N95/FFP2 mask. Run air purifier indoors.",
+        };
+    }
+
+    // Combustion (traffic, heating)
+    if ratio >= 0.9 && ratio <= 1.8 && pm25 >= 35.0 {
+        return SourceClassification {
+            category: SourceCategory::Combustion,
+            label: "combustion (traffic/heating)",
+            confidence: 0.65,
+            reason: format!("PM2.5={:.1}, ratio={:.1} — combustion signature", pm25, ratio),
+            typical_sources: &["diesel exhaust", "gasoline vehicles", "coal/gas heating", "power plant"],
+            advice: "Avoid busy roads. Use air purifier. Limit outdoor exercise during rush hours.",
+        };
+    }
+
+    // Mixed urban — fallback
+    SourceClassification {
+        category: SourceCategory::MixedUrban,
+        label: "mixed sources",
+        confidence: 0.4,
+        reason: format!("PM2.5={:.1}, ratio={:.1} — no clear single source", pm25, ratio),
+        typical_sources: &["urban mix", "traffic + heating + industry", "resuspended road dust"],
+        advice: "Moderate air quality. Sensitive groups should reduce prolonged outdoor exertion.",
+    }
+}
+
 /// Complete event detection result.
 #[derive(Debug, Clone, Serialize)]
 pub struct EventAnalysis {
@@ -314,8 +445,8 @@ pub struct EventAnalysis {
     pub anomaly_median_pm10: Option<f64>,
     /// PM10/PM2.5 ratio — high (>3) suggests dust, low (~1) suggests combustion.
     pub pm10_pm25_ratio: f64,
-    /// Likely source type based on ratio.
-    pub source_hint: &'static str,
+    /// Source classification based on PM ratio + absolute levels.
+    pub source_hint: SourceClassification,
     /// Confidence: 0.0-1.0.
     pub confidence: f64,
     /// Human-readable summary.
@@ -371,15 +502,9 @@ pub fn detect_event(
         (Some(apm25[apm25.len() / 2]), Some(apm10[apm10.len() / 2]))
     };
 
-    // PM10/PM2.5 ratio → source type hint
+    // PM10/PM2.5 ratio → source classification
     let pm10_pm25_ratio = if median_pm25 > 1.0 { median_pm10 / median_pm25 } else { 1.0 };
-    let source_hint = match pm10_pm25_ratio {
-        r if r > 4.0 => "dust/sand storm",
-        r if r > 2.5 => "construction/road dust",
-        r if r > 1.5 => "mixed sources",
-        r if r > 0.8 => "combustion (traffic/heating)",
-        _ => "fine particles (smoke/industrial)",
-    };
+    let source_hint = classify_source(pm10_pm25_ratio, median_pm25, median_pm10);
 
     // Confidence scoring
     let conc_score: f64 = match conc.event_type {
@@ -613,6 +738,7 @@ mod tests {
         assert!(result.confidence > 0.7, "confidence: {}", result.confidence);
         assert!(result.summary.contains("confirm from"));
         assert!(result.pm10_pm25_ratio > 0.0);
+        assert_eq!(result.source_hint.category, SourceCategory::Combustion);
     }
 
     #[test]
@@ -646,7 +772,8 @@ mod tests {
         let result = detect_event(37.1, 79.9, &readings, &baselines, 2.0);
         // PM10 channel should trigger on sensors 1,2
         assert!(result.pm10_pm25_ratio > 2.0, "ratio: {}", result.pm10_pm25_ratio);
-        assert!(result.source_hint.contains("dust"), "hint: {}", result.source_hint);
+        // ratio ~4.5 → dust storm (coarse particles dominate)
+        assert_eq!(result.source_hint.category, SourceCategory::DustStorm);
     }
 
     #[test]
@@ -662,7 +789,75 @@ mod tests {
 
         let result = detect_event(55.75, 37.60, &readings, &baselines, 3.0);
         assert!(result.pm10_pm25_ratio < 2.0, "ratio: {}", result.pm10_pm25_ratio);
-        assert!(result.source_hint.contains("combustion") || result.source_hint.contains("mixed"),
-            "hint: {}", result.source_hint);
+        assert!(
+            result.source_hint.category == SourceCategory::Combustion
+            || result.source_hint.category == SourceCategory::Smoke,
+            "expected combustion/smoke, got: {:?}", result.source_hint.category
+        );
+    }
+
+    // -- classify_source unit tests --
+
+    #[test]
+    fn test_classify_clean() {
+        let c = classify_source(1.5, 5.0, 7.5);
+        assert_eq!(c.category, SourceCategory::Clean);
+        assert!(c.confidence > 0.8);
+    }
+
+    #[test]
+    fn test_classify_dust_storm() {
+        // Hotan: PM2.5=34, PM10=148 → ratio 4.3
+        let c = classify_source(4.3, 34.0, 148.0);
+        assert_eq!(c.category, SourceCategory::DustStorm);
+        assert!(c.label.contains("dust"));
+        assert!(c.typical_sources.iter().any(|s| s.contains("desert")));
+    }
+
+    #[test]
+    fn test_classify_construction() {
+        let c = classify_source(3.0, 40.0, 120.0);
+        assert_eq!(c.category, SourceCategory::ConstructionDust);
+    }
+
+    #[test]
+    fn test_classify_smoke() {
+        // Wildfire: PM2.5=80, PM10=90 → ratio 1.1, high PM2.5
+        let c = classify_source(1.1, 80.0, 90.0);
+        assert_eq!(c.category, SourceCategory::Smoke);
+        assert!(c.typical_sources.iter().any(|s| s.contains("wildfire")));
+    }
+
+    #[test]
+    fn test_classify_combustion() {
+        // Traffic: PM2.5=40, PM10=50 → ratio 1.25
+        let c = classify_source(1.25, 40.0, 50.0);
+        assert_eq!(c.category, SourceCategory::Combustion);
+        assert!(c.typical_sources.iter().any(|s| s.contains("diesel")));
+    }
+
+    #[test]
+    fn test_classify_urban_background() {
+        // Moderate: PM2.5=20, PM10=30 → ratio 1.5
+        let c = classify_source(1.5, 20.0, 30.0);
+        assert_eq!(c.category, SourceCategory::UrbanBackground);
+    }
+
+    #[test]
+    fn test_classify_has_advice() {
+        // Every category should have non-empty advice
+        let cases = vec![
+            classify_source(1.5, 5.0, 7.5),    // clean
+            classify_source(5.0, 50.0, 250.0),  // dust
+            classify_source(3.0, 40.0, 120.0),  // construction
+            classify_source(1.1, 80.0, 90.0),   // smoke
+            classify_source(1.25, 40.0, 50.0),  // combustion
+            classify_source(1.5, 20.0, 30.0),   // urban
+        ];
+        for c in cases {
+            assert!(!c.advice.is_empty(), "{:?} has no advice", c.category);
+            assert!(!c.typical_sources.is_empty(), "{:?} has no sources", c.category);
+            assert!(c.confidence > 0.0 && c.confidence <= 1.0);
+        }
     }
 }
