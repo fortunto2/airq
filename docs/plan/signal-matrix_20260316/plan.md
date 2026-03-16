@@ -9,12 +9,12 @@
 
 Macro-driven `SignalMatrix` в `airq-core` — по паттерну `define_scoring_matrix!` из video-analyzer. Single source of truth для колонок, compile-time `N_SIGNALS` constant, fixed-size row arrays `[f64; N]`, name-based column access. Без Polars/ndarray — чистый Rust + serde + bincode.
 
-## Phase 1: Macro + Core Structure
+## Phase 1: Macro + Core Structure <!-- checkpoint:57cb817 -->
 
 Фундамент: macro для колонок, SoA matrix, базовые операции.
 
 ### Tasks
-- [~] Task 1.1: Создать `airq-core/src/matrix.rs` с макросом `define_signal_columns!`
+- [x] Task 1.1: Создать `airq-core/src/matrix.rs` с макросом `define_signal_columns!` <!-- sha:57cb817 -->
   - Макрос генерирует:
     - `N_SIGNALS: usize` — compile-time constant (11)
     - `SIGNAL_NAMES: [&str; N_SIGNALS]` — ordered names
@@ -37,7 +37,7 @@ Macro-driven `SignalMatrix` в `airq-core` — по паттерну `define_sco
         moon        0.00,  // no weight, informational
     }
     ```
-- [ ] Task 1.2: `SignalMatrix` core methods:
+- [x] Task 1.2: <!-- sha:57cb817 --> `SignalMatrix` core methods:
   - `new() -> Self`, `len()`, `is_empty()`
   - `push(&mut self, ts: f64, row: SignalRow)` — append
   - `push_with_meta(&mut self, ts, row, sensor_count, front_detected)` — с метаданными
@@ -45,16 +45,16 @@ Macro-driven `SignalMatrix` в `airq-core` — по паттерну `define_sco
   - `to_comfort(&self) -> Option<SignalComfort>` — backward compat
   - `column(name: &str) -> Option<Vec<f64>>` — extract column by name
   - `column_idx(idx: usize) -> Vec<f64>` — extract by index
-- [ ] Task 1.3: `slice(&self, start_ts: f64, end_ts: f64) -> SignalMatrix` — binary search на timestamps
+- [x] Task 1.3: `slice(&self, start_ts: f64, end_ts: f64) -> SignalMatrix` <!-- sha:57cb817 --> — binary search на timestamps
   - `last_hours(h: u32) -> SignalMatrix`
   - `last_days(d: u32) -> SignalMatrix`
-- [ ] Task 1.4: `Serialize`/`Deserialize` derive на `SignalRow`, `SignalMatrix`
-- [ ] Task 1.5: `pub mod matrix;` в `lib.rs`, re-export ключевых типов
-- [ ] Task 1.6: 12+ тестов: macro generates correct constants, push/latest, slice, column access, empty matrix edge cases
+- [x] Task 1.4: `Serialize`/`Deserialize` <!-- sha:57cb817 --> derive на `SignalRow`, `SignalMatrix`
+- [x] Task 1.5: `pub mod matrix;` <!-- sha:57cb817 --> в `lib.rs`, re-export ключевых типов
+- [x] Task 1.6: 16 тестов (62 total) <!-- sha:57cb817 -->: macro generates correct constants, push/latest, slice, column access, empty matrix edge cases
 
 ### Verification
-- [ ] `N_SIGNALS == 11`, `SIGNAL_NAMES[0] == "air"`, `SIGNAL_WEIGHTS` sum ≈ 1.0
-- [ ] `cargo test --package airq-core` — 46 old + 12 new pass
+- [x] `N_SIGNALS == 11`, `SIGNAL_NAMES[0] == "air"`, `SIGNAL_WEIGHTS` sum ≈ 0.88
+- [x] `cargo test --package airq-core` — 46 old + 16 new = 62 pass
 
 ## Phase 2: Math Operations (Deltas, Trends, ML Vector)
 

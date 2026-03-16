@@ -10,20 +10,21 @@ airq/                    # CLI binary + network fetching
 ├── src/lib.rs           # re-exports airq-core + async fetch_* functions
 ├── src/main.rs          # CLI (clap), display logic, subcommands
 ├── airq-core/           # pure calculations, no IO (WASM-ready)
-│   ├── Cargo.toml       # features: cli (default), wasm
-│   └── src/lib.rs       # AQI, comfort, fronts, CPF, types, 46 tests
+│   ├── Cargo.toml       # features: cli (default), wasm, storage
+│   ├── src/lib.rs       # AQI, comfort, fronts, CPF, signal normalize, WASM bindings
+│   └── src/matrix.rs    # SignalMatrix: macro-driven time-series + ML vectors (78 tests)
 ├── skills/airq/         # Agent skill for skills.sh + ClawHub
 └── examples/            # Sample reports (Hamburg, Moscow)
 ```
 
 ## Stack
-- **airq-core**: serde, petgraph, cities, colored (optional), wasm-bindgen (optional)
+- **airq-core**: serde, petgraph, cities, colored (optional), wasm-bindgen (optional), bincode (optional, storage)
 - **airq CLI**: airq-core + clap, reqwest, tokio, clap_complete
 
 ## Commands
 ```bash
 cargo build                        # build
-cargo test --workspace             # run all 46 tests
+cargo test --workspace             # run all 78+ tests
 cargo clippy --workspace           # lint
 cargo run -- --city tokyo          # basic air quality
 cargo run -- --city tokyo --full   # + pollen, earthquakes, Kp
@@ -53,6 +54,27 @@ cargo publish -p airq              # publish CLI
 - Homebrew: `fortunto2/homebrew-tap` (auto-updated by CI)
 - ClawHub + skills.sh: agent skill
 - Overpass + sensor CSV cached in `~/.cache/airq/`
+
+## SignalMatrix (airq-core/src/matrix.rs)
+
+Macro-driven time-series matrix (pattern from video-analyzer `define_scoring_matrix!`):
+- `define_signal_columns!` — single source of truth: column names, weights, indices
+- `N_SIGNALS=11`, `SIGNAL_NAMES`, `SIGNAL_WEIGHTS`, `idx::air` etc.
+- `SignalRow` — single measurement `[f64; 11]`, `weighted_score()`
+- `SignalMatrix` — time-series: push, latest, slice, last_hours/days, compact
+- Math: `deltas(window)`, `trends(window)` (OLS slope), `summary()` (min/max/mean/std)
+- ML: `to_ml_vector()` → 35-dim vector (11 current + 11 delta + 11 trend + 2 meta)
+- Storage: `save(path)`, `load(path)`, `append_and_save()` (bincode, feature `storage`)
+- WASM: `wasm_matrix_push/latest/slice/ml_vector/summary`
+
+To add a signal column: 1 line in macro + 1 normalize fn in `signal` module.
+
+```bash
+# WASM rebuild
+cd airq-core && wasm-pack build --target web --features wasm --no-default-features
+# Storage tests
+cargo test --package airq-core --features storage
+```
 
 ## Architecture decisions
 - airq-core has no IO — pure functions, testable, WASM-compatible
