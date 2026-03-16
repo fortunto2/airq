@@ -2,6 +2,7 @@
 
 use crate::state::{self, MonitorSnapshot, SensorWithReading};
 use airq::db::Db;
+use airq::AppConfig;
 use dioxus::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,12 +13,17 @@ const REFRESH_INTERVAL_MS: u64 = 10_000;
 /// Root component.
 #[component]
 pub fn App() -> Element {
+    // Load config from ~/.config/airq/config.toml (shared with CLI)
+    let config = AppConfig::load().unwrap_or_default();
+    let default_city = config.default_city.unwrap_or_else(|| "gazipasa".to_string());
+    let default_radius = config.radius.unwrap_or(15.0);
+
     // Initialize DB and collector on first render
     let mut db: Signal<Option<Arc<Db>>> = use_signal(|| None);
     let mut snapshot: Signal<MonitorSnapshot> = use_signal(MonitorSnapshot::default);
     let mut collector_running: Signal<bool> = use_signal(|| false);
-    let mut city_input: Signal<String> = use_signal(|| "gazipasha".to_string());
-    let mut radius_input: Signal<f64> = use_signal(|| 15.0);
+    let mut city_input: Signal<String> = use_signal(move || default_city.clone());
+    let mut radius_input: Signal<f64> = use_signal(move || default_radius);
     let mut error_msg: Signal<Option<String>> = use_signal(|| None);
 
     // Start monitoring
