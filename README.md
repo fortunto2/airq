@@ -175,6 +175,28 @@ Opens in any browser. For PDF export (`--pdf`) you need one of:
   sudo apt install wkhtmltopdf    # Ubuntu/Debian
   ```
 
+### Pollution source attribution (blame)
+
+Identify which factories, power plants, or highways contribute to local air pollution:
+
+```bash
+airq blame --city hamburg --radius 20 --days 7
+```
+
+Auto-discovers factories, power plants, and highways from OpenStreetMap. CPF = probability that high PM2.5 occurs when wind blows from that source direction.
+
+Sources auto-discovered from OpenStreetMap (Overpass API). CPF = probability that high PM2.5 occurs when wind blows from that source. You can also add custom sources in config:
+
+```toml
+[[sources]]
+name = "My Local Factory"
+lat = 55.82
+lon = 37.73
+source_type = "factory"
+```
+
+The `report` command includes blame data too — source markers on the map and CPF table in the PDF.
+
 ### Find nearby sensors
 
 ```bash

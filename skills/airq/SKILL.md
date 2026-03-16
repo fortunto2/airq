@@ -99,8 +99,8 @@ airq --city berlin --provider sensor-community --sensor-id 72203  # sensor only
 
 ### Pollution front detection
 ```bash
+airq front --city hamburg --radius 150 --days 3
 airq front --city gazipasa --radius 150 --days 3
-airq front --city moscow --radius 200 --days 3
 ```
 Detects pollution fronts moving between cities using:
 - Z-score spike detection on hourly PM2.5 differences
@@ -111,20 +111,28 @@ Detects pollution fronts moving between cities using:
 
 Shows nearby cities, wind, spikes, fronts with speed/direction, and ETA warnings.
 
-### HTML/PDF report with map and heatmap
+### Pollution source attribution (blame)
+```bash
+airq blame --city hamburg --radius 20 --days 7
+```
+Identifies which factories, power plants, or highways contribute to pollution using CPF (Conditional Probability Function). Sources auto-discovered from OpenStreetMap via Overpass API. Custom sources can be added in config `[[sources]]`.
+
+### HTML/PDF report with map, heatmap, and source attribution
 ```bash
 airq report --city hamburg --radius 150 --pdf
-airq report --city moscow --radius 200 --days 3
+airq report --city delhi --radius 200 --days 3 --pdf
 ```
 Generates self-contained HTML report with:
 - Leaflet.js map with CartoDB tiles
 - PM2.5 heatmap overlay (leaflet.heat)
 - Individual sensors colored by air quality level
 - Front arrows (green=strong, yellow=medium, orange=weak correlation)
+- Pollution source markers on map (⚡ power plants, 🏭 factories, 🛣 highways)
+- Source Attribution (CPF) table
 - Key Insights, Spikes table, Fronts table, Methodology, AQI reference
 - `--pdf` exports via Chrome headless or wkhtmltopdf
 
-Sensor CSV data cached in `~/.cache/airq/sensors/` for faster repeat queries.
+Data cached in `~/.cache/airq/` (sensor CSV + Overpass responses).
 
 ### JSON output
 All commands support `--json` for scripting and piping:
