@@ -824,7 +824,8 @@ mod tests {
         m.save(&path).unwrap();
 
         let size = std::fs::metadata(&path).unwrap().len();
-        assert!(size < 1_000_000, "file too large: {} bytes", size);
+        // 14 cols × 8760 rows × 8 bytes ≈ 980KB raw + bincode overhead
+        assert!(size < 1_200_000, "file too large: {} bytes", size);
 
         let _ = std::fs::remove_file(&path);
     }
