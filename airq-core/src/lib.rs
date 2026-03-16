@@ -2991,7 +2991,12 @@ pub mod signal {
         }
     }
 
-    /// Full comfort index for Air Signal (11 modules, weighted).
+    // -------------------------------------------------------------------
+    // SignalComfort — thin type over matrix::SignalRow
+    // All weights, names, indices come from matrix::define_signal_columns!
+    // -------------------------------------------------------------------
+
+    /// Comfort snapshot. Constructed from `matrix::SignalRow`.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct SignalComfort {
         pub total: u32,
@@ -3008,100 +3013,44 @@ pub mod signal {
         pub daylight: u32,
     }
 
-    /// Weights for Air Signal comfort index (11 modules).
-    pub const WEIGHTS: &[(&str, f64)] = &[
-        ("air", 0.22),
-        ("temperature", 0.18),
-        ("sea", 0.12),
-        ("uv", 0.08),
-        ("earthquake", 0.08),
-        ("fire", 0.05),
-        ("pollen", 0.05),
-        ("pressure", 0.05),
-        ("geomagnetic", 0.03),
-        ("daylight", 0.02),
-        // wind weight goes into temperature via apparent_temp
-    ];
-
-    /// Feature vector for ML classification.
-    /// 11 floats normalized 0.0-1.0, ordered by weight (most important first).
-    /// Suitable for: kNN, random forest, neural net input layer.
-    #[derive(Debug, Clone, serde::Serialize)]
-    pub struct SignalVector {
-        /// 11 features in fixed order: air, temp, sea, uv, earthquake, fire, pollen, pressure, geomagnetic, daylight, moon
-        pub features: [f64; 11],
-        /// Weighted comfort score 0.0-1.0
-        pub comfort: f64,
-        /// Classification label
-        pub label: &'static str,
-    }
-
-    /// Build normalized feature vector from sub-scores.
-    pub fn to_feature_vector(scores: &SignalComfort) -> SignalVector {
-        let features = [
-            scores.air as f64 / 100.0,
-            scores.temperature as f64 / 100.0,
-            scores.sea as f64 / 100.0,
-            scores.uv as f64 / 100.0,
-            scores.earthquake as f64 / 100.0,
-            scores.fire as f64 / 100.0,
-            scores.pollen as f64 / 100.0,
-            scores.pressure as f64 / 100.0,
-            scores.geomagnetic as f64 / 100.0,
-            scores.daylight as f64 / 100.0,
-            scores.moon as f64 / 100.0,
-        ];
-
-        // Weighted sum using WEIGHTS order
-        let weights = [0.22, 0.18, 0.12, 0.08, 0.08, 0.05, 0.05, 0.05, 0.03, 0.02, 0.0];
-        let total_w: f64 = weights.iter().sum();
-        let comfort: f64 = features.iter().zip(weights.iter())
-            .map(|(f, w)| f * w)
-            .sum::<f64>() / total_w;
-
-        let label = match (comfort * 100.0).round() as u32 {
-            80..=100 => "excellent",
-            60..=79 => "good",
-            40..=59 => "fair",
-            20..=39 => "poor",
-            _ => "bad",
-        };
-
-        SignalVector { features, comfort, label }
-    }
-
-    /// Feature names in the same order as the vector.
-    pub const FEATURE_NAMES: [&str; 11] = [
-        "air", "temperature", "sea", "uv", "earthquake",
-        "fire", "pollen", "pressure", "geomagnetic", "daylight", "moon",
-    ];
-
-    /// Calculate full Signal comfort from sub-scores.
-    pub fn calculate_signal_comfort(scores: &SignalComfort) -> u32 {
-        let pairs: &[(&str, u32)] = &[
-            ("air", scores.air),
-            ("temperature", scores.temperature),
-            ("sea", scores.sea),
-            ("uv", scores.uv),
-            ("earthquake", scores.earthquake),
-            ("fire", scores.fire),
-            ("pollen", scores.pollen),
-            ("pressure", scores.pressure),
-            ("geomagnetic", scores.geomagnetic),
-            ("daylight", scores.daylight),
-        ];
-        let mut total_weight = 0.0_f64;
-        let mut weighted_sum = 0.0_f64;
-        for (name, score) in pairs {
-            if let Some(&(_, w)) = WEIGHTS.iter().find(|(n, _)| n == name) {
-                total_weight += w;
-                weighted_sum += *score as f64 * w;
+    impl SignalComfort {
+        /// Build from a matrix row. Single source of truth for weights.
+        pub fn from_row(row: &super::matrix::SignalRow) -> Self {
+            use super::matrix::idx;
+            Self {
+                total: row.weighted_score().round() as u32,
+                air: row.scores[idx::air] as u32,
+                temperature: row.scores[idx::temperature] as u32,
+                uv: row.scores[idx::uv] as u32,
+                sea: row.scores[idx::sea] as u32,
+                earthquake: row.scores[idx::earthquake] as u32,
+                fire: row.scores[idx::fire] as u32,
+                pollen: row.scores[idx::pollen] as u32,
+                pressure: row.scores[idx::pressure] as u32,
+                geomagnetic: row.scores[idx::geomagnetic] as u32,
+                moon: row.scores[idx::moon] as u32,
+                daylight: row.scores[idx::daylight] as u32,
             }
         }
-        if total_weight > 0.0 {
-            (weighted_sum / total_weight).round() as u32
-        } else {
-            0
+
+        /// Build from a flat JSON (for WASM compat: `{"air":80,"temperature":70,...}`)
+        pub fn from_json_scores(json: &str) -> Result<Self, serde_json::Error> {
+            let raw: Self = serde_json::from_str(json)?;
+            // Rebuild total via matrix algebra
+            let row = super::matrix::SignalRow::from_pairs(&[
+                ("air", raw.air as f64),
+                ("temperature", raw.temperature as f64),
+                ("uv", raw.uv as f64),
+                ("sea", raw.sea as f64),
+                ("earthquake", raw.earthquake as f64),
+                ("fire", raw.fire as f64),
+                ("pollen", raw.pollen as f64),
+                ("pressure", raw.pressure as f64),
+                ("geomagnetic", raw.geomagnetic as f64),
+                ("moon", raw.moon as f64),
+                ("daylight", raw.daylight as f64),
+            ]);
+            Ok(Self::from_row(&row))
         }
     }
 }
@@ -3245,35 +3194,47 @@ pub mod wasm {
     /// Returns JSON: `{"total":75,"air":22,...}`
     #[wasm_bindgen]
     pub fn wasm_signal_comfort(json: &str) -> String {
-        let scores: signal::SignalComfort = match serde_json::from_str(json) {
-            Ok(s) => s,
-            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
-        };
-        let total = signal::calculate_signal_comfort(&scores);
-        let mut result = scores;
-        result.total = total;
-        serde_json::to_string(&result).unwrap_or_default()
+        match signal::SignalComfort::from_json_scores(json) {
+            Ok(c) => serde_json::to_string(&c).unwrap_or_default(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
     }
 
-    // -- Feature vector for ML --
+    // -- Feature vector for ML (delegates to matrix) --
 
-    /// Returns normalized feature vector + comfort + label.
-    /// Input: same as wasm_signal_comfort.
-    /// Output: `{"features":[0.8,0.9,...],"comfort":0.75,"label":"good"}`
+    /// 35-dim ML vector from SignalComfort JSON.
     #[wasm_bindgen]
     pub fn wasm_signal_vector(json: &str) -> String {
-        let scores: signal::SignalComfort = match serde_json::from_str(json) {
-            Ok(s) => s,
+        let comfort = match signal::SignalComfort::from_json_scores(json) {
+            Ok(c) => c,
             Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
         };
-        let vec = signal::to_feature_vector(&scores);
-        serde_json::to_string(&vec).unwrap_or_default()
+        // Build single-row matrix, extract ML vector
+        let row = matrix::SignalRow::from_pairs(&[
+            ("air", comfort.air as f64),
+            ("temperature", comfort.temperature as f64),
+            ("uv", comfort.uv as f64),
+            ("sea", comfort.sea as f64),
+            ("earthquake", comfort.earthquake as f64),
+            ("fire", comfort.fire as f64),
+            ("pollen", comfort.pollen as f64),
+            ("pressure", comfort.pressure as f64),
+            ("geomagnetic", comfort.geomagnetic as f64),
+            ("moon", comfort.moon as f64),
+            ("daylight", comfort.daylight as f64),
+        ]);
+        let mut m = matrix::SignalMatrix::new();
+        m.push(0.0, row);
+        match m.to_ml_vector() {
+            Some(v) => serde_json::to_string(&v).unwrap_or_default(),
+            None => serde_json::json!({"error": "empty"}).to_string(),
+        }
     }
 
-    /// Feature names in vector order.
+    /// Feature names from matrix macro (single source of truth).
     #[wasm_bindgen]
     pub fn wasm_feature_names() -> String {
-        serde_json::to_string(&signal::FEATURE_NAMES).unwrap_or_default()
+        serde_json::to_string(&matrix::SIGNAL_NAMES).unwrap_or_default()
     }
 
     // -- Comfort (original 6-component for CLI) --

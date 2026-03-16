@@ -196,23 +196,10 @@ impl SignalMatrix {
         Some((self.timestamps[n - 1], SignalRow { scores: self.data[n - 1] }))
     }
 
-    /// Convert latest row to `super::signal::SignalComfort` (backward compat).
+    /// Convert latest row to SignalComfort.
     pub fn to_comfort(&self) -> Option<super::signal::SignalComfort> {
         let (_, row) = self.latest()?;
-        Some(super::signal::SignalComfort {
-            total: row.weighted_score().round() as u32,
-            air: row.scores[idx::air] as u32,
-            temperature: row.scores[idx::temperature] as u32,
-            uv: row.scores[idx::uv] as u32,
-            sea: row.scores[idx::sea] as u32,
-            earthquake: row.scores[idx::earthquake] as u32,
-            fire: row.scores[idx::fire] as u32,
-            pollen: row.scores[idx::pollen] as u32,
-            pressure: row.scores[idx::pressure] as u32,
-            geomagnetic: row.scores[idx::geomagnetic] as u32,
-            moon: row.scores[idx::moon] as u32,
-            daylight: row.scores[idx::daylight] as u32,
-        })
+        Some(super::signal::SignalComfort::from_row(&row))
     }
 
     /// Extract a single column by name as Vec<f64>.
