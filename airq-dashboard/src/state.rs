@@ -350,6 +350,25 @@ pub async fn probe_sensor(ip: String) -> Option<LanSensor> {
     }
 }
 
+/// Start the HTTP API server (Axum) on given port. Returns shutdown sender.
+pub async fn start_http_server(db: Arc<Db>, port: u16) -> anyhow::Result<tokio::sync::watch::Sender<bool>> {
+    airq::api::init_start_time();
+    let app = airq::serve::build_router(db);
+    let addr = format!("0.0.0.0:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    let (tx, mut rx) = tokio::sync::watch::channel(false);
+
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move { let _ = rx.changed().await; })
+            .await
+            .ok();
+    });
+
+    tracing::info!("[server] HTTP API running on port {port}");
+    Ok(tx)
+}
+
 /// Scan local /24 subnet for sensors. Returns found devices.
 pub async fn scan_lan_sensors(local_ip: &str) -> Vec<LanSensor> {
     let parts: Vec<&str> = local_ip.rsplitn(2, '.').collect();

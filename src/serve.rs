@@ -82,7 +82,7 @@ pub async fn run_serve(config: ServeConfig) -> Result<()> {
     Ok(())
 }
 
-fn build_router(db: Arc<Db>) -> axum::Router {
+pub fn build_router(db: Arc<Db>) -> axum::Router {
     use axum::routing::{get, post};
 
     axum::Router::new()

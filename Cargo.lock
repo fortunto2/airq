@@ -62,6 +62,7 @@ dependencies = [
  "airq",
  "airq-core",
  "anyhow",
+ "axum",
  "chrono",
  "cities",
  "dioxus",

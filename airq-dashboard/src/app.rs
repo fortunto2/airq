@@ -95,6 +95,8 @@ pub fn App() -> Element {
     let all_ips = state::get_all_local_ips();
     let mut lan_sensors: Signal<Vec<state::LanSensor>> = use_signal(Vec::new);
     let mut scanning: Signal<bool> = use_signal(|| false);
+    let mut server_running: Signal<bool> = use_signal(|| false);
+    let mut server_shutdown: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
 
     // Settings state
     let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
@@ -387,6 +389,9 @@ pub fn App() -> Element {
                             lan_sensors: lan_sensors,
                             scanning: scanning,
                             is_running: is_running,
+                            server_running: server_running,
+                            server_shutdown: server_shutdown,
+                            db: db,
                             port: 8080,
                         }
                     },
@@ -1102,10 +1107,15 @@ fn NetworkView(
     lan_sensors: Signal<Vec<state::LanSensor>>,
     scanning: Signal<bool>,
     is_running: bool,
+    server_running: Signal<bool>,
+    server_shutdown: Signal<Option<tokio::sync::watch::Sender<bool>>>,
+    db: Signal<Option<Arc<Db>>>,
     port: u16,
 ) -> Element {
     let mut lan_sensors = lan_sensors;
     let mut scanning = scanning;
+    let mut server_running = server_running;
+    let mut server_shutdown = server_shutdown;
 
     let scan_network = {
         let ip = local_ip.clone();
@@ -1120,8 +1130,36 @@ fn NetworkView(
         }
     };
 
+    let toggle_server = move |_| {
+        if (server_running)() {
+            // Stop
+            if let Some(tx) = (server_shutdown)() {
+                let _ = tx.send(true);
+            }
+            server_shutdown.set(None);
+            server_running.set(false);
+        } else {
+            // Start
+            if let Some(ref db_handle) = (db)() {
+                let db_handle = db_handle.clone();
+                spawn(async move {
+                    match state::start_http_server(db_handle, port).await {
+                        Ok(tx) => {
+                            server_shutdown.set(Some(tx));
+                            server_running.set(true);
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to start server: {e}");
+                        }
+                    }
+                });
+            }
+        }
+    };
+
     let sensors = (lan_sensors)();
     let is_scanning = (scanning)();
+    let srv_running = (server_running)();
     let server_url = format!("http://{local_ip}:{port}");
     let push_url = format!("http://{local_ip}:{port}/api/push");
 
@@ -1155,12 +1193,31 @@ fn NetworkView(
                     span { class: "net-value net-url", "{push_url}" }
                 }
                 div { class: "net-row",
-                    span { class: "net-label", "Status" }
+                    span { class: "net-label", "Collector" }
                     if is_running {
                         span { class: "net-value good", "Running" }
                     } else {
                         span { class: "net-value muted", "Stopped" }
                     }
+                }
+                div { class: "net-row",
+                    span { class: "net-label", "HTTP Server" }
+                    if srv_running {
+                        span { class: "net-value good", "Running on :{port}" }
+                    } else {
+                        span { class: "net-value muted", "Stopped" }
+                    }
+                }
+            }
+            div { class: "net-actions",
+                button {
+                    class: if srv_running { "btn-server btn-stop" } else { "btn-server btn-start" },
+                    onclick: toggle_server,
+                    disabled: !is_running,
+                    if srv_running { "Stop Server" } else { "Start Server" }
+                }
+                if !is_running {
+                    p { class: "muted small", "Start monitoring first (click a city above)" }
                 }
             }
         }
@@ -1667,6 +1724,12 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .btn-scan:hover { background: rgba(96,165,250,0.1); }
 .btn-scan:disabled { opacity: 0.5; cursor: default; }
 .scan-progress { color: var(--yellow); font-size: 0.8rem; padding: 8px 0; animation: pulse 1.5s infinite; }
+.net-actions { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+.btn-server { padding: 8px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
+.btn-start { background: var(--green); color: #000; }
+.btn-stop { background: var(--red); color: #fff; }
+.btn-server:disabled { opacity: 0.4; cursor: default; }
+.btn-server:hover:not(:disabled) { opacity: 0.9; }
 
 .form-hint { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
 .btn-save { background: var(--blue); color: #000; border: none; border-radius: 10px; padding: 10px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
