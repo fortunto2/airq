@@ -1,0 +1,17 @@
+[package]
+name = "airq-core"
+version = "1.2.0"
+edition = "2024"
+description = "Core calculations for airq — AQI, comfort index, pollution front detection"
+license = "MIT"
+repository = "https://github.com/fortunto2/airq"
+
+[dependencies]
+anyhow = "1.0.102"
+cities = "0.2.0"
+colored = "3.1.1"
+dirs = "6.0.0"
+petgraph = "0.8.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+toml = "1.0.6"
