@@ -2,6 +2,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 // ---------------------------------------------------------------------------
 // Data types
 // ---------------------------------------------------------------------------
@@ -222,7 +225,7 @@ impl PollutionSource {
 // Weather data type (struct only, no fetch)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherData {
     pub pressure_hpa: Option<f64>,
     pub humidity_pct: Option<f64>,
@@ -235,7 +238,7 @@ pub struct WeatherData {
 // Pollen data type
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PollenData {
     pub grass_pollen: Option<f64>,
     pub birch_pollen: Option<f64>,
@@ -2717,5 +2720,403 @@ mod tests {
         assert!(comfort.temperature < 30, "42°C should score low on temp");
         assert!(comfort.uv < 20, "UV 12 should score very low");
         assert!(comfort.total < 70, "extreme heat should lower total, got {}", comfort.total);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Signal normalize functions (comfort sub-scores, 0-100 scale)
+// Used by both CLI and WASM. Pure functions, no IO.
+// ---------------------------------------------------------------------------
+
+pub mod signal {
+    /// Air quality: PM2.5 → AQI → comfort score.
+    /// AQI 0 = 100 (perfect), AQI 500 = 0 (hazardous).
+    pub fn normalize_air(pm25: f64) -> u32 {
+        let aqi = super::pm25_aqi(pm25);
+        (100.0 - aqi as f64 * 0.2).max(0.0).round() as u32
+    }
+
+    /// Temperature comfort. Ideal 18-28°C = 100. ±5°/step penalty.
+    pub fn normalize_temperature(temp_c: f64) -> u32 {
+        if (18.0..=28.0).contains(&temp_c) {
+            100
+        } else if temp_c < 18.0 {
+            (100.0 - (18.0 - temp_c) * 5.0).max(0.0) as u32
+        } else {
+            (100.0 - (temp_c - 28.0) * 5.0).max(0.0) as u32
+        }
+    }
+
+    /// UV index comfort. 0-2 = 100, >11 = 0.
+    pub fn normalize_uv(uv: f64) -> u32 {
+        (100.0 - uv * 9.0).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Marine/sea comfort. Wave height 0-1m = 100, >4m = 0.
+    pub fn normalize_marine(wave_height_m: f64) -> u32 {
+        (100.0 - wave_height_m * 25.0).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Earthquake comfort. Mag <3 = 100, >6 = 0. No recent quakes = 100.
+    pub fn normalize_earthquake(magnitude: f64) -> u32 {
+        if magnitude < 0.0 {
+            return 100; // no data sentinel
+        }
+        (100.0 - (magnitude - 3.0).max(0.0) * 33.0).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Fire proximity comfort. Distance in km. 100km+ = 100, 0km = 0.
+    pub fn normalize_fire(distance_km: f64) -> u32 {
+        distance_km.max(0.0).min(100.0).round() as u32
+    }
+
+    /// Pollen comfort. Max pollen count → score. 0 = 100, ≥100 = 0.
+    pub fn normalize_pollen(max_pollen: f64) -> u32 {
+        (100.0 - max_pollen).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Pressure comfort. Ideal 1013 hPa. ±20 hPa → 0.
+    /// Optional: rapid change penalty (>5 hPa/3h).
+    pub fn normalize_pressure(current_hpa: f64, change_3h: Option<f64>) -> u32 {
+        let deviation_score = (100.0 - (current_hpa - 1013.0).abs() * 5.0).max(0.0);
+        if let Some(change) = change_3h {
+            if change.abs() > 5.0 {
+                return (deviation_score - change.abs() * 5.0).max(0.0).round() as u32;
+            }
+        }
+        deviation_score.round() as u32
+    }
+
+    /// Geomagnetic comfort. Kp 0-2 quiet = 100, Kp 9 extreme = 0.
+    pub fn normalize_geomagnetic(kp: f64) -> u32 {
+        (100.0 - kp * 11.0).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Moon phase comfort. 0 = new, 0.5 = full.
+    /// Full moon correlates with poorer sleep → lower score.
+    pub fn normalize_moon(phase: f64) -> u32 {
+        let dist_from_full = (phase - 0.5).abs();
+        (dist_from_full * 200.0).min(100.0).round() as u32
+    }
+
+    /// Daylight comfort. Hours of daylight. 14+ = 100, 8 = 50, <6 = 0.
+    pub fn normalize_daylight(hours: f64) -> u32 {
+        ((hours - 6.0) * 12.5).max(0.0).min(100.0).round() as u32
+    }
+
+    /// Humidity comfort. 40-60% = 100, drops 2.5 pts per % outside.
+    pub fn normalize_humidity(humidity_pct: f64) -> u32 {
+        if (40.0..=60.0).contains(&humidity_pct) {
+            100
+        } else if humidity_pct < 40.0 {
+            (100.0 - (40.0 - humidity_pct) * 2.5).max(0.0) as u32
+        } else {
+            (100.0 - (humidity_pct - 60.0) * 2.5).max(0.0) as u32
+        }
+    }
+
+    /// Noise comfort. ≤40dB = 100, ≥85dB = 0, linear between.
+    pub fn normalize_noise(db: f64) -> u32 {
+        if db <= 40.0 {
+            100
+        } else if db >= 85.0 {
+            0
+        } else {
+            (100.0 - ((db - 40.0) / 45.0) * 100.0).max(0.0).round() as u32
+        }
+    }
+
+    /// Moon phase calculation (Conway's algorithm). Returns 0-1.
+    pub fn moon_phase(year: i32, month: u32, day: u32) -> f64 {
+        let mut r = (year % 100) as f64;
+        let r_mod = r as i32 % 19;
+        let r_adj = if r_mod > 9 { r_mod - 19 } else { r_mod };
+        r = ((r_adj * 11) % 30) as f64 + month as f64 + day as f64;
+        if month < 3 {
+            r += 2.0;
+        }
+        r -= if year < 2000 { 4.0 } else { 8.3 };
+        let mut result = (r + 0.5).floor() as i32 % 30;
+        if result < 0 {
+            result += 30;
+        }
+        result as f64 / 30.0
+    }
+
+    /// Full comfort index for Air Signal (11 modules, weighted).
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct SignalComfort {
+        pub total: u32,
+        pub air: u32,
+        pub temperature: u32,
+        pub uv: u32,
+        pub sea: u32,
+        pub earthquake: u32,
+        pub fire: u32,
+        pub pollen: u32,
+        pub pressure: u32,
+        pub geomagnetic: u32,
+        pub moon: u32,
+        pub daylight: u32,
+    }
+
+    /// Weights for Air Signal comfort index (11 modules).
+    pub const WEIGHTS: &[(&str, f64)] = &[
+        ("air", 0.22),
+        ("temperature", 0.18),
+        ("sea", 0.12),
+        ("uv", 0.08),
+        ("earthquake", 0.08),
+        ("fire", 0.05),
+        ("pollen", 0.05),
+        ("pressure", 0.05),
+        ("geomagnetic", 0.03),
+        ("daylight", 0.02),
+        // wind weight goes into temperature via apparent_temp
+    ];
+
+    /// Calculate full Signal comfort from sub-scores.
+    pub fn calculate_signal_comfort(scores: &SignalComfort) -> u32 {
+        let pairs: &[(&str, u32)] = &[
+            ("air", scores.air),
+            ("temperature", scores.temperature),
+            ("sea", scores.sea),
+            ("uv", scores.uv),
+            ("earthquake", scores.earthquake),
+            ("fire", scores.fire),
+            ("pollen", scores.pollen),
+            ("pressure", scores.pressure),
+            ("geomagnetic", scores.geomagnetic),
+            ("daylight", scores.daylight),
+        ];
+        let mut total_weight = 0.0_f64;
+        let mut weighted_sum = 0.0_f64;
+        for (name, score) in pairs {
+            if let Some(&(_, w)) = WEIGHTS.iter().find(|(n, _)| n == name) {
+                total_weight += w;
+                weighted_sum += *score as f64 * w;
+            }
+        }
+        if total_weight > 0.0 {
+            (weighted_sum / total_weight).round() as u32
+        } else {
+            0
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WASM bindings
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "wasm")]
+pub mod wasm {
+    use super::*;
+    use wasm_bindgen::prelude::*;
+
+    // -- AQI --
+
+    #[wasm_bindgen]
+    pub fn wasm_pm25_aqi(value: f64) -> u32 {
+        pm25_aqi(value)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_pm10_aqi(value: f64) -> u32 {
+        pm10_aqi(value)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_overall_aqi(json: &str) -> u32 {
+        let data: CurrentData = match serde_json::from_str(json) {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+        overall_aqi(&data).unwrap_or(0)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_aqi_category(aqi: u32) -> String {
+        let cat = AqiCategory::from_aqi(aqi);
+        serde_json::json!({
+            "label": cat.label(),
+            "emoji": cat.emoji(),
+            "color": cat.color_hex(),
+        })
+        .to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_pollutant_status(pollutant: &str, value: f64) -> String {
+        let cat = match pollutant {
+            "pm25" => get_pm25_status(value),
+            "pm10" => get_pm10_status(value),
+            "co" => get_co_status(value),
+            "no2" => get_no2_status(value),
+            "so2" => get_so2_status(value),
+            "o3" => get_o3_status(value),
+            _ => return serde_json::json!({"error": "unknown pollutant"}).to_string(),
+        };
+        serde_json::json!({
+            "label": cat.label(),
+            "emoji": cat.emoji(),
+            "color": cat.color_hex(),
+        })
+        .to_string()
+    }
+
+    // -- Signal normalize (all 11 modules) --
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_air(pm25: f64) -> u32 {
+        signal::normalize_air(pm25)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_temperature(temp_c: f64) -> u32 {
+        signal::normalize_temperature(temp_c)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_uv(uv: f64) -> u32 {
+        signal::normalize_uv(uv)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_marine(wave_height_m: f64) -> u32 {
+        signal::normalize_marine(wave_height_m)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_earthquake(magnitude: f64) -> u32 {
+        signal::normalize_earthquake(magnitude)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_fire(distance_km: f64) -> u32 {
+        signal::normalize_fire(distance_km)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_pollen(max_pollen: f64) -> u32 {
+        signal::normalize_pollen(max_pollen)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_pressure(current_hpa: f64, change_3h: f64) -> u32 {
+        let change = if change_3h.is_nan() { None } else { Some(change_3h) };
+        signal::normalize_pressure(current_hpa, change)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_geomagnetic(kp: f64) -> u32 {
+        signal::normalize_geomagnetic(kp)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_moon(phase: f64) -> u32 {
+        signal::normalize_moon(phase)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_daylight(hours: f64) -> u32 {
+        signal::normalize_daylight(hours)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_humidity(humidity_pct: f64) -> u32 {
+        signal::normalize_humidity(humidity_pct)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_normalize_noise(db: f64) -> u32 {
+        signal::normalize_noise(db)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_moon_phase(year: i32, month: u32, day: u32) -> f64 {
+        signal::moon_phase(year, month, day)
+    }
+
+    // -- Full Signal comfort index --
+
+    /// Input JSON: `{"air":22,"temperature":85,"uv":70,"sea":90,...}`
+    /// Returns JSON: `{"total":75,"air":22,...}`
+    #[wasm_bindgen]
+    pub fn wasm_signal_comfort(json: &str) -> String {
+        let scores: signal::SignalComfort = match serde_json::from_str(json) {
+            Ok(s) => s,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        let total = signal::calculate_signal_comfort(&scores);
+        let mut result = scores;
+        result.total = total;
+        serde_json::to_string(&result).unwrap_or_default()
+    }
+
+    // -- Comfort (original 6-component for CLI) --
+
+    #[wasm_bindgen]
+    pub fn wasm_comfort_score(json: &str) -> String {
+        #[derive(Deserialize)]
+        struct Input {
+            air: CurrentData,
+            weather: WeatherData,
+            wind: WindData,
+        }
+        let input: Input = match serde_json::from_str(json) {
+            Ok(i) => i,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        let score = calculate_comfort(&input.air, &input.weather, &input.wind);
+        serde_json::to_string(&score).unwrap_or_default()
+    }
+
+    // -- Geo utilities --
+
+    #[wasm_bindgen]
+    pub fn wasm_geomagnetic(kp: f64) -> String {
+        let data = GeomagneticData::from_kp(kp);
+        serde_json::to_string(&data).unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_pollen_status(json: &str) -> String {
+        let data: PollenData = match serde_json::from_str(json) {
+            Ok(d) => d,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        serde_json::json!({
+            "significant": data.is_significant(),
+            "grass": data.grass_pollen.map(PollenData::pollen_label),
+            "birch": data.birch_pollen.map(PollenData::pollen_label),
+            "alder": data.alder_pollen.map(PollenData::pollen_label),
+            "ragweed": data.ragweed_pollen.map(PollenData::pollen_label),
+        })
+        .to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+        front::haversine(lat1, lon1, lat2, lon2)
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_wind_direction(degrees: f64) -> String {
+        let wind = WindData {
+            wind_speed_10m: None,
+            wind_direction_10m: Some(degrees),
+            wind_gusts_10m: None,
+        };
+        serde_json::json!({
+            "label": wind.direction_label(),
+            "arrow": wind.direction_arrow(),
+        })
+        .to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn wasm_progress_bar(score: u32) -> String {
+        progress_bar(score)
     }
 }

@@ -1,6 +1,7 @@
 # airq
 
 [![Crates.io](https://img.shields.io/crates/v/airq)](https://crates.io/crates/airq)
+[![airq-core](https://img.shields.io/crates/v/airq-core?label=airq-core)](https://crates.io/crates/airq-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Check air quality from your terminal. Any city in the world, no API key needed. Detects pollution fronts, generates visual reports with maps and heatmaps.
@@ -311,6 +312,24 @@ All free, no API keys needed:
 - [USGS Earthquake API](https://earthquake.usgs.gov/fdsnws/event/1/) — global seismic data
 - [NOAA SWPC](https://services.swpc.noaa.gov/) — geomagnetic Kp index
 - [OpenStreetMap / Overpass API](https://overpass-api.de/) — factories, power plants, highways for blame
+
+## Architecture
+
+Cargo workspace with shared core:
+
+```
+airq-core/     Pure calculations, no IO (AQI, comfort, fronts, CPF). WASM-ready.
+airq/          CLI + async network fetching. Depends on airq-core.
+```
+
+Use `airq-core` in your own project:
+
+```toml
+airq-core = "1.2"                                          # CLI (default)
+airq-core = { version = "1.2", default-features = false }  # minimal / iOS
+```
+
+46 tests covering all core calculations.
 
 ## License
 

@@ -8,6 +8,9 @@ repository = "https://github.com/fortunto2/airq"
 keywords = ["air-quality", "aqi", "comfort-index", "pollution", "sensor-community"]
 categories = ["science", "algorithms"]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = ["cli"]
 cli = ["colored", "dirs", "toml"]
@@ -23,3 +26,6 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = { version = "1.0.6", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
