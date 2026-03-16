@@ -25,6 +25,80 @@ cargo install airq                  # crates.io (any platform)
 
 Or download prebuilt binaries from [GitHub Releases](https://github.com/fortunto2/airq/releases).
 
+## Air Signal Desktop
+
+![Air Signal Dashboard](docs/dashboard-berlin.png)
+
+*Air Signal desktop app — Berlin: 288 sensors, comfort score 66, CO/NO2/O3 WHO status, live sensor table.*
+
+Native desktop app for real-time air quality monitoring. Single binary, no Docker, no browser.
+
+```bash
+cargo run -p airq-dashboard     # from source
+# or download air-signal binary from Releases
+```
+
+**Features:**
+- **Dashboard** — PM2.5/PM10 stats, comfort score, CO/NO2/O3 WHO status, sensor table
+- **Map** — Leaflet with heatmap overlay, layer switcher (dark/OSM/light), city radius
+- **Comfort** — 6-signal matrix table (Air, Temp, Wind, UV, Pressure, Humidity) with progress bars
+- **Events** — pollution event timeline with source classification
+- **Sources** — PM10/PM2.5 ratio guide, extended pollutants grid
+- **Network** — local WiFi/VPN IPs, Start/Stop HTTP server, LAN sensor scan (ESP8266)
+- **Settings** — editable config, save to `config.toml` (shared with CLI)
+
+**City switching** — click chips in top bar or type in search (40K city autocomplete). Data updates immediately.
+
+**Two modes:**
+| Mode | Binary | Use case |
+|------|--------|----------|
+| Desktop app | `air-signal` | Local monitoring with GUI |
+| Headless daemon | `airq serve` | Server, MCP, remote access |
+
+Both share the same SQLite DB and config.
+
+### Headless server
+
+```bash
+airq serve --city gazipasa --radius 15 --port 8080
+airq serve --city moscow --city istanbul --interval 600
+```
+
+REST API + Swagger UI at `http://localhost:8080/docs/`:
+- `GET /api/status` — uptime, sensor/reading counts
+- `GET /api/readings?sensor=X&from=Y&to=Z` — sensor readings
+- `GET /api/sensors` — sensor list
+- `GET /api/events` — detected pollution events
+- `GET /api/cities` — configured cities
+- `POST /api/push` — ESP8266/ESP32 data ingestion
+
+### ESP8266 sensor setup
+
+Configure your airRohr/Sensor.Community sensor to push data:
+- Server: `<your-ip>` (shown in Network tab)
+- Path: `/api/push`
+- Port: `8080`
+
+### Install as daemon
+
+**macOS:**
+```bash
+# Create ~/Library/LaunchAgents/com.airsignal.serve.plist
+launchctl load ~/Library/LaunchAgents/com.airsignal.serve.plist
+```
+
+**Linux:**
+```bash
+# Create ~/.config/systemd/user/air-signal.service
+systemctl --user enable --now air-signal
+```
+
+**Windows:**
+```bash
+nssm install AirSignal airq.exe serve --city gazipasa
+nssm start AirSignal
+```
+
 ## Quick start
 
 ```bash
@@ -317,26 +391,37 @@ All free, no API keys needed:
 
 ## Architecture
 
-Cargo workspace with shared core:
+Cargo workspace with 3 crates:
 
 ```
-airq-core/          Pure calculations, no IO — WASM-ready
-├── lib.rs          AQI (EPA), 14 sigmoid normalizers, ComfortScore, fronts, CPF, WASM bindings
-├── matrix.rs       SignalMatrix: macro-driven time-series, ML vector (44-dim), bincode storage
-├── event.rs        Event detection: EWMA + concordance + directional (dual PM2.5+PM10)
-└── merge.rs        Model+sensor dynamic weighting by divergence
+airq-core/           Pure calculations, no IO — WASM-ready
+├── lib.rs           AQI (EPA), 14 sigmoid normalizers, ComfortScore, fronts, CPF
+├── matrix.rs        SignalMatrix: macro-driven time-series, ML vector (44-dim)
+├── event.rs         Event detection: EWMA + concordance + directional
+└── merge.rs         Model+sensor dynamic weighting by divergence
 
-airq/               CLI + async network fetching
+airq/                CLI + async network + serve daemon
+├── main.rs          CLI (clap): city, comfort, front, blame, report, top, serve
+├── db.rs            SQLite storage (WAL mode)
+├── collector.rs     Sensor.Community poll loop
+├── push.rs          ESP8266/ESP32 push receiver
+├── api.rs           REST API (Axum) + OpenAPI/Swagger
+├── detector.rs      Real-time event detection
+└── serve.rs         Headless daemon entry point
+
+airq-dashboard/      Dioxus 0.7 desktop app (Air Signal)
+├── app.rs           8 views: Dashboard, Map, Comfort, Events, History, Sources, Network, Settings
+└── state.rs         MonitorSnapshot, CityData, LAN sensor discovery
 ```
 
 Use `airq-core` in your own project:
 
 ```toml
-airq-core = "1.2"                                          # CLI (default)
-airq-core = { version = "1.2", default-features = false }  # minimal / iOS / WASM
+airq-core = "2.0"                                          # CLI (default)
+airq-core = { version = "2.0", default-features = false }  # minimal / iOS / WASM
 ```
 
-101 tests. 14 environmental signals with sigmoid/gaussian normalization.
+130 tests. 14 environmental signals with sigmoid/gaussian normalization.
 
 ## License
 
