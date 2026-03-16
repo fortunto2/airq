@@ -2,16 +2,24 @@
 name = "airq-core"
 version = "1.2.0"
 edition = "2024"
-description = "Core calculations for airq — AQI, comfort index, pollution front detection"
+description = "Core calculations for airq — AQI, comfort index, pollution front detection, source attribution"
 license = "MIT"
 repository = "https://github.com/fortunto2/airq"
+keywords = ["air-quality", "aqi", "comfort-index", "pollution", "sensor-community"]
+categories = ["science", "algorithms"]
+
+[features]
+default = ["cli"]
+cli = ["colored", "dirs", "toml"]
+wasm = ["wasm-bindgen"]
 
 [dependencies]
 anyhow = "1.0.102"
 cities = "0.2.0"
-colored = "3.1.1"
-dirs = "6.0.0"
+colored = { version = "3.1.1", optional = true }
+dirs = { version = "6.0.0", optional = true }
 petgraph = "0.8.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-toml = "1.0.6"
+toml = { version = "1.0.6", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }

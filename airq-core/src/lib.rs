@@ -146,6 +146,7 @@ pub fn default_source_type() -> String {
     "custom".to_string()
 }
 
+#[cfg(feature = "cli")]
 impl AppConfig {
     pub fn load() -> Result<Self> {
         let path = Self::path();
@@ -414,15 +415,28 @@ impl AqiCategory {
         }
     }
 
+    #[cfg(feature = "cli")]
     pub fn colorize(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         match self {
             Self::Good => text.green(),
             Self::Moderate => text.yellow(),
-            Self::UnhealthySensitive => text.truecolor(255, 165, 0), // orange
+            Self::UnhealthySensitive => text.truecolor(255, 165, 0),
             Self::Unhealthy => text.red(),
             Self::VeryUnhealthy => text.purple(),
-            Self::Hazardous => text.truecolor(128, 0, 0), // dark red
+            Self::Hazardous => text.truecolor(128, 0, 0),
+        }
+    }
+
+    /// Color as hex string (for web/WASM).
+    pub fn color_hex(&self) -> &'static str {
+        match self {
+            Self::Good => "#00c853",
+            Self::Moderate => "#ffc107",
+            Self::UnhealthySensitive => "#ff9800",
+            Self::Unhealthy => "#f44336",
+            Self::VeryUnhealthy => "#9c27b0",
+            Self::Hazardous => "#800000",
         }
     }
 }
