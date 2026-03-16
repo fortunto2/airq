@@ -100,14 +100,31 @@ airq --city berlin --provider sensor-community --sensor-id 72203  # sensor only
 ### Pollution front detection
 ```bash
 airq front --city gazipasa --radius 150 --days 3
+airq front --city moscow --radius 200 --days 3
 ```
-Detects pollution fronts moving between cities. Uses Z-score spike detection and cross-correlation.
+Detects pollution fronts moving between cities using:
+- Z-score spike detection on hourly PM2.5 differences
+- Cross-correlation with time-lag between city/sensor pairs
+- Haversine distance + bearing for speed and direction
+- Dual-source: Open-Meteo model + Sensor.Community archive data
+- Sensor clustering (~5km zones) with geo-named labels
 
-### HTML/PDF report with map
+Shows nearby cities, wind, spikes, fronts with speed/direction, and ETA warnings.
+
+### HTML/PDF report with map and heatmap
 ```bash
-airq report --city hamburg --pdf
+airq report --city hamburg --radius 150 --pdf
+airq report --city moscow --radius 200 --days 3
 ```
-Generates HTML report with Leaflet.js map, front arrows, spikes and fronts tables. `--pdf` exports via Chrome headless.
+Generates self-contained HTML report with:
+- Leaflet.js map with CartoDB tiles
+- PM2.5 heatmap overlay (leaflet.heat)
+- Individual sensors colored by air quality level
+- Front arrows (green=strong, yellow=medium, orange=weak correlation)
+- Key Insights, Spikes table, Fronts table, Methodology, AQI reference
+- `--pdf` exports via Chrome headless or wkhtmltopdf
+
+Sensor CSV data cached in `~/.cache/airq/sensors/` for faster repeat queries.
 
 ### JSON output
 All commands support `--json` for scripting and piping:
