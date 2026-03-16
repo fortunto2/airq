@@ -604,6 +604,191 @@ pub async fn fetch_history(lat: f64, lon: f64, days: u32) -> Result<HistoryRespo
     Ok(response)
 }
 
+/// Fetch sensor history from archive.sensor.community CSV.
+/// Returns hourly-aggregated PM2.5 values aligned with Open-Meteo timestamps.
+pub async fn fetch_sensor_archive(
+    sensor_id: u64,
+    days: u32,
+) -> Result<Vec<(String, f64)>> {
+    let client = reqwest::Client::builder()
+        .user_agent("airq/1.0")
+        .build()
+        .context("client")?;
+
+    let mut all_readings: Vec<(String, f64)> = Vec::new();
+    let today = chrono_date_now();
+
+    for d in 0..days {
+        let date = date_minus_days(&today, d);
+        let url = format!(
+            "https://archive.sensor.community/{}/{}_sds011_sensor_{}.csv",
+            date, date, sensor_id
+        );
+        let resp = client.get(&url).send().await;
+        if let Ok(r) = resp {
+            if r.status().is_success() {
+                if let Ok(text) = r.text().await {
+                    parse_sensor_csv(&text, &mut all_readings);
+                }
+            }
+        }
+    }
+
+    // Aggregate to hourly medians
+    let hourly = aggregate_sensor_to_hourly(&all_readings);
+    Ok(hourly)
+}
+
+/// Simple date helpers (avoid chrono dependency).
+fn chrono_date_now() -> String {
+    // Use system time to get current date
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let days_since_epoch = now / 86400;
+    epoch_days_to_date(days_since_epoch)
+}
+
+fn epoch_days_to_date(days: u64) -> String {
+    // Simple Gregorian calendar conversion
+    let mut y = 1970i64;
+    let mut remaining = days as i64;
+    loop {
+        let days_in_year = if is_leap(y) { 366 } else { 365 };
+        if remaining < days_in_year {
+            break;
+        }
+        remaining -= days_in_year;
+        y += 1;
+    }
+    let days_in_months: [i64; 12] = if is_leap(y) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut m = 0;
+    for (i, &dim) in days_in_months.iter().enumerate() {
+        if remaining < dim {
+            m = i;
+            break;
+        }
+        remaining -= dim;
+    }
+    format!("{:04}-{:02}-{:02}", y, m + 1, remaining + 1)
+}
+
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+fn date_minus_days(date: &str, days: u32) -> String {
+    // Parse date, subtract days
+    let parts: Vec<u64> = date.split('-').filter_map(|p| p.parse().ok()).collect();
+    if parts.len() != 3 {
+        return date.to_string();
+    }
+    let (y, m, d) = (parts[0], parts[1], parts[2]);
+    // Convert to epoch days, subtract, convert back
+    let mut epoch_days = 0u64;
+    for yr in 1970..y {
+        epoch_days += if is_leap(yr as i64) { 366 } else { 365 };
+    }
+    let dims: [u64; 12] = if is_leap(y as i64) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    for i in 0..(m - 1) as usize {
+        epoch_days += dims[i];
+    }
+    epoch_days += d - 1;
+    epoch_days_to_date(epoch_days.saturating_sub(days as u64))
+}
+
+fn parse_sensor_csv(text: &str, out: &mut Vec<(String, f64)>) {
+    for line in text.lines().skip(1) {
+        let cols: Vec<&str> = line.split(';').collect();
+        // Format: sensor_id;sensor_type;location;lat;lon;timestamp;P1;durP1;ratioP1;P2;...
+        if cols.len() >= 10 {
+            let timestamp = cols[5]; // e.g. 2026-03-14T00:02:12
+            let p2 = cols[9]; // PM2.5
+            if let Ok(val) = p2.parse::<f64>() {
+                if val > 0.0 && val < 1000.0 {
+                    out.push((timestamp.to_string(), val));
+                }
+            }
+        }
+    }
+}
+
+fn aggregate_sensor_to_hourly(readings: &[(String, f64)]) -> Vec<(String, f64)> {
+    let mut hourly: std::collections::BTreeMap<String, Vec<f64>> =
+        std::collections::BTreeMap::new();
+    for (ts, val) in readings {
+        // "2026-03-14T00:02:12" → "2026-03-14T00:00"
+        let hour_key = if ts.len() >= 13 {
+            format!("{}:00", &ts[..13])
+        } else {
+            continue;
+        };
+        hourly.entry(hour_key).or_default().push(*val);
+    }
+
+    hourly
+        .into_iter()
+        .map(|(hour, mut vals)| {
+            vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mid = vals.len() / 2;
+            let median = if vals.len() % 2 == 0 && vals.len() >= 2 {
+                (vals[mid - 1] + vals[mid]) / 2.0
+            } else {
+                vals[mid]
+            };
+            (hour, median)
+        })
+        .collect()
+}
+
+/// Fetch nearby SDS011 sensor IDs with their locations from Sensor.Community.
+pub async fn fetch_nearby_dust_sensors(
+    lat: f64,
+    lon: f64,
+    radius_km: f64,
+) -> Result<Vec<(u64, f64, f64)>> {
+    let url = format!(
+        "https://data.sensor.community/airrohr/v1/filter/area={},{},{}&type=SDS011",
+        lat, lon, radius_km
+    );
+    let response = reqwest::Client::builder()
+        .user_agent("airq/1.0")
+        .build()
+        .context("client")?
+        .get(&url)
+        .send()
+        .await
+        .context("Sensor.Community area API")?
+        .json::<Vec<serde_json::Value>>()
+        .await
+        .context("Parse sensor JSON")?;
+
+    let mut sensors = std::collections::HashMap::new();
+    for item in &response {
+        if let (Some(sid), Some(loc)) = (
+            item.get("sensor").and_then(|s| s.get("id")).and_then(|v| v.as_u64()),
+            item.get("location"),
+        ) {
+            let lat = loc.get("latitude").and_then(|v| v.as_str()).and_then(|s| s.parse::<f64>().ok());
+            let lon = loc.get("longitude").and_then(|v| v.as_str()).and_then(|s| s.parse::<f64>().ok());
+            if let (Some(lat), Some(lon)) = (lat, lon) {
+                sensors.insert(sid, (lat, lon));
+            }
+        }
+    }
+
+    Ok(sensors.into_iter().map(|(id, (lat, lon))| (id, lat, lon)).collect())
+}
+
 pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
     let mut daily_map: std::collections::BTreeMap<String, (f64, usize, f64, usize, f64, usize)> =
         std::collections::BTreeMap::new();
@@ -895,9 +1080,17 @@ pub mod front {
     pub struct PropagationEdge {
         pub distance_km: f64,
         pub bearing_deg: f64,
+        // Merged values (weighted)
         pub lag_hours: i32,
         pub correlation: f64,
         pub speed_kmh: f64,
+        // Per-source (None if source unavailable)
+        pub om_lag: Option<i32>,
+        pub om_correlation: Option<f64>,
+        pub sc_lag: Option<i32>,
+        pub sc_correlation: Option<f64>,
+        /// Confidence: higher when both sources agree
+        pub confidence: f64,
     }
 
     /// Station node in the graph.
@@ -933,6 +1126,12 @@ pub mod front {
 
     /// Build propagation graph from target city + nearby cities with history data.
     /// `histories` is Vec of (city_name, lat, lon, distance_km, hourly_times, hourly_pm25).
+    /// Sensor.Community hourly data for a node.
+    /// Key = hour timestamp ("2026-03-14T10:00"), Value = median PM2.5.
+    pub type SensorHourlyData = std::collections::BTreeMap<String, f64>;
+
+    /// Build propagation graph with dual-source analysis.
+    /// `sensor_data`: optional map of node_name → hourly sensor readings.
     pub fn build_graph(
         target_name: &str,
         target_lat: f64,
@@ -940,6 +1139,23 @@ pub mod front {
         neighbors: Vec<(String, f64, f64, f64, Vec<String>, Vec<Option<f64>>)>,
         target_times: &[String],
         target_pm25: &[Option<f64>],
+    ) -> FrontAnalysis {
+        build_graph_dual(
+            target_name, target_lat, target_lon,
+            neighbors, target_times, target_pm25,
+            &std::collections::HashMap::new(), // no sensor data
+        )
+    }
+
+    /// Build graph with optional Sensor.Community data for dual-source edges.
+    pub fn build_graph_dual(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        neighbors: Vec<(String, f64, f64, f64, Vec<String>, Vec<Option<f64>>)>,
+        target_times: &[String],
+        target_pm25: &[Option<f64>],
+        sensor_data: &std::collections::HashMap<String, SensorHourlyData>,
     ) -> FrontAnalysis {
         let mut graph = Graph::new();
 
@@ -964,6 +1180,14 @@ pub mod front {
             nodes.push((node, times.clone(), pm25.clone()));
         }
 
+        // Build sensor time-series aligned with Open-Meteo timestamps
+        let sc_series: Vec<Option<Vec<Option<f64>>>> = nodes.iter().map(|(node, times, _)| {
+            let name = &graph[*node].name;
+            sensor_data.get(name).map(|sd| {
+                times.iter().map(|t| sd.get(t).copied()).collect()
+            })
+        }).collect();
+
         // Pairwise cross-correlation → edges
         let mut fronts = Vec::new();
         for i in 0..nodes.len() {
@@ -975,11 +1199,46 @@ pub mod front {
 
                 let dist = haversine(a.lat, a.lon, b.lat, b.lon);
                 let brng = bearing(a.lat, a.lon, b.lat, b.lon);
-                let (lag, corr) = cross_correlate(pm25_a, pm25_b, 24);
 
-                if corr > 0.5 && lag != 0 {
-                    let speed = dist / (lag.unsigned_abs() as f64);
-                    let (from, to, actual_bearing) = if lag > 0 {
+                // Open-Meteo correlation
+                let (om_lag, om_corr) = cross_correlate(pm25_a, pm25_b, 24);
+
+                // Sensor.Community correlation (if available)
+                let (sc_lag, sc_corr) = match (&sc_series[i], &sc_series[j]) {
+                    (Some(sa), Some(sb)) => {
+                        let (l, c) = cross_correlate(sa, sb, 24);
+                        (Some(l), Some(c))
+                    }
+                    _ => (None, None),
+                };
+
+                // Merge: weighted average if both available, otherwise use whichever exists
+                let (merged_lag, merged_corr, confidence) = match (sc_lag, sc_corr) {
+                    (Some(sl), Some(sc)) if sc > 0.3 && om_corr > 0.3 => {
+                        // Both sources available — weight by correlation strength
+                        let w_om = om_corr.abs();
+                        let w_sc = sc.abs();
+                        let total_w = w_om + w_sc;
+                        let merged_lag = ((om_lag as f64 * w_om + sl as f64 * w_sc) / total_w).round() as i32;
+                        let merged_corr = (om_corr * w_om + sc * w_sc) / total_w;
+                        // Confidence bonus if both agree on direction
+                        let agree = (om_lag > 0 && sl > 0) || (om_lag < 0 && sl < 0);
+                        let conf = if agree {
+                            (merged_corr * 1.2).min(1.0)
+                        } else {
+                            merged_corr * 0.5 // disagree = low confidence
+                        };
+                        (merged_lag, merged_corr, conf)
+                    }
+                    _ => {
+                        // Only Open-Meteo available
+                        (om_lag, om_corr, om_corr * 0.8)
+                    }
+                };
+
+                if merged_corr > 0.5 && merged_lag != 0 {
+                    let speed = dist / (merged_lag.unsigned_abs() as f64);
+                    let (from, to, actual_bearing) = if merged_lag > 0 {
                         (*node_a, *node_b, brng)
                     } else {
                         (*node_b, *node_a, (brng + 180.0) % 360.0)
@@ -988,9 +1247,14 @@ pub mod front {
                     let edge = PropagationEdge {
                         distance_km: dist,
                         bearing_deg: actual_bearing,
-                        lag_hours: lag.abs(),
-                        correlation: corr,
+                        lag_hours: merged_lag.abs(),
+                        correlation: merged_corr,
                         speed_kmh: speed,
+                        om_lag: Some(om_lag),
+                        om_correlation: Some(om_corr),
+                        sc_lag,
+                        sc_correlation: sc_corr,
+                        confidence,
                     };
                     graph.add_edge(from, to, edge.clone());
 
@@ -1004,8 +1268,8 @@ pub mod front {
                                 to_city: graph[to].name.clone(),
                                 speed_kmh: speed,
                                 bearing_deg: actual_bearing,
-                                lag_hours: lag.abs(),
-                                correlation: corr,
+                                lag_hours: merged_lag.abs(),
+                                correlation: merged_corr,
                                 from_spike_time: f.time.clone(),
                                 to_spike_time: t.time.clone(),
                             });
