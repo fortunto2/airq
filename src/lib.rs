@@ -545,7 +545,7 @@ pub async fn fetch_area_average(lat: f64, lon: f64, radius_km: f64) -> Result<Ar
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse::<f64>().ok());
             if let Some(val) = val {
-                if val > 0.0 && val < 1000.0 {
+                if val > 0.0 && val < 500.0 {
                     // filter obvious outliers
                     match vtype {
                         "P2" => pm25_vals.push(val),
@@ -738,7 +738,7 @@ fn parse_sensor_csv(text: &str, out: &mut Vec<(String, f64)>) {
             let timestamp = cols[5]; // e.g. 2026-03-14T00:02:12
             let p2 = cols[9]; // PM2.5
             if let Ok(val) = p2.parse::<f64>() {
-                if val > 0.0 && val < 1000.0 {
+                if val > 0.0 && val < 500.0 {
                     out.push((timestamp.to_string(), val));
                 }
             }
@@ -1605,16 +1605,51 @@ pub mod front {
             html_escape(target_name),
         ));
 
-        // Neighbor markers (blue) with labels
+        // Collect names that appear in fronts or have spikes (important nodes)
+        let important_nodes: std::collections::HashSet<String> = {
+            let mut set = std::collections::HashSet::new();
+            for f in &analysis.fronts {
+                if f.correlation > 0.6 {
+                    set.insert(f.from_city.clone());
+                    set.insert(f.to_city.clone());
+                }
+            }
+            for (idx, spikes) in &analysis.spikes {
+                if !spikes.is_empty() {
+                    set.insert(analysis.graph[*idx].name.clone());
+                }
+            }
+            set
+        };
+
+        // Neighbor markers (blue) — labels only for important nodes
         for node_idx in analysis.graph.node_indices() {
             let node = &analysis.graph[node_idx];
             if node.distance_from_target > 0.0 {
+                let is_important = important_nodes.contains(&node.name);
+                // Short label: "Zelenograd" or "#5" for duplicates
+                let short = node.name.split('(').next().unwrap_or(&node.name).trim();
+                let label = if short.contains('-') {
+                    // "Moscow-58" → "#58"
+                    let num = short.rsplit('-').next().unwrap_or(short);
+                    format!("#{}", num)
+                } else {
+                    short.to_string()
+                };
+
+                let tooltip = if is_important {
+                    format!(".bindTooltip('{}', {{permanent: true, direction: 'top', className: 'node-label'}})", html_escape(&label))
+                } else {
+                    String::new()
+                };
+
                 markers_js.push_str(&format!(
-                    "L.circleMarker([{}, {}], {{radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}}).addTo(map).bindPopup('<b>{}</b><br>{:.0} km from target').bindTooltip('{}', {{permanent: true, direction: 'top', className: 'node-label'}});\n",
+                    "L.circleMarker([{}, {}], {{radius: {}, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}}).addTo(map).bindPopup('<b>{}</b><br>{:.0} km from target'){};\n",
                     node.lat, node.lon,
+                    if is_important { 8 } else { 5 },
                     html_escape(&node.name),
                     node.distance_from_target,
-                    html_escape(&node.name.split('(').next().unwrap_or(&node.name).trim()),
+                    tooltip,
                 ));
             }
         }
