@@ -2730,9 +2730,13 @@ mod tests {
 // Used by both CLI and WASM. Pure functions, no IO.
 // ---------------------------------------------------------------------------
 
+// AI-NOTE: signal module contains only: sigmoid/gaussian primitives + normalize_* functions + SignalComfort type.
+// All weights, names, indices, matrix ops are in matrix.rs via define_signal_columns! macro.
 pub mod signal {
     // -----------------------------------------------------------------------
-    // Primitive curves (building blocks)
+    // Primitive curves — building blocks for all normalize functions
+    // AI-NOTE: sigmoid(x, mid, k) and gaussian(x, center, σ) are the only two curves needed.
+    // Every normalize_* is one line calling these primitives.
     // -----------------------------------------------------------------------
 
     /// Logistic sigmoid: 1 / (1 + e^(-k*(x - mid)))
@@ -2786,6 +2790,12 @@ pub mod signal {
     /// UV 0 ≈ 97, UV 3 ≈ 86, UV 8 ≈ 23, UV 11 ≈ 4.
     pub fn normalize_uv(uv: f64) -> u32 {
         sigmoid_desc(uv, 6.0, 0.6)
+    }
+
+    /// Wind speed: descending sigmoid, mid=25 km/h, k=0.12.
+    /// 0 km/h ≈ 95, 10 ≈ 86, 25 = 50, 40 ≈ 14, 60 ≈ 1.
+    pub fn normalize_wind(speed_kmh: f64) -> u32 {
+        sigmoid_desc(speed_kmh, 25.0, 0.12)
     }
 
     /// Marine: wave height descending sigmoid, mid=2m, k=1.5.
@@ -2991,66 +3001,47 @@ pub mod signal {
         }
     }
 
-    // -------------------------------------------------------------------
-    // SignalComfort — thin type over matrix::SignalRow
-    // All weights, names, indices come from matrix::define_signal_columns!
-    // -------------------------------------------------------------------
+    // AI-NOTE: SignalComfort is a named-field JSON view of matrix::SignalRow.
+    // Uses HashMap for forward-compat — adding signals doesn't require struct changes.
 
-    /// Comfort snapshot. Constructed from `matrix::SignalRow`.
+    /// Comfort snapshot. Named fields for JSON, backed by matrix::SignalRow.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct SignalComfort {
         pub total: u32,
-        pub air: u32,
-        pub temperature: u32,
-        pub uv: u32,
-        pub sea: u32,
-        pub earthquake: u32,
-        pub fire: u32,
-        pub pollen: u32,
-        pub pressure: u32,
-        pub geomagnetic: u32,
-        pub moon: u32,
-        pub daylight: u32,
+        #[serde(flatten)]
+        pub scores: std::collections::HashMap<String, u32>,
     }
 
     impl SignalComfort {
-        /// Build from a matrix row. Single source of truth for weights.
+        /// Build from a matrix row. Auto-maps all columns from macro.
         pub fn from_row(row: &super::matrix::SignalRow) -> Self {
-            use super::matrix::idx;
+            let mut scores = std::collections::HashMap::new();
+            for (i, &name) in super::matrix::SIGNAL_NAMES.iter().enumerate() {
+                scores.insert(name.to_string(), row.scores[i] as u32);
+            }
             Self {
                 total: row.weighted_score().round() as u32,
-                air: row.scores[idx::air] as u32,
-                temperature: row.scores[idx::temperature] as u32,
-                uv: row.scores[idx::uv] as u32,
-                sea: row.scores[idx::sea] as u32,
-                earthquake: row.scores[idx::earthquake] as u32,
-                fire: row.scores[idx::fire] as u32,
-                pollen: row.scores[idx::pollen] as u32,
-                pressure: row.scores[idx::pressure] as u32,
-                geomagnetic: row.scores[idx::geomagnetic] as u32,
-                moon: row.scores[idx::moon] as u32,
-                daylight: row.scores[idx::daylight] as u32,
+                scores,
             }
         }
 
-        /// Build from a flat JSON (for WASM compat: `{"air":80,"temperature":70,...}`)
+        /// Build from JSON. Reconstructs total via matrix algebra.
         pub fn from_json_scores(json: &str) -> Result<Self, serde_json::Error> {
             let raw: Self = serde_json::from_str(json)?;
-            // Rebuild total via matrix algebra
-            let row = super::matrix::SignalRow::from_pairs(&[
-                ("air", raw.air as f64),
-                ("temperature", raw.temperature as f64),
-                ("uv", raw.uv as f64),
-                ("sea", raw.sea as f64),
-                ("earthquake", raw.earthquake as f64),
-                ("fire", raw.fire as f64),
-                ("pollen", raw.pollen as f64),
-                ("pressure", raw.pressure as f64),
-                ("geomagnetic", raw.geomagnetic as f64),
-                ("moon", raw.moon as f64),
-                ("daylight", raw.daylight as f64),
-            ]);
+            let pairs: Vec<(&str, f64)> = raw.scores.iter()
+                .filter_map(|(k, &v)| {
+                    super::matrix::SIGNAL_NAMES.iter()
+                        .find(|&&n| n == k.as_str())
+                        .map(|&n| (n, v as f64))
+                })
+                .collect();
+            let row = super::matrix::SignalRow::from_pairs(&pairs);
             Ok(Self::from_row(&row))
+        }
+
+        /// Get a specific signal score.
+        pub fn get(&self, name: &str) -> Option<u32> {
+            self.scores.get(name).copied()
         }
     }
 }
@@ -3181,6 +3172,12 @@ pub mod wasm {
     #[wasm_bindgen]
     pub fn wasm_normalize_noise(db: f64) -> u32 {
         signal::normalize_noise(db)
+    }
+
+    // AI-NOTE: when adding a new signal, add wasm_normalize_* here too
+    #[wasm_bindgen]
+    pub fn wasm_normalize_wind(speed_kmh: f64) -> u32 {
+        signal::normalize_wind(speed_kmh)
     }
 
     #[wasm_bindgen]

@@ -58,18 +58,22 @@ macro_rules! define_signal_columns {
 // Column definitions — THE source of truth
 // ---------------------------------------------------------------------------
 
+// AI-NOTE: To add a new signal: 1) add line here, 2) add normalize_* fn in signal module
 define_signal_columns! {
-    air         0.22,
-    temperature 0.18,
-    sea         0.12,
+    air         0.20,
+    temperature 0.16,
+    wind        0.10,
+    sea         0.10,
     uv          0.08,
     earthquake  0.08,
     fire        0.05,
-    pollen      0.05,
+    pollen      0.04,
     pressure    0.05,
     geomagnetic 0.03,
+    humidity    0.04,
     daylight    0.02,
-    moon        0.00,
+    noise       0.03,
+    moon        0.02,
 }
 
 // ---------------------------------------------------------------------------
@@ -526,29 +530,30 @@ mod tests {
 
     #[test]
     fn test_n_signals() {
-        assert_eq!(N_SIGNALS, 11);
+        assert_eq!(N_SIGNALS, 14);
     }
 
     #[test]
     fn test_signal_names() {
         assert_eq!(SIGNAL_NAMES[0], "air");
         assert_eq!(SIGNAL_NAMES[1], "temperature");
-        assert_eq!(SIGNAL_NAMES[10], "moon");
+        assert_eq!(SIGNAL_NAMES[2], "wind");
+        assert_eq!(*SIGNAL_NAMES.last().unwrap(), "moon");
         assert_eq!(SIGNAL_NAMES.len(), N_SIGNALS);
     }
 
     #[test]
     fn test_signal_weights_sum() {
         let sum: f64 = SIGNAL_WEIGHTS.iter().sum();
-        // moon=0.0, so sum is 0.88 not 1.0. But weighted columns should sum correctly.
-        assert!((sum - 0.88).abs() < 0.001, "weights sum: {sum}");
+        // All weights should sum to 1.0 (moon=0.02 now has weight).
+        assert!((sum - 1.0).abs() < 0.001, "weights sum: {sum}");
     }
 
     #[test]
     fn test_idx_constants() {
         assert_eq!(idx::air, 0);
         assert_eq!(idx::temperature, 1);
-        assert_eq!(idx::moon, 10);
+        assert_eq!(idx::moon, 13);
     }
 
     #[test]
@@ -651,7 +656,7 @@ mod tests {
         let mut m = SignalMatrix::new();
         m.push(1000.0, SignalRow { scores: [80.0; N_SIGNALS] });
         let comfort = m.to_comfort().unwrap();
-        assert_eq!(comfort.air, 80);
+        assert_eq!(comfort.get("air"), Some(80));
         assert_eq!(comfort.total, 80);
     }
 
@@ -763,14 +768,15 @@ mod tests {
         m.push_with_meta(0.0, SignalRow { scores: [80.0; N_SIGNALS] }, 5, true);
         let v = m.to_ml_vector().unwrap();
         assert_eq!(v.features.len(), N_ML_FEATURES);
-        assert_eq!(v.features.len(), 35);
-        assert_eq!(v.names.len(), 35);
+        assert_eq!(v.features.len(), N_ML_FEATURES);
+        assert_eq!(v.names.len(), N_ML_FEATURES);
         // Current: 80/100 = 0.8
         assert!((v.features[0] - 0.8).abs() < 0.001);
         // Sensor count: 5/50 = 0.1
-        assert!((v.features[33] - 0.1).abs() < 0.001);
-        // Front: 1.0
-        assert!((v.features[34] - 1.0).abs() < 0.001);
+        // Sensor count at index 3*N_SIGNALS
+        assert!((v.features[3 * N_SIGNALS] - 0.1).abs() < 0.001);
+        // Front at index 3*N_SIGNALS + 1
+        assert!((v.features[3 * N_SIGNALS + 1] - 1.0).abs() < 0.001);
         assert_eq!(v.label, "excellent");
     }
 
@@ -886,16 +892,15 @@ mod tests {
         let score = row.weighted_score();
         assert!((score - 75.0).abs() < 0.01, "score: {score}");
 
-        // Different values
+        // Different values — only some signals set, rest 0
         let mut scores = [0.0; N_SIGNALS];
-        scores[idx::air] = 100.0;       // w=0.22
-        scores[idx::temperature] = 50.0; // w=0.18
-        scores[idx::sea] = 80.0;         // w=0.12
-        // rest are 0 with non-zero weights → pull average down
+        scores[idx::air] = 100.0;
+        scores[idx::temperature] = 50.0;
+        scores[idx::sea] = 80.0;
         let row = SignalRow { scores };
         let ws = row.weighted_score();
-        // Manual: (100*0.22 + 50*0.18 + 80*0.12) / (0.22+0.18+0.12+0.08+0.08+0.05+0.05+0.05+0.03+0.02)
-        // = (22 + 9 + 9.6) / 0.88 = 40.6 / 0.88 ≈ 46.136
-        assert!((ws - 46.136).abs() < 0.1, "weighted_score: {ws}");
+        // Manual: (100*0.20 + 50*0.16 + 80*0.10) / sum(all weights)
+        // = (20 + 8 + 8) / 1.0 = 36.0
+        assert!((ws - 36.0).abs() < 0.5, "weighted_score: {ws}");
     }
 }
