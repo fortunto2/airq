@@ -1,8 +1,8 @@
 [package]
 name = "airq"
-version = "0.9.0"
+version = "1.0.0"
 edition = "2024"
-description = "A command-line tool to check air quality (AQI, PM2.5, PM10) from Open-Meteo and Sensor.Community"
+description = "CLI air quality checker with pollution front detection, maps, and PDF reports"
 license = "MIT"
 repository = "https://github.com/fortunto2/airq"
 keywords = ["air-quality", "cli", "open-meteo", "sensor-community"]

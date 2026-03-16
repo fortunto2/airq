@@ -97,6 +97,18 @@ airq --city berlin --provider open-meteo           # model only
 airq --city berlin --provider sensor-community --sensor-id 72203  # sensor only
 ```
 
+### Pollution front detection
+```bash
+airq front --city gazipasa --radius 150 --days 3
+```
+Detects pollution fronts moving between cities. Uses Z-score spike detection and cross-correlation.
+
+### HTML/PDF report with map
+```bash
+airq report --city hamburg --pdf
+```
+Generates HTML report with Leaflet.js map, front arrows, spikes and fronts tables. `--pdf` exports via Chrome headless.
+
 ### JSON output
 All commands support `--json` for scripting and piping:
 ```bash

@@ -35,6 +35,7 @@ NO2   1.9 μg/m³
 O3    73.0 μg/m³
 SO2   1.1 μg/m³
 UV Index: 0 ☀️ (Low)
+Wind:   5.2 km/h ↙ NE (gusts 8)
 --------------------------------------------------
 🟢 US AQI: 40 | EU AQI: 29 — Good
 ```
@@ -126,6 +127,43 @@ airq history --city tokyo --days 7 --json
 airq top --country usa --json
 airq compare --city berlin --json
 ```
+
+### Pollution front detection
+
+Detect pollution fronts moving between cities using cross-correlation analysis:
+
+```bash
+airq front --city gazipasa --radius 150 --days 3
+```
+
+```
+Analyzing pollution fronts around Gazipaşa, Türkiye...
+Nearby cities (150km radius):
+  Alanya (42km NW), Manavgat (97km NW), Karaman (129km NE)...
+
+Current wind: 5.2 km/h ↙ NE
+
+Spike detection (last 72h):
+  🟡 Alanya: 16.8 µg/m³ (+2.6) 2026-03-15 20:00
+  🟢 Manavgat: 12.0 µg/m³ (+2.0) 2026-03-15 20:00
+
+Pollution fronts detected:
+  ↘ Manavgat → Gazipaşa | 5 km/h SE | lag 20h | corr 87%
+  ⚠ Manavgat → Gazipaşa front detected (lag 20h, 5 km/h)
+```
+
+Uses Z-score spike detection, cross-correlation with time-lag, and haversine geometry to track pollution movement.
+
+### HTML report with map
+
+Generate a visual report with Leaflet.js map showing cities, front arrows, and analysis tables:
+
+```bash
+airq report --city hamburg --radius 150 --days 3         # HTML only
+airq report --city hamburg --radius 150 --days 3 --pdf   # HTML + PDF
+```
+
+Opens in any browser. PDF export uses Chrome headless or wkhtmltopdf.
 
 ### Find nearby sensors
 
