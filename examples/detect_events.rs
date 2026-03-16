@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
                 dir.bearing_label, dir.spread_deg, dir.is_directional);
         }
         println!("  Confidence: {:.0}%", result.confidence * 100.0);
-        println!("  PM10/PM2.5 ratio: {:.1} → {}", result.pm10_pm25_ratio, result.source_hint);
+        println!("  PM10/PM2.5 ratio: {:.1} → {} (confidence {:.0}%)", result.pm10_pm25_ratio, result.source_hint.label, result.source_hint.confidence * 100.0);
         println!("  >> {}", result.summary);
     }
 

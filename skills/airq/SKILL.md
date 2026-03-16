@@ -5,7 +5,7 @@ description: Check air quality, AQI, PM2.5, PM10, pollution levels for any city 
 
 # airq — CLI Air Quality Checker
 
-Check air quality for any city from the terminal. Merges model data (Open-Meteo) with real citizen science sensors (Sensor.Community). No API keys needed.
+Check air quality for any city from the terminal. Sensors primary, model as reference. Event detection, pollution fronts, source attribution. No API keys needed.
 
 ## Installation
 
@@ -34,141 +34,114 @@ sudo mv airq /usr/local/bin/
 cargo install airq
 ```
 
-## Configuration (recommended)
-
-If the user mostly checks the same city, set up a config — then just type `airq` without flags:
+## Configuration
 
 ```bash
 airq init --city <city-name>
 ```
 
-This creates `~/.config/airq/config.toml`. Can also add a favorites list to check multiple cities at once:
+Config: `~/.config/airq/config.toml`
 
 ```toml
 default_city = "berlin"
-cities = ["berlin", "tokyo", "istanbul", "new york"]
-```
-
-```bash
-airq       # checks berlin (default)
-airq --all # checks all 4 cities, ranked by pollution
+cities = ["berlin", "tokyo", "istanbul"]
 ```
 
 ## Commands
 
 ### Current air quality
 ```bash
-airq                              # uses default city from config
-airq --city tokyo                 # specific city
-airq --lat 55.75 --lon 37.62     # by coordinates
+airq                              # default city
+airq --city tokyo                 # any city
+airq --city tokyo --full          # + pollen, earthquakes, geomagnetic
+airq --lat 55.75 --lon 37.62     # coordinates
 ```
 
-Default output includes PM2.5, PM10, CO, NO2, O3, SO2, UV, humidity, pressure, wind, and comfort score (0-100).
+Output: PM2.5, PM10, CO, NO2, O3, SO2, UV, humidity, pressure, wind, comfort (0-100).
 
-### Comfort index breakdown
+**Data merge:** Sensor.Community (real sensors) primary. Open-Meteo (CAMS model) as fallback. Dynamic weight by divergence — if model differs >5x from sensors, model is ignored.
+
+### Comfort index (14 signals, sigmoid/gaussian)
 ```bash
 airq comfort --city berlin
 ```
-Detailed breakdown: air quality, temperature, wind, UV, pressure, humidity — each scored 0-100 with progress bars.
 
-### Extended data
-```bash
-airq --city gazipasa --full
-```
-Shows pollen (grass, birch, alder, ragweed), nearby earthquakes (M3+, USGS), geomagnetic Kp (NOAA). Only displayed when significant.
+Signals: air, temperature, wind, sea, UV, earthquake, fire, pollen, pressure, geomagnetic, humidity, daylight, noise, moon. All normalized with smooth sigmoid curves.
 
-### History (sparkline trend)
+### History
 ```bash
-airq history --city berlin --days 7
+airq history --city istanbul --days 7
 ```
-Shows daily AQI with sparkline bars for the past N days.
 
-### Rank cities by pollution
+### Rank cities
 ```bash
-airq top --country germany            # top 5 cities
-airq top --country turkey --count 10  # top 10
+airq top --country turkey
+airq top --country russia --count 10
 ```
-Any country in the world — 10,000+ cities built-in. Use `--list` to see all countries.
 
-### Compare data sources
-```bash
-airq compare --city berlin                     # model vs area sensors
-airq compare --city berlin --sensor-id 72203   # model vs specific sensor
-```
-Side-by-side table showing Open-Meteo model vs Sensor.Community readings.
-
-### Find nearby sensors
-```bash
-airq nearby --city paris --radius 10
-```
-Lists Sensor.Community sensor IDs within the given radius (km).
-
-### Single data source
-```bash
-airq --city berlin --provider open-meteo           # model only
-airq --city berlin --provider sensor-community --sensor-id 72203  # sensor only
-```
+10,000+ cities built-in.
 
 ### Pollution front detection
 ```bash
 airq front --city hamburg --radius 150 --days 3
-airq front --city gazipasa --radius 150 --days 3
 ```
-Detects pollution fronts moving between cities using:
-- Z-score spike detection on hourly PM2.5 differences
-- Cross-correlation with time-lag between city/sensor pairs
-- Haversine distance + bearing for speed and direction
-- Dual-source: Open-Meteo model + Sensor.Community archive data
-- Sensor clustering (~5km zones) with geo-named labels
 
-Shows nearby cities, wind, spikes, fronts with speed/direction, and ETA warnings.
+Z-score spikes → cross-correlation → haversine speed/direction. Dual-source: model + sensors.
 
-### Pollution source attribution (blame)
+### Source attribution (blame)
 ```bash
-airq blame --city hamburg --radius 20 --days 7
+airq blame --city moscow --radius 20 --days 7
 ```
-Identifies which factories, power plants, or highways contribute to pollution using CPF (Conditional Probability Function). Sources auto-discovered from OpenStreetMap via Overpass API. Custom sources can be added in config `[[sources]]`.
 
-### HTML/PDF report with map, heatmap, and source attribution
+CPF (Conditional Probability Function): wind direction × PM2.5 threshold. Auto-discovers factories/plants from OpenStreetMap.
+
+### Event detection
+```bash
+cargo run --example detect_events
+```
+
+Three-layer detection:
+1. **EWMA baseline** — adaptive threshold per sensor (α=0.1)
+2. **Concordance** — 2+ sensors confirm = event (not noise)
+3. **Directional** — anomaly sensors in same wind sector = point source
+
+Dual-channel PM2.5 + PM10. Source classification by ratio:
+- ratio >4 → dust/sand storm
+- ratio 2.5-4 → construction dust
+- ratio <1.5, PM2.5 >55 → smoke/wildfire
+- ratio ~1, PM2.5 >35 → combustion/traffic
+
+### HTML/PDF report
 ```bash
 airq report --city hamburg --radius 150 --pdf
-airq report --city delhi --radius 200 --days 3 --pdf
 ```
-Generates self-contained HTML report with:
-- Leaflet.js map with CartoDB tiles
-- PM2.5 heatmap overlay (leaflet.heat)
-- Individual sensors colored by air quality level
-- Front arrows (green=strong, yellow=medium, orange=weak correlation)
-- Pollution source markers on map (⚡ power plants, 🏭 factories, 🛣 highways)
-- Source Attribution (CPF) table
-- Key Insights, Spikes table, Fronts table, Methodology, AQI reference
-- `--pdf` exports via Chrome headless or wkhtmltopdf
 
-Data cached in `~/.cache/airq/` (sensor CSV + Overpass responses).
+Leaflet map + heatmap + front arrows + CPF table + source markers.
 
 ### JSON output
-All commands support `--json` for scripting and piping:
 ```bash
 airq --city tokyo --json
-airq history --city berlin --days 7 --json
 airq top --country usa --json
 ```
 
-## AQI scale
+## Core library (airq-core)
 
-| AQI     | Status                         | Action                        |
-|---------|--------------------------------|-------------------------------|
-| 0-50    | Good                           | No restrictions               |
-| 51-100  | Moderate                       | Sensitive people limit outdoor |
-| 101-150 | Unhealthy for Sensitive Groups | Reduce prolonged outdoor      |
-| 151-200 | Unhealthy                      | Everyone limit outdoor        |
-| 201-300 | Very Unhealthy                 | Avoid outdoor activity        |
-| 301-500 | Hazardous                      | Stay indoors                  |
+Use in your own project:
+
+```toml
+airq-core = "1.3"
+```
+
+4 modules:
+- `matrix` — SignalMatrix (macro-driven, 14 signals, time-series, ML vector 44-dim)
+- `event` — EWMA + concordance + directional event detection
+- `merge` — sensor/model dynamic weighting
+- `signal` — sigmoid/gaussian normalize functions
+
+WASM-ready: `wasm-pack build --target web --features wasm --no-default-features`
+
+108 tests.
 
 ## How it works
 
-By default airq fetches both sources concurrently and averages PM2.5/PM10:
-- **Open-Meteo** — atmospheric model (~11km grid, global coverage)
-- **Sensor.Community** — median of real sensors within 5km (filters outliers)
-
-If no sensors are nearby, falls back to model only.
+Sensor.Community (real sensors, ground truth) → primary. Open-Meteo CAMS model → fallback with dynamic weight. When sources diverge (model says 130, sensors say 7), sensors win.

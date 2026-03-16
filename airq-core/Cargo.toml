@@ -1,8 +1,8 @@
 [package]
 name = "airq-core"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2024"
-description = "Core calculations for airq — AQI, comfort index, pollution front detection, source attribution"
+description = "Air quality core: AQI, 14-signal comfort (sigmoid), event detection (EWMA+concordance), source classification, time-series matrix, sensor/model merge"
 license = "MIT"
 repository = "https://github.com/fortunto2/airq"
 keywords = ["air-quality", "aqi", "comfort-index", "pollution", "sensor-community"]
