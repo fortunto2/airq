@@ -535,7 +535,8 @@ fn MapView(snap: MonitorSnapshot) -> Element {
         let lon = sr.sensor.lon?;
         let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(0.0);
         let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(0.0);
-        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},id:{}}}", sr.sensor.id))
+        let source = sr.sensor.source.as_deref().unwrap_or("unknown");
+        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},id:{},source:'{source}'}}", sr.sensor.id))
     }).collect();
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
@@ -551,10 +552,12 @@ fn MapView(snap: MonitorSnapshot) -> Element {
     } else {
         (36.27, 32.30)
     };
+    let city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("Air Signal");
 
     // Run map JS on every render (props change = re-render = map updates)
     let js = format!(r#"
         (async function() {{
+            // --- Load Leaflet CSS ---
             if (!document.getElementById('leaflet-css')) {{
                 var link = document.createElement('link');
                 link.id = 'leaflet-css';
@@ -562,10 +565,28 @@ fn MapView(snap: MonitorSnapshot) -> Element {
                 link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
                 document.head.appendChild(link);
             }}
+            // --- Inject pulsing animation CSS ---
+            if (!document.getElementById('airq-pulse-css')) {{
+                var style = document.createElement('style');
+                style.id = 'airq-pulse-css';
+                style.textContent = '@keyframes airq-pulse {{ 0%,100% {{ opacity:0.85; transform:scale(1); }} 50% {{ opacity:0.5; transform:scale(1.4); }} }} .airq-pulse {{ animation: airq-pulse 2s ease-in-out infinite; }}';
+                document.head.appendChild(style);
+            }}
+            // --- Load Leaflet JS ---
             if (!window.L) {{
                 await new Promise((resolve, reject) => {{
                     var s = document.createElement('script');
                     s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                }});
+            }}
+            // --- Load Leaflet.heat plugin ---
+            if (!window.L.heatLayer) {{
+                await new Promise((resolve, reject) => {{
+                    var s = document.createElement('script');
+                    s.src = 'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js';
                     s.onload = resolve;
                     s.onerror = reject;
                     document.head.appendChild(s);
@@ -577,18 +598,65 @@ fn MapView(snap: MonitorSnapshot) -> Element {
             if (window._airqMap) {{ window._airqMap.remove(); window._airqMap = null; }}
             var map = L.map('airq-map', {{zoomControl: false}}).setView([{center_lat}, {center_lon}], 11);
             window._airqMap = map;
-            L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18}}).addTo(map);
+
+            // --- Base layers ---
+            var darkLayer = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18, attribution: '&copy; CartoDB'}});
+            var osmLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{maxZoom: 19, attribution: '&copy; OpenStreetMap'}});
+            var voyagerLayer = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18, attribution: '&copy; CartoDB'}});
+            darkLayer.addTo(map);
+            var baseMaps = {{'CartoDB Dark': darkLayer, 'OpenStreetMap': osmLayer, 'CartoDB Voyager': voyagerLayer}};
+
             var sensors = {sensors_data};
             var cities = {cities_data};
+
+            // --- PM2.5 heatmap overlay ---
+            var heatPoints = [];
+            sensors.forEach(function(s) {{
+                if (s.pm25 > 0) {{
+                    heatPoints.push([s.lat, s.lon, s.pm25 / 50.0]);
+                }}
+            }});
+            var heatLayer = L.heatLayer(heatPoints, {{radius: 25, blur: 15, maxZoom: 17, gradient: {{0.2:'#4ade80', 0.5:'#facc15', 0.7:'#fb923c', 1.0:'#f87171'}}}});
+
+            var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
+            L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
+
+            // --- Sensor markers with proportional size and pulsing ---
             sensors.forEach(function(s) {{
                 var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
-                L.circleMarker([s.lat, s.lon], {{radius:8, fillColor:color, fillOpacity:0.85, color:'#333', weight:1}})
-                 .bindPopup('<b>#'+s.id+'</b><br>PM2.5: '+s.pm25+'<br>PM10: '+s.pm10)
-                 .addTo(map);
+                var radius = Math.max(6, Math.min(14, 6 + (s.pm25 / 55.0) * 8));
+                var marker = L.circleMarker([s.lat, s.lon], {{
+                    radius: radius,
+                    fillColor: color,
+                    fillOpacity: 0.85,
+                    color: '#333',
+                    weight: 1,
+                    className: s.pm25 > 35 ? 'airq-pulse' : ''
+                }});
+                var popupHtml = '<div style="font-family:system-ui;font-size:13px;line-height:1.6">'
+                    + '<b style="font-size:14px">Sensor #' + s.id + '</b><br>'
+                    + '<span style="color:' + color + ';font-weight:700">PM2.5: ' + s.pm25 + '</span> \u00b5g/m\u00b3<br>'
+                    + 'PM10: ' + s.pm10 + ' \u00b5g/m\u00b3<br>'
+                    + '<span style="color:#888;font-size:11px">' + s.source + '</span>'
+                    + '</div>';
+                marker.bindPopup(popupHtml);
+                marker.addTo(map);
             }});
+
+            // --- City circles ---
             cities.forEach(function(c) {{
                 L.circle([c.lat, c.lon], {{radius:c.radius*1000, color:'#60a5fa', fillOpacity:0.05, weight:1, dashArray:'4'}}).addTo(map);
             }});
+
+            // --- City label ---
+            var cityLabel = L.divIcon({{
+                className: 'airq-city-label',
+                html: '<div style="color:#60a5fa;font-size:16px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.8);white-space:nowrap">{city_name}</div>',
+                iconSize: [0, 0],
+                iconAnchor: [-10, 30]
+            }});
+            L.marker([{center_lat}, {center_lon}], {{icon: cityLabel, interactive: false}}).addTo(map);
+
             setTimeout(function() {{ map.invalidateSize(); }}, 200);
         }})();
     "#);
