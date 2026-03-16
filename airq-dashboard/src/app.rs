@@ -364,7 +364,7 @@ pub fn App() -> Element {
                         HistoryView { snap: snap.clone() }
                     },
                     View::Sources => rsx! {
-                        SourcesView { snap: snap.clone() }
+                        SourcesView { snap: snap.clone(), city_data: (city_data)() }
                     },
                     View::Settings => rsx! {
                         SettingsView {
@@ -462,6 +462,30 @@ fn DashboardView(snap: MonitorSnapshot, is_running: bool, city_data: CityData) -
                         div { class: "comfort-compact-details",
                             "Air {city_data.air_score} · Temp {city_data.temperature_score} · Wind {city_data.wind_score} · UV {city_data.uv_score} · Press {city_data.pressure_score} · Hum {city_data.humidity_score}"
                         }
+                    }
+                }
+            }
+        }
+
+        // Extended pollutant summary row
+        if city_data.loaded && (city_data.co.is_some() || city_data.no2.is_some() || city_data.o3.is_some()) {
+            {
+                let co_label = city_data.co.map(|v| airq_core::get_co_status(v).label()).unwrap_or("--");
+                let no2_label = city_data.no2.map(|v| airq_core::get_no2_status(v).label()).unwrap_or("--");
+                let o3_label = city_data.o3.map(|v| airq_core::get_o3_status(v).label()).unwrap_or("--");
+                let uv_display = fmt_opt(city_data.uv_index, 1);
+                let co_color = city_data.co.map(|v| pollutant_color(airq_core::get_co_status(v))).unwrap_or("normal");
+                let no2_color = city_data.no2.map(|v| pollutant_color(airq_core::get_no2_status(v))).unwrap_or("normal");
+                let o3_color = city_data.o3.map(|v| pollutant_color(airq_core::get_o3_status(v))).unwrap_or("normal");
+                let co_val = fmt_opt(city_data.co, 0);
+                let no2_val = fmt_opt(city_data.no2, 1);
+                let o3_val = fmt_opt(city_data.o3, 1);
+                rsx! {
+                    div { class: "stats-grid",
+                        StatCard { label: "CO", value: co_val, unit: co_label, color: co_color.to_string() }
+                        StatCard { label: "NO\u{2082}", value: no2_val, unit: no2_label, color: no2_color.to_string() }
+                        StatCard { label: "O\u{2083}", value: o3_val, unit: o3_label, color: o3_color.to_string() }
+                        StatCard { label: "UV Index", value: uv_display, unit: "", color: "normal".to_string() }
                     }
                 }
             }
@@ -744,16 +768,20 @@ fn ComfortView(snap: MonitorSnapshot, city_data: CityData) -> Element {
 /// Events: full event log with details
 #[component]
 fn EventsView(snap: MonitorSnapshot) -> Element {
+    let city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("All cities");
+    let sensor_count = snap.sensor_count;
+
     rsx! {
         div { class: "view-header",
-            h1 { "Events" }
-            span { class: "view-subtitle", "{snap.events.len()} in last 24h" }
+            h1 { "Events \u{2014} {city_name}" }
+            span { class: "view-subtitle", "{snap.events.len()} in last 24h \u{00b7} {sensor_count} sensors analyzed" }
         }
 
         if snap.events.is_empty() {
             div { class: "card empty-state",
                 p { "No pollution events detected in the last 24 hours." }
                 p { class: "muted", "Events are detected when multiple sensors show anomalous readings simultaneously." }
+                p { class: "muted", "Monitoring {sensor_count} sensors in {city_name}." }
             }
         }
 
@@ -776,8 +804,20 @@ fn EventsView(snap: MonitorSnapshot) -> Element {
                         if let Some(pm10) = event.pm10 { parts.push(format!("PM10: {pm10:.1}")); }
                         if let Some(ratio) = event.ratio { parts.push(format!("Ratio: {ratio:.1}")); }
                         parts.push(format!("Confidence: {:.0}%", event.confidence * 100.0));
-                        let details = parts.join(" · ");
+                        let details = parts.join(" \u{00b7} ");
                         rsx! { span { "{details}" } }
+                    }
+                }
+                // PM ratio interpretation
+                if let Some(ratio) = event.ratio {
+                    {
+                        let ev_pm25 = event.pm25.unwrap_or(0.0);
+                        let ev_pm10 = event.pm10.unwrap_or(0.0);
+                        let source = airq_core::event::classify_source(ratio, ev_pm25, ev_pm10);
+                        let interp = format!("Source: {} ({})", source.label, source.reason);
+                        rsx! {
+                            div { class: "event-source-interp muted", "{interp}" }
+                        }
                     }
                 }
                 if let Some(ref summary) = event.summary {
@@ -788,29 +828,64 @@ fn EventsView(snap: MonitorSnapshot) -> Element {
     }
 }
 
-/// History: readings over time (placeholder — will use chart)
+/// History: readings over time — sensor table with latest data
 #[component]
 fn HistoryView(snap: MonitorSnapshot) -> Element {
+    let total_readings = snap.total_reading_count;
+    let active_count = snap.sensors.iter().filter(|sr| sr.latest.is_some()).count();
+
     rsx! {
         div { class: "view-header",
             h1 { "History" }
-            span { class: "view-subtitle", "{snap.reading_count} readings stored" }
+            span { class: "view-subtitle", "{total_readings} total readings in DB" }
+        }
+
+        // Stats row
+        div { class: "stats-grid",
+            StatCard { label: "Total Readings", value: format!("{total_readings}"), unit: "in database", color: "normal".to_string() }
+            StatCard { label: "Active Sensors", value: format!("{active_count}"), unit: "with data", color: "normal".to_string() }
+            StatCard { label: "Total Sensors", value: format!("{}", snap.sensor_count), unit: "registered", color: "normal".to_string() }
         }
 
         div { class: "card",
-            h2 { "Sensor Readings" }
+            h2 { "Latest Readings Per Sensor" }
             if snap.sensors.is_empty() {
                 p { class: "muted", "No sensor data yet. Start monitoring to collect readings." }
-            }
-            for sr in snap.sensors.iter() {
-                if sr.latest.is_some() {
-                    div { class: "history-sensor",
-                        strong { "Sensor #{sr.sensor.id}" }
-                        if let Some(ref r) = sr.latest {
+            } else {
+                table { class: "data-table",
+                    thead {
+                        tr {
+                            th { "Sensor" }
+                            th { class: "num", "PM2.5" }
+                            th { class: "num", "PM10" }
+                            th { "Source" }
+                            th { "Last Reading" }
+                            th { "Status" }
+                        }
+                    }
+                    tbody {
+                        for sr in snap.sensors.iter() {
                             {
-                                let detail = format!(" — PM2.5: {:.1}, PM10: {:.1} at {}",
-                                    r.pm25.unwrap_or(0.0), r.pm10.unwrap_or(0.0), format_ts(r.ts));
-                                rsx! { span { class: "muted", "{detail}" } }
+                                let pm25 = sr.latest.as_ref().and_then(|r| r.pm25);
+                                let pm10 = sr.latest.as_ref().and_then(|r| r.pm10);
+                                let source = sr.sensor.source.as_deref().unwrap_or("\u{2014}");
+                                let time_str = sr.latest.as_ref().map(|r| format_ts(r.ts)).unwrap_or_else(|| "\u{2014}".to_string());
+                                let has_data = sr.latest.is_some();
+                                let status_class = if has_data { "good" } else { "muted" };
+                                let status_text = if has_data { "Active" } else { "No data" };
+                                let pm25_display = fmt_opt(pm25, 1);
+                                let pm10_display = fmt_opt(pm10, 1);
+                                let pm25_cls = pm25_color(pm25);
+                                rsx! {
+                                    tr {
+                                        td { "#{sr.sensor.id}" }
+                                        td { class: "num {pm25_cls}", "{pm25_display}" }
+                                        td { class: "num", "{pm10_display}" }
+                                        td { "{source}" }
+                                        td { class: "muted", "{time_str}" }
+                                        td { span { class: "{status_class}", "{status_text}" } }
+                                    }
+                                }
                             }
                         }
                     }
@@ -826,11 +901,12 @@ fn HistoryView(snap: MonitorSnapshot) -> Element {
 
 /// Sources: pollution source attribution
 #[component]
-fn SourcesView(snap: MonitorSnapshot) -> Element {
+fn SourcesView(snap: MonitorSnapshot, city_data: CityData) -> Element {
     let pm25 = snap.avg_pm25.unwrap_or(0.0);
     let pm10 = snap.avg_pm10.unwrap_or(0.0);
     let ratio = if pm25 > 1.0 { pm10 / pm25 } else { 1.0 };
     let source = airq_core::event::classify_source(ratio, pm25, pm10);
+    let ratio_display = format!("{ratio:.2}");
 
     rsx! {
         div { class: "view-header",
@@ -841,11 +917,73 @@ fn SourcesView(snap: MonitorSnapshot) -> Element {
             h2 { "Current Classification" }
             div { class: "source-hero",
                 div { class: "source-hero-label", "{source.label}" }
-                div { class: "source-hero-ratio", "PM10/PM2.5 ratio: {ratio:.2}" }
+                div { class: "source-hero-ratio", "PM10/PM2.5 ratio: {ratio_display}" }
             }
             div { class: "source-info",
                 div { class: "source-reason", "{source.reason}" }
                 div { class: "source-advice", "{source.advice}" }
+            }
+        }
+
+        // Extended Pollutants card
+        if city_data.loaded {
+            div { class: "card",
+                h2 { "Extended Pollutants" }
+                div { class: "pollutant-grid",
+                    {
+                        // CO
+                        let co_val = fmt_opt(city_data.co, 0);
+                        let co_unit = "\u{00b5}g/m\u{00b3}".to_string();
+                        let co_status = city_data.co.map(|v| airq_core::get_co_status(v));
+                        let co_label = co_status.as_ref().map(|s| s.label()).unwrap_or("--");
+                        let co_color = co_status.map(pollutant_color).unwrap_or("normal");
+                        // NO2
+                        let no2_val = fmt_opt(city_data.no2, 1);
+                        let no2_unit = "\u{00b5}g/m\u{00b3}".to_string();
+                        let no2_status = city_data.no2.map(|v| airq_core::get_no2_status(v));
+                        let no2_label = no2_status.as_ref().map(|s| s.label()).unwrap_or("--");
+                        let no2_color = no2_status.map(pollutant_color).unwrap_or("normal");
+                        // SO2
+                        let so2_val = fmt_opt(city_data.so2, 1);
+                        let so2_unit = "\u{00b5}g/m\u{00b3}".to_string();
+                        let so2_status = city_data.so2.map(|v| airq_core::get_so2_status(v));
+                        let so2_label = so2_status.as_ref().map(|s| s.label()).unwrap_or("--");
+                        let so2_color = so2_status.map(pollutant_color).unwrap_or("normal");
+                        // O3
+                        let o3_val = fmt_opt(city_data.o3, 1);
+                        let o3_unit = "\u{00b5}g/m\u{00b3}".to_string();
+                        let o3_status = city_data.o3.map(|v| airq_core::get_o3_status(v));
+                        let o3_label = o3_status.as_ref().map(|s| s.label()).unwrap_or("--");
+                        let o3_color = o3_status.map(pollutant_color).unwrap_or("normal");
+
+                        rsx! {
+                            div { class: "pollutant-item",
+                                div { class: "pollutant-name", "CO" }
+                                div { class: "pollutant-value {co_color}", "{co_val}" }
+                                div { class: "pollutant-unit", "{co_unit}" }
+                                div { class: "pollutant-status {co_color}", "{co_label}" }
+                            }
+                            div { class: "pollutant-item",
+                                div { class: "pollutant-name", "NO\u{2082}" }
+                                div { class: "pollutant-value {no2_color}", "{no2_val}" }
+                                div { class: "pollutant-unit", "{no2_unit}" }
+                                div { class: "pollutant-status {no2_color}", "{no2_label}" }
+                            }
+                            div { class: "pollutant-item",
+                                div { class: "pollutant-name", "SO\u{2082}" }
+                                div { class: "pollutant-value {so2_color}", "{so2_val}" }
+                                div { class: "pollutant-unit", "{so2_unit}" }
+                                div { class: "pollutant-status {so2_color}", "{so2_label}" }
+                            }
+                            div { class: "pollutant-item",
+                                div { class: "pollutant-name", "O\u{2083}" }
+                                div { class: "pollutant-value {o3_color}", "{o3_val}" }
+                                div { class: "pollutant-unit", "{o3_unit}" }
+                                div { class: "pollutant-status {o3_color}", "{o3_label}" }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -855,9 +993,9 @@ fn SourcesView(snap: MonitorSnapshot) -> Element {
                 thead { tr { th { "Ratio" } th { "Source Type" } th { "Examples" } } }
                 tbody {
                     tr { td { "> 4.0" } td { "Dust/Sand Storm" } td { class: "muted", "Saharan dust, volcanic ash" } }
-                    tr { td { "2.5–4.0" } td { "Construction Dust" } td { class: "muted", "Building sites, unpaved roads" } }
-                    tr { td { "1.5–2.5" } td { "Mixed Urban" } td { class: "muted", "Traffic + heating + industry" } }
-                    tr { td { "0.9–1.5" } td { "Combustion" } td { class: "muted", "Diesel, coal heating, power plants" } }
+                    tr { td { "2.5\u{2013}4.0" } td { "Construction Dust" } td { class: "muted", "Building sites, unpaved roads" } }
+                    tr { td { "1.5\u{2013}2.5" } td { "Mixed Urban" } td { class: "muted", "Traffic + heating + industry" } }
+                    tr { td { "0.9\u{2013}1.5" } td { "Combustion" } td { class: "muted", "Diesel, coal heating, power plants" } }
                     tr { td { "< 0.9" } td { "Smoke" } td { class: "muted", "Wildfire, agricultural burning" } }
                 }
             }
@@ -1037,6 +1175,15 @@ fn aqi_color(aqi: u32) -> &'static str {
     }
 }
 
+fn pollutant_color(cat: airq_core::AqiCategory) -> &'static str {
+    match cat {
+        airq_core::AqiCategory::Good => "good",
+        airq_core::AqiCategory::Moderate => "moderate",
+        airq_core::AqiCategory::UnhealthySensitive => "unhealthy-sg",
+        _ => "unhealthy",
+    }
+}
+
 fn fmt_pm(val: Option<f64>) -> String {
     val.map(|v| format!("{v:.1}")).unwrap_or("—".into())
 }
@@ -1210,4 +1357,15 @@ td.red, .num.red { color: var(--red); }
 .comfort-score-compact.red { color: var(--red); }
 .comfort-compact-label { font-size: 1rem; font-weight: 600; }
 .comfort-compact-details { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+/* Pollutant grid (Sources view) */
+.pollutant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.pollutant-item { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+.pollutant-name { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+.pollutant-value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.pollutant-unit { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+.pollutant-status { font-size: 0.72rem; font-weight: 600; margin-top: 4px; }
+
+/* Event source interpretation */
+.event-source-interp { font-size: 0.78rem; margin-top: 4px; font-style: italic; }
 "#;

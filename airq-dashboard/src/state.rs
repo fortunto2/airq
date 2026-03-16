@@ -28,6 +28,13 @@ pub struct CityData {
     pub uv_index: Option<f64>,
     pub pressure_hpa: Option<f64>,
     pub humidity_pct: Option<f64>,
+    // Extended pollutants (from AirQualityResponse.current)
+    pub pm25: Option<f64>,
+    pub pm10: Option<f64>,
+    pub co: Option<f64>,        // carbon_monoxide
+    pub no2: Option<f64>,       // nitrogen_dioxide
+    pub so2: Option<f64>,       // sulphur_dioxide
+    pub o3: Option<f64>,        // ozone
     /// Whether data has been loaded
     pub loaded: bool,
 }
@@ -73,6 +80,12 @@ pub async fn fetch_city_data(lat: f64, lon: f64) -> CityData {
         uv_index: current.uv_index,
         pressure_hpa: w.pressure_hpa,
         humidity_pct: w.humidity_pct,
+        pm25: current.pm2_5,
+        pm10: current.pm10,
+        co: current.carbon_monoxide,
+        no2: current.nitrogen_dioxide,
+        so2: current.sulphur_dioxide,
+        o3: current.ozone,
         loaded: true,
     }
 }
@@ -89,6 +102,8 @@ pub struct MonitorSnapshot {
     pub last_poll: Option<i64>,
     pub avg_pm25: Option<f64>,
     pub avg_pm10: Option<f64>,
+    /// Total readings in DB (global, not per-city)
+    pub total_reading_count: i64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -121,6 +136,7 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
         .as_secs() as i64;
 
     let all_cities = db.all_cities().unwrap_or_default();
+    let total_reading_count = db.reading_count().unwrap_or(0);
 
     // Find active city
     let active_city = city_name
@@ -193,5 +209,6 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
         last_poll,
         avg_pm25: if pm_count > 0 { Some(total_pm25 / pm_count as f64) } else { None },
         avg_pm10: if pm_count > 0 { Some(total_pm10 / pm_count as f64) } else { None },
+        total_reading_count,
     }
 }
