@@ -37,6 +37,11 @@ impl EwmaBaseline {
         Self::new(0.1)
     }
 
+    /// Create with pre-set baseline and variance (for bootstrapping from known median).
+    pub fn with_baseline(baseline: f64, variance: f64) -> Self {
+        Self { alpha: 0.1, baseline, variance, count: 100 }
+    }
+
     /// Feed a new observation. Returns true if anomaly (> baseline + k*σ).
     pub fn update(&mut self, value: f64) -> bool {
         if self.count == 0 {
