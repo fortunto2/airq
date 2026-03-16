@@ -4,9 +4,10 @@ use airq::db::{City, Db, Event, Reading, Sensor};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Snapshot of current monitoring data (refreshed periodically).
+/// Snapshot of current monitoring data for the ACTIVE CITY.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MonitorSnapshot {
+    pub active_city: Option<City>,
     pub cities: Vec<City>,
     pub sensors: Vec<SensorWithReading>,
     pub events: Vec<Event>,
@@ -23,7 +24,7 @@ pub struct SensorWithReading {
     pub latest: Option<Reading>,
 }
 
-/// Shared database handle.
+/// Open the shared database (singleton path).
 pub fn open_db() -> anyhow::Result<Arc<Db>> {
     let db_path = default_db_path();
     tracing::info!("Opening database: {}", db_path.display());
@@ -38,15 +39,27 @@ pub fn default_db_path() -> PathBuf {
         .join("airq.db")
 }
 
-/// Build a snapshot of current data from the database.
-pub fn build_snapshot(db: &Db) -> MonitorSnapshot {
+/// Build a snapshot filtered by active city name.
+/// If city_name is None, returns all data.
+pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
 
-    let cities = db.all_cities().unwrap_or_default();
-    let all_sensors = db.all_sensors().unwrap_or_default();
+    let all_cities = db.all_cities().unwrap_or_default();
+
+    // Find active city
+    let active_city = city_name
+        .and_then(|name| all_cities.iter().find(|c| c.name == name))
+        .cloned();
+
+    // Get sensors for active city (filtered by radius) or all sensors
+    let sensors = if let Some(ref city) = active_city {
+        db.sensors_for_city(city.id).unwrap_or_default()
+    } else {
+        db.all_sensors().unwrap_or_default()
+    };
 
     // Get latest reading per sensor (last 10 min)
     let from = now - 600;
@@ -55,7 +68,7 @@ pub fn build_snapshot(db: &Db) -> MonitorSnapshot {
     let mut total_pm10 = 0.0;
     let mut pm_count = 0;
 
-    for s in all_sensors {
+    for s in sensors {
         let readings = db.query_readings(s.id, from, now).unwrap_or_default();
         let latest = readings.last().cloned();
 
@@ -72,22 +85,29 @@ pub fn build_snapshot(db: &Db) -> MonitorSnapshot {
         sensors_with_readings.push(SensorWithReading { sensor: s, latest });
     }
 
-    // Events from last 24h
+    // Events for active city (last 24h) or all cities
     let events_from = now - 86400;
     let mut events = Vec::new();
-    for city in &cities {
+    if let Some(ref city) = active_city {
         if let Ok(city_events) = db.query_events(city.id, events_from) {
             events.extend(city_events);
+        }
+    } else {
+        for city in &all_cities {
+            if let Ok(city_events) = db.query_events(city.id, events_from) {
+                events.extend(city_events);
+            }
         }
     }
     events.sort_by(|a, b| b.ts.cmp(&a.ts));
 
+    let sensor_count = sensors_with_readings.len() as i64;
     let reading_count = db.reading_count().unwrap_or(0);
-    let sensor_count = db.sensor_count().unwrap_or(0);
     let last_poll = db.last_reading_ts().unwrap_or(None);
 
     MonitorSnapshot {
-        cities,
+        active_city,
+        cities: all_cities,
         sensors: sensors_with_readings,
         events,
         reading_count,

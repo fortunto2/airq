@@ -125,7 +125,8 @@ pub fn App() -> Element {
             loop {
                 tokio::time::sleep(Duration::from_millis(REFRESH_INTERVAL_MS)).await;
                 if let Some(ref db_handle) = (db)() {
-                    let snap = state::build_snapshot(db_handle);
+                    let city = (active_city)();
+                    let snap = state::build_snapshot(db_handle, Some(&city));
                     snapshot.set(snap);
                 }
             }
@@ -390,7 +391,7 @@ async fn start_collector(city: &str, radius: f64, interval: u64) -> Result<(Arc<
         shutdown_rx,
     ));
 
-    let snap = state::build_snapshot(&db_handle);
+    let snap = state::build_snapshot(&db_handle, Some(city));
     Ok((db_handle, snap))
 }
 
