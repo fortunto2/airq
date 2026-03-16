@@ -141,6 +141,9 @@ enum Commands {
         /// Output file path
         #[arg(long, default_value = "airq-report.html")]
         output: String,
+        /// Also export as PDF (requires Chrome or wkhtmltopdf)
+        #[arg(long)]
+        pdf: bool,
     },
     /// Show top cities by AQI in a country (any country supported)
     Top {
@@ -408,6 +411,7 @@ async fn main() -> Result<()> {
         radius,
         days,
         output,
+        pdf,
     }) = &cli.command
     {
         let city_name = city
@@ -463,6 +467,55 @@ async fn main() -> Result<()> {
 
         std::fs::write(output, &html)?;
         println!("Report saved to: {}", output);
+
+        if *pdf {
+            let html_path = std::fs::canonicalize(output)?;
+            let pdf_path = output.replace(".html", ".pdf");
+
+            // Try Chrome headless first, then wkhtmltopdf
+            let chrome_paths = [
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "google-chrome",
+                "chromium-browser",
+                "chromium",
+            ];
+
+            let mut converted = false;
+            for chrome in &chrome_paths {
+                let result = std::process::Command::new(chrome)
+                    .args([
+                        "--headless",
+                        "--disable-gpu",
+                        "--no-sandbox",
+                        &format!("--print-to-pdf={}", pdf_path),
+                        &format!("file://{}", html_path.display()),
+                    ])
+                    .output();
+                if let Ok(out) = result {
+                    if out.status.success() {
+                        println!("PDF saved to: {}", pdf_path);
+                        converted = true;
+                        break;
+                    }
+                }
+            }
+
+            if !converted {
+                // Fallback to wkhtmltopdf
+                let result = std::process::Command::new("wkhtmltopdf")
+                    .args(["--enable-local-file-access", output, &pdf_path])
+                    .output();
+                match result {
+                    Ok(out) if out.status.success() => {
+                        println!("PDF saved to: {}", pdf_path);
+                    }
+                    _ => {
+                        println!("PDF export failed. Install Chrome or wkhtmltopdf.");
+                    }
+                }
+            }
+        }
+
         return Ok(());
     }
 
