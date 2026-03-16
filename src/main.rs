@@ -192,12 +192,29 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Generate shell completions
+    Completions {
+        /// Shell type
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = AppConfig::load().unwrap_or_default();
+
+    if let Some(Commands::Completions { shell }) = &cli.command {
+        use clap::CommandFactory;
+        clap_complete::generate(
+            *shell,
+            &mut Cli::command(),
+            "airq",
+            &mut std::io::stdout(),
+        );
+        return Ok(());
+    }
 
     if let Some(Commands::Init { city }) = &cli.command {
         let mut new_config = AppConfig::load().unwrap_or_default();
