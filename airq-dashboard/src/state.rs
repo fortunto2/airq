@@ -175,8 +175,13 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
     events.sort_by(|a, b| b.ts.cmp(&a.ts));
 
     let sensor_count = sensors_with_readings.len() as i64;
-    let reading_count = db.reading_count().unwrap_or(0);
-    let last_poll = db.last_reading_ts().unwrap_or(None);
+    // Count readings only for this city's sensors (not global)
+    let reading_count = sensors_with_readings.iter()
+        .filter(|sr| sr.latest.is_some())
+        .count() as i64;
+    let last_poll = sensors_with_readings.iter()
+        .filter_map(|sr| sr.latest.as_ref().map(|r| r.ts))
+        .max();
 
     MonitorSnapshot {
         active_city,
