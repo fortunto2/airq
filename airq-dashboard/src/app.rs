@@ -77,6 +77,9 @@ pub fn App() -> Element {
     let default_city2 = default_city.clone();
     let mut active_city: Signal<String> = use_signal(move || default_city.clone());
     let mut search_input: Signal<String> = use_signal(String::new);
+    let mut loading_city: Signal<Option<String>> = use_signal(|| None);
+    let mut added_cities: Signal<Vec<String>> = use_signal(Vec::new);
+    let mut suggestions: Signal<Vec<String>> = use_signal(Vec::new);
 
     // Settings state
     let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
@@ -180,51 +183,104 @@ pub fn App() -> Element {
             div { class: "main-area",
                 // Top bar: city switcher
                 div { class: "topbar",
+                    // All cities: config + dynamically added
                     div { class: "city-switcher",
-                        for city in config_cities.iter() {
-                            {
-                                let c = city.clone();
-                                let c2 = city.clone();
-                                let is_active = (active_city)() == *city;
-                                rsx! {
-                                    button {
-                                        class: if is_active { "city-btn city-btn-active" } else { "city-btn" },
-                                        onclick: move |_| {
-                                            active_city.set(c.clone());
-                                            let city_name = c.clone();
-                                            let radius = (radius_input)();
-                                            let interval = (interval_input)();
-                                            spawn(async move {
-                                                match start_collector(&city_name, radius, interval).await {
-                                                    Ok((db_handle, snap)) => {
-                                                        db.set(Some(db_handle));
-                                                        snapshot.set(snap);
-                                                        collector_running.set(true);
-                                                        error_msg.set(None);
-                                                    }
-                                                    Err(e) => error_msg.set(Some(e)),
+                        {
+                            let all_cities: Vec<String> = config_cities.iter()
+                                .chain((added_cities)().iter())
+                                .cloned()
+                                .collect();
+                            rsx! {
+                                for city in all_cities.iter() {
+                                    {
+                                        let c = city.clone();
+                                        let c2 = city.clone();
+                                        let c3 = city.clone();
+                                        let is_active = (active_city)() == *city;
+                                        let is_config = config_cities.contains(city);
+                                        rsx! {
+                                            div { class: if is_active { "city-chip city-chip-active" } else { "city-chip" },
+                                                button {
+                                                    class: "city-chip-btn",
+                                                    onclick: move |_| {
+                                                        let city_name = c.clone();
+                                                        active_city.set(city_name.clone());
+                                                        loading_city.set(Some(city_name.clone()));
+                                                        let radius = (radius_input)();
+                                                        let interval = (interval_input)();
+                                                        spawn(async move {
+                                                            match start_collector(&city_name, radius, interval).await {
+                                                                Ok((db_handle, snap)) => {
+                                                                    db.set(Some(db_handle));
+                                                                    snapshot.set(snap);
+                                                                    collector_running.set(true);
+                                                                    error_msg.set(None);
+                                                                }
+                                                                Err(e) => error_msg.set(Some(e)),
+                                                            }
+                                                            loading_city.set(None);
+                                                        });
+                                                    },
+                                                    "{c2}"
                                                 }
-                                            });
-                                        },
-                                        "{c2}"
+                                                // Remove button (only for dynamically added)
+                                                if !is_config {
+                                                    button {
+                                                        class: "city-chip-x",
+                                                        onclick: move |_| {
+                                                            let mut cities = (added_cities)();
+                                                            cities.retain(|x| x != &c3);
+                                                            added_cities.set(cities);
+                                                        },
+                                                        "×"
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    // Quick search
-                    div { class: "city-search",
+
+                    // Search with autocomplete
+                    div { class: "city-search-wrap",
                         input {
                             r#type: "text",
                             placeholder: "Add city...",
                             value: "{search_input}",
-                            oninput: move |e| search_input.set(e.value()),
+                            oninput: move |e| {
+                                let val = e.value();
+                                search_input.set(val.clone());
+                                // Autocomplete from built-in cities DB
+                                if val.len() >= 2 {
+                                    let query = val.to_lowercase();
+                                    let matches: Vec<String> = cities::all()
+                                        .iter()
+                                        .filter(|c| c.city.to_lowercase().starts_with(&query))
+                                        .take(6)
+                                        .map(|c| c.city.to_string())
+                                        .collect();
+                                    suggestions.set(matches);
+                                } else {
+                                    suggestions.set(Vec::new());
+                                }
+                            },
                             onkeydown: move |e| {
                                 if e.key() == Key::Enter {
                                     let city_name = (search_input)().trim().to_string();
                                     if !city_name.is_empty() {
                                         search_input.set(String::new());
+                                        suggestions.set(Vec::new());
+                                        // Add to dynamic cities
+                                        let mut cities = (added_cities)();
+                                        if !cities.contains(&city_name) && !config_cities.contains(&city_name) {
+                                            cities.push(city_name.clone());
+                                            added_cities.set(cities);
+                                        }
+                                        // Switch to it
                                         active_city.set(city_name.clone());
+                                        loading_city.set(Some(city_name.clone()));
                                         let radius = (radius_input)();
                                         let interval = (interval_input)();
                                         spawn(async move {
@@ -237,11 +293,38 @@ pub fn App() -> Element {
                                                 }
                                                 Err(e) => error_msg.set(Some(e)),
                                             }
+                                            loading_city.set(None);
                                         });
                                     }
                                 }
                             },
                         }
+                        // Suggestions dropdown
+                        if !(suggestions)().is_empty() {
+                            div { class: "suggestions",
+                                for s in (suggestions)().iter() {
+                                    {
+                                        let name = s.clone();
+                                        let name2 = s.clone();
+                                        rsx! {
+                                            button {
+                                                class: "suggestion-item",
+                                                onclick: move |_| {
+                                                    search_input.set(name.clone());
+                                                    suggestions.set(Vec::new());
+                                                },
+                                                "{name2}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Loading indicator
+                    if let Some(ref city) = (loading_city)() {
+                        span { class: "topbar-loading", "Loading {city}..." }
                     }
                     if let Some(ref err) = (error_msg)() {
                         span { class: "topbar-error", "{err}" }
@@ -378,7 +461,7 @@ fn DashboardView(snap: MonitorSnapshot, is_running: bool) -> Element {
     }
 }
 
-/// Map: Leaflet rendered directly via dangerous_inner_html
+/// Map: Leaflet via document::eval() (scripts don't run via innerHTML)
 #[component]
 fn MapView(snap: MonitorSnapshot) -> Element {
     let sensors_json: Vec<String> = snap.sensors.iter().filter_map(|sr| {
@@ -391,7 +474,7 @@ fn MapView(snap: MonitorSnapshot) -> Element {
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
     let cities_json: Vec<String> = snap.cities.iter().map(|c| {
-        format!("{{lat:{},lon:{},radius:{},name:\"{}\"}}", c.lat, c.lon, c.radius, c.name)
+        format!("{{lat:{},lon:{},radius:{},name:'{}'}}", c.lat, c.lon, c.radius, c.name)
     }).collect();
     let cities_data = format!("[{}]", cities_json.join(","));
 
@@ -403,40 +486,61 @@ fn MapView(snap: MonitorSnapshot) -> Element {
         (36.27, 32.30)
     };
 
-    let map_html = format!(r#"
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-        <div id="airq-map" style="width:100%;height:100%;background:#0a0a0a;border-radius:12px;"></div>
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <script>
-        (function() {{
-            if (window._airqMap) {{ window._airqMap.remove(); }}
-            var map = L.map('airq-map',{{zoomControl:false}}).setView([{center_lat},{center_lon}],11);
-            window._airqMap = map;
-            L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',{{maxZoom:18}}).addTo(map);
-            var sensors = {sensors_data};
-            var cities = {cities_data};
-            sensors.forEach(function(s) {{
-                var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
-                L.circleMarker([s.lat,s.lon],{{radius:8,fillColor:color,fillOpacity:0.85,color:'#333',weight:1}})
-                 .bindPopup('<b>#'+s.id+'</b><br>PM2.5: '+s.pm25+'<br>PM10: '+s.pm10)
-                 .addTo(map);
-            }});
-            cities.forEach(function(c) {{
-                L.circle([c.lat,c.lon],{{radius:c.radius*1000,color:'#60a5fa',fillOpacity:0.05,weight:1,dashArray:'4'}}).addTo(map);
-            }});
-            setTimeout(function() {{ map.invalidateSize(); }}, 100);
-        }})();
-        </script>
-    "#);
+    // Inject Leaflet via eval — scripts in innerHTML don't execute
+    use_effect(move || {
+        let js = format!(r#"
+            (async function() {{
+                // Load Leaflet CSS
+                if (!document.getElementById('leaflet-css')) {{
+                    var link = document.createElement('link');
+                    link.id = 'leaflet-css';
+                    link.rel = 'stylesheet';
+                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                    document.head.appendChild(link);
+                }}
+                // Load Leaflet JS
+                if (!window.L) {{
+                    await new Promise((resolve, reject) => {{
+                        var s = document.createElement('script');
+                        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                    }});
+                }}
+                // Wait for DOM
+                await new Promise(r => setTimeout(r, 100));
+                var el = document.getElementById('airq-map');
+                if (!el) return;
+                // Clear old map
+                if (window._airqMap) {{ window._airqMap.remove(); window._airqMap = null; }}
+                var map = L.map('airq-map', {{zoomControl: false}}).setView([{center_lat}, {center_lon}], 11);
+                window._airqMap = map;
+                L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18}}).addTo(map);
+                var sensors = {sensors_data};
+                var cities = {cities_data};
+                sensors.forEach(function(s) {{
+                    var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
+                    L.circleMarker([s.lat, s.lon], {{radius:8, fillColor:color, fillOpacity:0.85, color:'#333', weight:1}})
+                     .bindPopup('<b>#'+s.id+'</b><br>PM2.5: '+s.pm25+'<br>PM10: '+s.pm10)
+                     .addTo(map);
+                }});
+                cities.forEach(function(c) {{
+                    L.circle([c.lat, c.lon], {{radius:c.radius*1000, color:'#60a5fa', fillOpacity:0.05, weight:1, dashArray:'4'}}).addTo(map);
+                }});
+                setTimeout(function() {{ map.invalidateSize(); }}, 200);
+            }})();
+        "#);
+        document::eval(&js);
+    });
 
     rsx! {
         div { class: "view-header",
             h1 { "Sensor Map" }
             span { class: "view-subtitle", "{snap.sensor_count} sensors" }
         }
-        div {
-            class: "map-container",
-            dangerous_inner_html: "{map_html}",
+        div { class: "map-container",
+            div { id: "airq-map", style: "width:100%;height:100%;background:#0a0a0a;border-radius:12px;" }
         }
     }
 }
@@ -845,13 +949,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui,
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 24px; border-bottom: 1px solid var(--border); background: var(--sidebar); flex-shrink: 0; }
 .city-switcher { display: flex; gap: 4px; flex-wrap: wrap; }
-.city-btn { padding: 5px 14px; border-radius: 16px; border: 1px solid var(--border); background: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; transition: all 0.15s; text-transform: capitalize; }
-.city-btn:hover { border-color: var(--blue); color: var(--text); }
-.city-btn-active { background: rgba(96,165,250,0.15); border-color: var(--blue); color: var(--blue); font-weight: 600; }
-.city-search { flex-shrink: 0; }
-.city-search input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; color: var(--text); font-size: 0.8rem; width: 140px; }
-.city-search input:focus { outline: none; border-color: var(--blue); }
-.city-search input::placeholder { color: var(--muted); }
+.city-chip { display: flex; align-items: center; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; transition: all 0.15s; }
+.city-chip:hover { border-color: var(--blue); }
+.city-chip-active { background: rgba(96,165,250,0.15); border-color: var(--blue); }
+.city-chip-btn { padding: 5px 10px; border: none; background: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; text-transform: capitalize; }
+.city-chip-active .city-chip-btn { color: var(--blue); font-weight: 600; }
+.city-chip-x { padding: 5px 6px 5px 0; border: none; background: none; color: var(--muted); font-size: 0.9rem; cursor: pointer; line-height: 1; }
+.city-chip-x:hover { color: var(--red); }
+.city-search-wrap { flex-shrink: 0; position: relative; }
+.city-search-wrap input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; color: var(--text); font-size: 0.8rem; width: 160px; }
+.city-search-wrap input:focus { outline: none; border-color: var(--blue); }
+.city-search-wrap input::placeholder { color: var(--muted); }
+.suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-top: 4px; z-index: 100; overflow: hidden; }
+.suggestion-item { display: block; width: 100%; padding: 6px 12px; border: none; background: none; color: var(--text); font-size: 0.8rem; cursor: pointer; text-align: left; }
+.suggestion-item:hover { background: rgba(96,165,250,0.1); }
+.topbar-loading { color: var(--yellow); font-size: 0.75rem; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 .topbar-error { color: var(--red); font-size: 0.75rem; }
 .content { flex: 1; overflow-y: auto; padding: 24px 28px; }
 
