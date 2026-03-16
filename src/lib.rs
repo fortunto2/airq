@@ -1605,19 +1605,13 @@ pub mod front {
             html_escape(target_name),
         ));
 
-        // Collect names that appear in fronts or have spikes (important nodes)
+        // Only label top 5 nodes: target + top fronts endpoints
         let important_nodes: std::collections::HashSet<String> = {
             let mut set = std::collections::HashSet::new();
-            for f in &analysis.fronts {
-                if f.correlation > 0.6 {
-                    set.insert(f.from_city.clone());
-                    set.insert(f.to_city.clone());
-                }
-            }
-            for (idx, spikes) in &analysis.spikes {
-                if !spikes.is_empty() {
-                    set.insert(analysis.graph[*idx].name.clone());
-                }
+            set.insert(target_name.to_string());
+            for f in analysis.fronts.iter().filter(|f| f.correlation > 0.7).take(5) {
+                set.insert(f.from_city.clone());
+                set.insert(f.to_city.clone());
             }
             set
         };
@@ -1936,8 +1930,8 @@ pub mod front {
     </div>
     <script>
         var map = L.map('map').setView([{target_lat}, {target_lon}], 8);
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '&copy; OpenStreetMap contributors'
+        L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}@2x.png', {{
+            attribution: '&copy; OpenStreetMap &amp; CartoDB'
         }}).addTo(map);
 
         {heatmap_js}
