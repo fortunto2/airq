@@ -80,6 +80,8 @@ pub fn App() -> Element {
     let mut loading_city: Signal<Option<String>> = use_signal(|| None);
     let mut added_cities: Signal<Vec<String>> = use_signal(Vec::new);
     let mut suggestions: Signal<Vec<String>> = use_signal(Vec::new);
+    // Keep shutdown_tx alive — dropping it kills the collector
+    let mut shutdown_handle: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
 
     // Settings state
     let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
@@ -102,11 +104,12 @@ pub fn App() -> Element {
 
         spawn(async move {
             match start_collector(&city_name, radius, interval).await {
-                Ok((db_handle, snap)) => {
+                Ok((db_handle, snap, stx)) => {
                     db.set(Some(db_handle));
                     snapshot.set(snap);
                     collector_running.set(true);
                     error_msg.set(None);
+                    shutdown_handle.set(Some(stx));
                 }
                 Err(e) => {
                     error_msg.set(Some(e));
@@ -211,11 +214,12 @@ pub fn App() -> Element {
                                                         let interval = (interval_input)();
                                                         spawn(async move {
                                                             match start_collector(&city_name, radius, interval).await {
-                                                                Ok((db_handle, snap)) => {
+                                                                Ok((db_handle, snap, stx)) => {
                                                                     db.set(Some(db_handle));
                                                                     snapshot.set(snap);
                                                                     collector_running.set(true);
                                                                     error_msg.set(None);
+                                                                    shutdown_handle.set(Some(stx));
                                                                 }
                                                                 Err(e) => error_msg.set(Some(e)),
                                                             }
@@ -286,11 +290,12 @@ pub fn App() -> Element {
                                         let interval = (interval_input)();
                                         spawn(async move {
                                             match start_collector(&city_name, radius, interval).await {
-                                                Ok((db_handle, snap)) => {
+                                                Ok((db_handle, snap, stx)) => {
                                                     db.set(Some(db_handle));
                                                     snapshot.set(snap);
                                                     collector_running.set(true);
                                                     error_msg.set(None);
+                                                    shutdown_handle.set(Some(stx));
                                                 }
                                                 Err(e) => error_msg.set(Some(e)),
                                             }
@@ -371,7 +376,12 @@ pub fn App() -> Element {
     }
 }
 
-async fn start_collector(city: &str, radius: f64, interval: u64) -> Result<(Arc<Db>, MonitorSnapshot), String> {
+/// Return type includes shutdown_tx — MUST be kept alive or collector stops.
+async fn start_collector(
+    city: &str,
+    radius: f64,
+    interval: u64,
+) -> Result<(Arc<Db>, MonitorSnapshot, tokio::sync::watch::Sender<bool>), String> {
     let (lat, lon, resolved) = airq::geocode(city).await
         .map_err(|e| format!("Geocode failed: {e}"))?;
     tracing::info!("Resolved: {} ({:.2}, {:.2})", resolved, lat, lon);
@@ -380,9 +390,14 @@ async fn start_collector(city: &str, radius: f64, interval: u64) -> Result<(Arc<
         .map_err(|e| format!("DB error: {e}"))?;
     let _ = db_handle.upsert_city(city, lat, lon, radius);
 
+    // Do an immediate fetch before starting the loop
+    if let Err(e) = airq::collector::collect_once(&db_handle, city, lat, lon, radius).await {
+        tracing::warn!("Initial collect failed: {e}");
+    }
+
     let collector_db = db_handle.clone();
     let cities = vec![(city.to_string(), lat, lon, radius)];
-    let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     tokio::spawn(airq::collector::run_collector(
         collector_db,
@@ -392,7 +407,7 @@ async fn start_collector(city: &str, radius: f64, interval: u64) -> Result<(Arc<
     ));
 
     let snap = state::build_snapshot(&db_handle, Some(city));
-    Ok((db_handle, snap))
+    Ok((db_handle, snap, shutdown_tx))
 }
 
 // ---------------------------------------------------------------------------
@@ -479,59 +494,56 @@ fn MapView(snap: MonitorSnapshot) -> Element {
     }).collect();
     let cities_data = format!("[{}]", cities_json.join(","));
 
-    let (center_lat, center_lon) = if let Some(c) = snap.cities.first() {
+    let (center_lat, center_lon) = if let Some(ref c) = snap.active_city {
         (c.lat, c.lon)
-    } else if let Some(sr) = snap.sensors.first() {
-        (sr.sensor.lat.unwrap_or(36.27), sr.sensor.lon.unwrap_or(32.30))
+    } else if let Some(c) = snap.cities.first() {
+        (c.lat, c.lon)
     } else {
         (36.27, 32.30)
     };
 
-    // Inject Leaflet via eval — scripts in innerHTML don't execute
-    use_effect(move || {
-        let js = format!(r#"
-            (async function() {{
-                // Load Leaflet CSS
-                if (!document.getElementById('leaflet-css')) {{
-                    var link = document.createElement('link');
-                    link.id = 'leaflet-css';
-                    link.rel = 'stylesheet';
-                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                    document.head.appendChild(link);
-                }}
-                // Load Leaflet JS
-                if (!window.L) {{
-                    await new Promise((resolve, reject) => {{
-                        var s = document.createElement('script');
-                        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                        s.onload = resolve;
-                        s.onerror = reject;
-                        document.head.appendChild(s);
-                    }});
-                }}
-                // Wait for DOM
-                await new Promise(r => setTimeout(r, 100));
-                var el = document.getElementById('airq-map');
-                if (!el) return;
-                // Clear old map
-                if (window._airqMap) {{ window._airqMap.remove(); window._airqMap = null; }}
-                var map = L.map('airq-map', {{zoomControl: false}}).setView([{center_lat}, {center_lon}], 11);
-                window._airqMap = map;
-                L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18}}).addTo(map);
-                var sensors = {sensors_data};
-                var cities = {cities_data};
-                sensors.forEach(function(s) {{
-                    var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
-                    L.circleMarker([s.lat, s.lon], {{radius:8, fillColor:color, fillOpacity:0.85, color:'#333', weight:1}})
-                     .bindPopup('<b>#'+s.id+'</b><br>PM2.5: '+s.pm25+'<br>PM10: '+s.pm10)
-                     .addTo(map);
+    // Run map JS on every render (props change = re-render = map updates)
+    let js = format!(r#"
+        (async function() {{
+            if (!document.getElementById('leaflet-css')) {{
+                var link = document.createElement('link');
+                link.id = 'leaflet-css';
+                link.rel = 'stylesheet';
+                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                document.head.appendChild(link);
+            }}
+            if (!window.L) {{
+                await new Promise((resolve, reject) => {{
+                    var s = document.createElement('script');
+                    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
                 }});
-                cities.forEach(function(c) {{
-                    L.circle([c.lat, c.lon], {{radius:c.radius*1000, color:'#60a5fa', fillOpacity:0.05, weight:1, dashArray:'4'}}).addTo(map);
-                }});
-                setTimeout(function() {{ map.invalidateSize(); }}, 200);
-            }})();
-        "#);
+            }}
+            await new Promise(r => setTimeout(r, 150));
+            var el = document.getElementById('airq-map');
+            if (!el) return;
+            if (window._airqMap) {{ window._airqMap.remove(); window._airqMap = null; }}
+            var map = L.map('airq-map', {{zoomControl: false}}).setView([{center_lat}, {center_lon}], 11);
+            window._airqMap = map;
+            L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{maxZoom: 18}}).addTo(map);
+            var sensors = {sensors_data};
+            var cities = {cities_data};
+            sensors.forEach(function(s) {{
+                var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
+                L.circleMarker([s.lat, s.lon], {{radius:8, fillColor:color, fillOpacity:0.85, color:'#333', weight:1}})
+                 .bindPopup('<b>#'+s.id+'</b><br>PM2.5: '+s.pm25+'<br>PM10: '+s.pm10)
+                 .addTo(map);
+            }});
+            cities.forEach(function(c) {{
+                L.circle([c.lat, c.lon], {{radius:c.radius*1000, color:'#60a5fa', fillOpacity:0.05, weight:1, dashArray:'4'}}).addTo(map);
+            }});
+            setTimeout(function() {{ map.invalidateSize(); }}, 200);
+        }})();
+    "#);
+    // Spawn eval so it runs after DOM is ready
+    spawn(async move {
         document::eval(&js);
     });
 
