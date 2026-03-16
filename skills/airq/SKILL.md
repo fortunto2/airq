@@ -111,6 +111,27 @@ Dual-channel PM2.5 + PM10. Source classification by ratio:
 - ratio <1.5, PM2.5 >55 → smoke/wildfire
 - ratio ~1, PM2.5 >35 → combustion/traffic
 
+### Serve (headless monitoring daemon)
+```bash
+airq serve --city gazipasha --radius 15 --port 8080
+airq serve --city moscow --city istanbul --interval 600
+```
+
+Runs a background daemon: polls Sensor.Community every N seconds, stores readings in SQLite, runs event detection, exposes REST API with Swagger UI at `/swagger-ui/`.
+
+API endpoints: `/api/status`, `/api/readings`, `/api/sensors`, `/api/events`, `/api/cities`.
+
+### Dashboard (desktop app)
+```bash
+cargo install airq-dashboard
+# or from source:
+cargo run -p airq-dashboard
+```
+
+Dioxus 0.7 desktop app (Air Signal). Same collector + detector as `serve`, but with a native UI. Phone-first layout (480x800). Shows live readings, sensor map, events timeline.
+
+Both `serve` and dashboard share the same SQLite DB (`~/.local/share/airq/airq.db`).
+
 ### HTML/PDF report
 ```bash
 airq report --city hamburg --radius 150 --pdf
@@ -129,7 +150,7 @@ airq top --country usa --json
 Use in your own project:
 
 ```toml
-airq-core = "1.3"
+airq-core = "2.0"
 ```
 
 4 modules:
@@ -140,7 +161,7 @@ airq-core = "1.3"
 
 WASM-ready: `wasm-pack build --target web --features wasm --no-default-features`
 
-108 tests.
+130 tests.
 
 ## How it works
 

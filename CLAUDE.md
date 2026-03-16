@@ -32,7 +32,7 @@ airq/
 
 ## Stack
 - **airq-core**: serde, serde_json, petgraph, cities (~40K), bincode/wasm-bindgen (optional)
-- **airq CLI**: airq-core + clap, reqwest, tokio, axum, rusqlite, tower-http
+- **airq CLI**: airq-core + clap, reqwest, tokio, axum, rusqlite, tower-http, utoipa, utoipa-swagger-ui
 - **airq-dashboard**: airq + dioxus 0.7 (desktop), chrono
 
 ## Two Modes
@@ -43,7 +43,7 @@ Both share the same SQLite DB (`~/.local/share/airq/airq.db`), collector, and de
 
 ## Commands
 ```bash
-cargo test --workspace               # 120 tests
+cargo test --workspace               # 130 tests
 cargo test --package airq-core --features storage  # + storage tests
 cargo clippy --workspace             # lint
 cargo run -- --city tokyo            # basic air quality
@@ -115,7 +115,7 @@ All sigmoid/gaussian, no piecewise linear:
 - USGS: earthquakes. NOAA SWPC: geomagnetic Kp. OSM Overpass: pollution sources.
 
 ## Architecture
-- airq-core: pure functions, no IO, WASM-compatible, 101 tests
+- airq-core: pure functions, no IO, WASM-compatible, 130 tests
 - Merge: sensors primary, model fallback by divergence
 - Front detection: Z-score → cross-correlation → haversine speed/direction
 - Blame/CPF: wind direction × PM2.5 threshold, Overpass for sources
