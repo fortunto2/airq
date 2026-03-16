@@ -570,7 +570,7 @@ pub fn median(vals: &mut Vec<f64>) -> Option<f64> {
 // ---------------------------------------------------------------------------
 
 /// City with pre-resolved coordinates (from `cities` crate).
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CityInfo {
     pub name: &'static str,
     pub country: &'static str,
@@ -3206,20 +3206,15 @@ pub mod wasm {
             Ok(c) => c,
             Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
         };
-        // Build single-row matrix, extract ML vector
-        let row = matrix::SignalRow::from_pairs(&[
-            ("air", comfort.air as f64),
-            ("temperature", comfort.temperature as f64),
-            ("uv", comfort.uv as f64),
-            ("sea", comfort.sea as f64),
-            ("earthquake", comfort.earthquake as f64),
-            ("fire", comfort.fire as f64),
-            ("pollen", comfort.pollen as f64),
-            ("pressure", comfort.pressure as f64),
-            ("geomagnetic", comfort.geomagnetic as f64),
-            ("moon", comfort.moon as f64),
-            ("daylight", comfort.daylight as f64),
-        ]);
+        // Build row from HashMap scores
+        let pairs: Vec<(&str, f64)> = comfort.scores.iter()
+            .filter_map(|(k, &v)| {
+                matrix::SIGNAL_NAMES.iter()
+                    .find(|&&n| n == k.as_str())
+                    .map(|&n| (n, v as f64))
+            })
+            .collect();
+        let row = matrix::SignalRow::from_pairs(&pairs);
         let mut m = matrix::SignalMatrix::new();
         m.push(0.0, row);
         match m.to_ml_vector() {
@@ -3374,5 +3369,39 @@ pub mod wasm {
     #[wasm_bindgen]
     pub fn wasm_signal_weights() -> String {
         serde_json::to_string(&matrix::SIGNAL_WEIGHTS).unwrap_or_default()
+    }
+
+    // -- Cities database --
+
+    /// Search cities by name prefix. Returns JSON array of {name, country, lat, lon}.
+    /// Max 10 results.
+    #[wasm_bindgen]
+    pub fn wasm_search_cities(query: &str) -> String {
+        let q = query.to_lowercase();
+        let results: Vec<serde_json::Value> = cities::all()
+            .iter()
+            .filter(|c| c.city.to_lowercase().starts_with(&q))
+            .take(10)
+            .map(|c| serde_json::json!({
+                "name": c.city,
+                "country": c.country,
+                "lat": c.latitude,
+                "lon": c.longitude,
+            }))
+            .collect();
+        serde_json::to_string(&results).unwrap_or_default()
+    }
+
+    /// Get major cities for a country. Returns JSON array.
+    #[wasm_bindgen]
+    pub fn wasm_major_cities(country: &str, limit: u32) -> String {
+        let cities = get_major_cities(country, limit as usize);
+        serde_json::to_string(&cities).unwrap_or_default()
+    }
+
+    /// List all countries. Returns JSON array of strings.
+    #[wasm_bindgen]
+    pub fn wasm_list_countries() -> String {
+        serde_json::to_string(&list_countries()).unwrap_or_default()
     }
 }
