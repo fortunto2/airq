@@ -6,8 +6,8 @@ default_platform = "desktop"
 title = "Air Signal"
 
 [desktop.window]
-width = 480
-height = 800
+width = 1100
+height = 720
 
 [web.resource]
 style = ["assets/style.css"]

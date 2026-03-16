@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Snapshot of current monitoring data (refreshed periodically).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MonitorSnapshot {
     pub cities: Vec<City>,
     pub sensors: Vec<SensorWithReading>,
