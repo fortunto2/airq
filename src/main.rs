@@ -127,6 +127,21 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Generate HTML report with map and pollution analysis
+    Report {
+        /// City name (or uses default from config)
+        #[arg(long)]
+        city: Option<String>,
+        /// Search radius for nearby cities in km
+        #[arg(long, default_value_t = 150.0)]
+        radius: f64,
+        /// Number of past days to analyze
+        #[arg(long, default_value_t = 3)]
+        days: u32,
+        /// Output file path
+        #[arg(long, default_value = "airq-report.html")]
+        output: String,
+    },
     /// Show top cities by AQI in a country (any country supported)
     Top {
         /// Country name (e.g., france, brazil, usa, japan, india)
@@ -385,6 +400,69 @@ async fn main() -> Result<()> {
             println!("\nNo significant pollution fronts detected in the last {} days.", days);
         }
 
+        return Ok(());
+    }
+
+    if let Some(Commands::Report {
+        city,
+        radius,
+        days,
+        output,
+    }) = &cli.command
+    {
+        let city_name = city
+            .clone()
+            .or(config.default_city.clone())
+            .context("Specify --city or set default with `airq init`")?;
+        let (lat, lon, resolved_name) = geocode(&city_name).await?;
+        println!("Generating report for {}...", resolved_name);
+
+        // Find nearby cities
+        let nearby = airq::front::nearby_cities(lat, lon, *radius, 10);
+        if nearby.is_empty() {
+            println!("No nearby cities found within {}km", radius);
+            return Ok(());
+        }
+
+        // Fetch history for target + neighbors (same pattern as Front)
+        let target_history = fetch_history(lat, lon, *days).await?;
+        let wind = airq::fetch_wind(lat, lon).await.ok();
+
+        let mut neighbor_data = Vec::new();
+        for chunk in nearby.chunks(5) {
+            let futures = chunk.iter().map(|c| async move {
+                let dist = airq::front::haversine(lat, lon, c.lat, c.lon);
+                match fetch_history(c.lat, c.lon, *days).await {
+                    Ok(h) => Some((c.name.to_string(), c.lat, c.lon, dist, h.hourly.time, h.hourly.pm2_5)),
+                    Err(_) => None,
+                }
+            });
+            let batch: Vec<_> = futures::future::join_all(futures)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+            neighbor_data.extend(batch);
+        }
+
+        let analysis = airq::front::build_graph(
+            &resolved_name,
+            lat, lon,
+            neighbor_data,
+            &target_history.hourly.time,
+            &target_history.hourly.pm2_5,
+        );
+
+        let html = airq::front::generate_report(
+            &resolved_name,
+            lat, lon,
+            &analysis,
+            wind.as_ref(),
+            *days,
+        );
+
+        std::fs::write(output, &html)?;
+        println!("Report saved to: {}", output);
         return Ok(());
     }
 

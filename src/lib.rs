@@ -1025,6 +1025,242 @@ pub mod front {
             fronts,
         }
     }
+
+    /// Generate a self-contained HTML report with Leaflet.js map and pollution analysis.
+    pub fn generate_report(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        analysis: &FrontAnalysis,
+        wind: Option<&super::WindData>,
+        days: u32,
+    ) -> String {
+        // Build markers JS
+        let mut markers_js = String::new();
+
+        // Target marker (red)
+        markers_js.push_str(&format!(
+            "L.circleMarker([{}, {}], {{radius: 10, color: '#f44336', fillColor: '#f44336', fillOpacity: 0.8}}).addTo(map).bindPopup('<b>{}</b><br>Target city');\n",
+            target_lat, target_lon,
+            html_escape(target_name),
+        ));
+
+        // Neighbor markers (blue)
+        for node_idx in analysis.graph.node_indices() {
+            let node = &analysis.graph[node_idx];
+            if node.distance_from_target > 0.0 {
+                markers_js.push_str(&format!(
+                    "L.circleMarker([{}, {}], {{radius: 7, color: '#2196f3', fillColor: '#2196f3', fillOpacity: 0.7}}).addTo(map).bindPopup('<b>{}</b><br>{:.0} km from target');\n",
+                    node.lat, node.lon,
+                    html_escape(&node.name),
+                    node.distance_from_target,
+                ));
+            }
+        }
+
+        // Front polylines with arrow markers
+        let mut lines_js = String::new();
+        for front in &analysis.fronts {
+            if front.correlation < 0.6 {
+                continue;
+            }
+            let from_node = analysis.graph.node_indices()
+                .find(|n| analysis.graph[*n].name == front.from_city);
+            let to_node = analysis.graph.node_indices()
+                .find(|n| analysis.graph[*n].name == front.to_city);
+            if let (Some(fi), Some(ti)) = (from_node, to_node) {
+                let from = &analysis.graph[fi];
+                let to = &analysis.graph[ti];
+                let color = if front.correlation > 0.85 {
+                    "#00c853"
+                } else if front.correlation > 0.70 {
+                    "#ffc107"
+                } else {
+                    "#ff9800"
+                };
+
+                // Polyline
+                lines_js.push_str(&format!(
+                    "L.polyline([[{},{}],[{},{}]], {{color:'{}', weight:3, opacity:0.8}}).addTo(map).bindPopup('{} &rarr; {} | {:.0} km/h | corr {:.0}%');\n",
+                    from.lat, from.lon, to.lat, to.lon, color,
+                    html_escape(&front.from_city), html_escape(&front.to_city),
+                    front.speed_kmh, front.correlation * 100.0,
+                ));
+
+                // Arrow head at destination using rotated divIcon
+                let brng = front.bearing_deg;
+                lines_js.push_str(&format!(
+                    "L.marker([{},{}], {{icon: L.divIcon({{className:'arrow-icon', html:'<div style=\"transform:rotate({:.0}deg);font-size:20px;color:{};line-height:1\">&uarr;</div>', iconSize:[20,20], iconAnchor:[10,10]}}) }}).addTo(map);\n",
+                    to.lat, to.lon, brng, color,
+                ));
+            }
+        }
+
+        // Wind info
+        let wind_html = if let Some(w) = wind {
+            let speed = w.wind_speed_10m.map(|s| format!("{:.1} km/h", s)).unwrap_or_else(|| "N/A".into());
+            let dir = w.direction_label().unwrap_or("N/A");
+            let arrow = w.direction_arrow().unwrap_or("");
+            format!("<p><b>Wind:</b> {} {} {}</p>", speed, arrow, dir)
+        } else {
+            "<p><b>Wind:</b> N/A</p>".to_string()
+        };
+
+        // Spikes table rows
+        let mut spikes_rows = String::new();
+        for (node_idx, spikes) in &analysis.spikes {
+            let node = &analysis.graph[*node_idx];
+            for spike in spikes.iter().take(5) {
+                let aqi = super::pm25_aqi(spike.value);
+                let cat = super::AqiCategory::from_aqi(aqi);
+                let css_class = match cat {
+                    super::AqiCategory::Good => "good",
+                    super::AqiCategory::Moderate => "moderate",
+                    super::AqiCategory::UnhealthySensitive => "unhealthy-sensitive",
+                    super::AqiCategory::Unhealthy => "unhealthy",
+                    super::AqiCategory::VeryUnhealthy => "very-unhealthy",
+                    super::AqiCategory::Hazardous => "hazardous",
+                };
+                let time_display = spike.time.replace('T', " ");
+                spikes_rows.push_str(&format!(
+                    "<tr class=\"{}\"><td>{}</td><td>{}</td><td>{:.1}</td><td>+{:.1}</td><td>{:.1}</td></tr>\n",
+                    css_class,
+                    html_escape(&node.name),
+                    time_display,
+                    spike.value,
+                    spike.delta,
+                    spike.z_score,
+                ));
+            }
+        }
+        if spikes_rows.is_empty() {
+            spikes_rows = "<tr><td colspan=\"5\">No significant spikes detected</td></tr>".to_string();
+        }
+
+        // Fronts table rows (correlation > 70%)
+        let mut fronts_rows = String::new();
+        for front in analysis.fronts.iter().filter(|f| f.correlation > 0.7) {
+            let dir_label = bearing_label(front.bearing_deg);
+            fronts_rows.push_str(&format!(
+                "<tr><td>{} &rarr; {}</td><td>{:.0}</td><td>{}</td><td>{}</td><td>{:.0}%</td></tr>\n",
+                html_escape(&front.from_city),
+                html_escape(&front.to_city),
+                front.speed_kmh,
+                dir_label,
+                front.lag_hours,
+                front.correlation * 100.0,
+            ));
+        }
+        if fronts_rows.is_empty() {
+            fronts_rows = "<tr><td colspan=\"5\">No significant fronts detected</td></tr>".to_string();
+        }
+
+        // Compute radius from max neighbor distance
+        let max_dist = analysis.graph.node_indices()
+            .map(|n| analysis.graph[n].distance_from_target)
+            .fold(0.0_f64, f64::max);
+        let radius_display = if max_dist > 0.0 { format!("{:.0} km", max_dist) } else { "N/A".to_string() };
+
+        format!(r##"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Air Quality Report — {target_name}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {{ font-family: -apple-system, system-ui, sans-serif; margin: 0; }}
+        #map {{ height: 500px; width: 100%; }}
+        .map-wrap {{ position: relative; }}
+        .info-panel {{ position: absolute; top: 10px; right: 10px; z-index: 1000;
+                      background: white; padding: 15px; border-radius: 8px;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.2); max-width: 300px; font-size: 14px; }}
+        .info-panel h3 {{ margin: 0 0 8px; }}
+        .info-panel p {{ margin: 4px 0; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
+        th {{ background: #f5f5f5; font-weight: 600; }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
+        h1, h2 {{ color: #333; }}
+        h1 {{ border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+        .good td {{ color: #00c853; }}
+        .moderate td {{ color: #ffc107; }}
+        .unhealthy-sensitive td {{ color: #ff9800; }}
+        .unhealthy td {{ color: #f44336; }}
+        .very-unhealthy td {{ color: #9c27b0; }}
+        .hazardous td {{ color: #795548; }}
+        .arrow-icon {{ background: none !important; border: none !important; }}
+        .footer {{ color: #999; font-size: 12px; margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; }}
+    </style>
+</head>
+<body>
+    <div class="map-wrap">
+        <div id="map"></div>
+        <div class="info-panel">
+            <h3>{target_name}</h3>
+            <p><b>Coords:</b> {target_lat:.4}, {target_lon:.4}</p>
+            {wind_html}
+            <p><b>Period:</b> {days} days</p>
+            <p><b>Radius:</b> {radius_display}</p>
+        </div>
+    </div>
+    <div class="container">
+        <h1>Air Quality Report — {target_name}</h1>
+
+        <h2>Spikes</h2>
+        <table>
+            <thead>
+                <tr><th>City</th><th>Time</th><th>PM2.5</th><th>Delta</th><th>Z-score</th></tr>
+            </thead>
+            <tbody>
+                {spikes_rows}
+            </tbody>
+        </table>
+
+        <h2>Pollution Fronts</h2>
+        <table>
+            <thead>
+                <tr><th>From → To</th><th>Speed (km/h)</th><th>Direction</th><th>Lag (h)</th><th>Correlation</th></tr>
+            </thead>
+            <tbody>
+                {fronts_rows}
+            </tbody>
+        </table>
+
+        <p class="footer">Generated by airq</p>
+    </div>
+    <script>
+        var map = L.map('map').setView([{target_lat}, {target_lon}], 8);
+        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+            attribution: '&copy; OpenStreetMap contributors'
+        }}).addTo(map);
+
+        {markers_js}
+        {lines_js}
+    </script>
+</body>
+</html>"##,
+            target_name = html_escape(target_name),
+            target_lat = target_lat,
+            target_lon = target_lon,
+            wind_html = wind_html,
+            days = days,
+            radius_display = radius_display,
+            spikes_rows = spikes_rows,
+            fronts_rows = fronts_rows,
+            markers_js = markers_js,
+            lines_js = lines_js,
+        )
+    }
+
+    /// Minimal HTML escaping for user-provided strings.
+    fn html_escape(s: &str) -> String {
+        s.replace('&', "&amp;")
+         .replace('<', "&lt;")
+         .replace('>', "&gt;")
+         .replace('"', "&quot;")
+         .replace('\'', "&#39;")
+    }
 }
 
 #[cfg(test)]
