@@ -217,11 +217,35 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
 // Network: local IP + LAN sensor discovery
 // ---------------------------------------------------------------------------
 
-/// Get local WiFi IP address.
+/// Get local WiFi IP address (prefers 192.168.x.x / 10.x.x.x over VPN/Tailscale).
 pub fn get_local_ip() -> Option<String> {
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:53").ok()?;
-    socket.local_addr().ok().map(|a| a.ip().to_string())
+    // Try all local addresses, prefer private LAN ranges
+    let mut candidates = Vec::new();
+
+    // Method 1: enumerate interfaces via multiple UDP binds
+    for target in &["192.168.1.1:53", "10.0.0.1:53", "172.16.0.1:53", "8.8.8.8:53"] {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect(target).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip().to_string();
+                    if !candidates.contains(&ip) {
+                        candidates.push(ip);
+                    }
+                }
+            }
+        }
+    }
+
+    // Prefer 192.168.x.x (typical WiFi), then 10.x.x.x, then anything non-100.x (Tailscale)
+    candidates.sort_by_key(|ip| {
+        if ip.starts_with("192.168.") { 0 }
+        else if ip.starts_with("10.") { 1 }
+        else if ip.starts_with("172.") { 2 }
+        else if ip.starts_with("100.") { 9 } // Tailscale CGNAT
+        else { 5 }
+    });
+
+    candidates.into_iter().next()
 }
 
 /// A discovered sensor device on the LAN.
