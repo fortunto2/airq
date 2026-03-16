@@ -227,15 +227,25 @@ If no sensors nearby, falls back to model only with a note.
 
 US AQI from Open-Meteo API. EU AQI also shown. For sensor-only data, AQI calculated using EPA formula.
 
+## Front detection methodology
+
+The `front` and `report` commands use cross-correlation analysis to detect pollution movement:
+
+1. **Spike detection** — Z-score on hourly PM2.5 differences. Flags sudden changes (z > 2σ)
+2. **Cross-correlation** — compares time-series between city/sensor pairs with lags -24h to +24h. Peak correlation reveals transit time
+3. **Speed & direction** — haversine distance / time lag = front speed. Bearing calculated from coordinates
+4. **Dual-source** — when both Open-Meteo (model) and Sensor.Community (ground sensors) are available, correlations are weighted and merged. Agreement boosts confidence
+5. **Sensor clustering** — nearby sensors (~5km) are grouped into zones for spatial analysis. Reports show individual sensor locations with PM2.5 heatmap overlay
+
+See [examples/](examples/) for sample reports.
+
 ## Data sources
 
-- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — free, no key, global
+- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — free, no key, global atmospheric model
+- [Open-Meteo Weather API](https://open-meteo.com/en/docs) — wind speed, direction, gusts
 - [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) — city → coordinates
-- [Sensor.Community](https://sensor.community/) — citizen science, 15,000+ real sensors
-
-## Built with
-
-Created by [rust-code](https://github.com/fortunto2/rust-code) AI agent in autonomous BigHead mode.
+- [Sensor.Community](https://sensor.community/) — citizen science, 15,000+ real SDS011/PM sensors
+- [Sensor.Community Archive](https://archive.sensor.community/) — historical CSV data per sensor (cached locally)
 
 ## License
 

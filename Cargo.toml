@@ -1,6 +1,6 @@
 [package]
 name = "airq"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "CLI air quality checker with pollution front detection, maps, and PDF reports"
 license = "MIT"

@@ -610,13 +610,27 @@ async fn main() -> Result<()> {
             city_analysis
         };
 
-        let html = airq::front::generate_report_with_sensors(
+        // Collect latest PM2.5 per sensor from cluster data
+        let mut sensor_values: Vec<(u64, f64)> = Vec::new();
+        for (cid, data) in &cluster_data {
+            if let Some(cluster) = clusters.iter().find(|c| &c.id == cid) {
+                // Get latest PM2.5 value from this cluster
+                if let Some((_, val)) = data.last() {
+                    for sid in &cluster.sensor_ids {
+                        sensor_values.push((*sid, *val));
+                    }
+                }
+            }
+        }
+
+        let html = airq::front::generate_report_with_sensor_values(
             &resolved_name,
             lat, lon,
             &analysis,
             wind.as_ref(),
             *days,
             &dust_sensors,
+            &sensor_values,
         );
 
         std::fs::write(output, &html)?;

@@ -1520,15 +1520,54 @@ pub mod front {
         days: u32,
         raw_sensors: &[(u64, f64, f64)], // (id, lat, lon)
     ) -> String {
+        generate_report_with_sensor_values(
+            target_name, target_lat, target_lon,
+            analysis, wind, days, raw_sensors, &[],
+        )
+    }
+
+    pub fn generate_report_with_sensor_values(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        analysis: &FrontAnalysis,
+        wind: Option<&super::WindData>,
+        days: u32,
+        raw_sensors: &[(u64, f64, f64)],
+        sensor_values: &[(u64, f64)], // (sensor_id, latest_pm25)
+    ) -> String {
         // Build markers JS
         let mut markers_js = String::new();
+        let mut heatmap_js = String::from("var heat = L.heatLayer([");
+        let mut has_heat = false;
 
-        // Individual sensor markers (small gray dots)
+        // Build sensor value lookup
+        let val_map: std::collections::HashMap<u64, f64> = sensor_values.iter().copied().collect();
+
+        // Individual sensor markers — colored by PM2.5 value
         for (sid, slat, slon) in raw_sensors {
+            let (color, pm_text) = if let Some(&pm) = val_map.get(sid) {
+                let c = if pm < 12.0 { "#00c853" }
+                    else if pm < 35.5 { "#ffc107" }
+                    else if pm < 55.5 { "#ff9800" }
+                    else if pm < 150.5 { "#f44336" }
+                    else { "#9c27b0" };
+                // Add to heatmap
+                heatmap_js.push_str(&format!("[{},{},{:.1}],", slat, slon, pm));
+                has_heat = true;
+                (c, format!("<br>PM2.5: {:.1}", pm))
+            } else {
+                ("#90a4ae", String::new())
+            };
             markers_js.push_str(&format!(
-                "L.circleMarker([{}, {}], {{radius: 3, color: '#90a4ae', fillColor: '#90a4ae', fillOpacity: 0.5, weight: 1}}).addTo(map).bindPopup('Sensor #{}');\n",
-                slat, slon, sid,
+                "L.circleMarker([{}, {}], {{radius: 4, color: '{}', fillColor: '{}', fillOpacity: 0.7, weight: 1}}).addTo(map).bindPopup('Sensor #{}{}');\n",
+                slat, slon, color, color, sid, pm_text,
             ));
+        }
+
+        heatmap_js.push_str("], {radius: 25, blur: 15, maxZoom: 12, max: 100, gradient: {0.2: '#00c853', 0.4: '#ffc107', 0.6: '#ff9800', 0.8: '#f44336', 1.0: '#9c27b0'}}).addTo(map);\n");
+        if !has_heat {
+            heatmap_js.clear();
         }
 
         // Target marker (red, on top)
@@ -1741,6 +1780,7 @@ pub mod front {
     <title>Air Quality Report — {target_name}</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <style>
         body {{ font-family: -apple-system, system-ui, sans-serif; margin: 0; }}
         #map {{ height: 500px; width: 100%; }}
@@ -1783,6 +1823,9 @@ pub mod front {
     <div class="container">
         <h1>Air Quality Report — {target_name}</h1>
 
+        <h2>Key Insights</h2>
+        {insights_html}
+
         <h2>Spikes</h2>
         <table>
             <thead>
@@ -1802,9 +1845,6 @@ pub mod front {
                 {fronts_rows}
             </tbody>
         </table>
-
-        <h2>Key Insights</h2>
-        {insights_html}
 
         <h2>Methodology</h2>
         <div class="methodology">
@@ -1835,6 +1875,7 @@ pub mod front {
             attribution: '&copy; OpenStreetMap contributors'
         }}).addTo(map);
 
+        {heatmap_js}
         {markers_js}
         {lines_js}
     </script>
@@ -1846,6 +1887,7 @@ pub mod front {
             wind_html = wind_html,
             days = days,
             radius_display = radius_display,
+            heatmap_js = heatmap_js,
             spikes_rows = spikes_rows,
             fronts_rows = fronts_rows,
             markers_js = markers_js,
