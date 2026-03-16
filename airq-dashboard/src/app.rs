@@ -1233,6 +1233,45 @@ fn NetworkView(
             p { class: "muted small", "In sensor config: Server = {local_ip}, Path = /api/push, Port = {port}" }
         }
 
+        // Daemon install instructions
+        div { class: "card",
+            h2 { "Install as Daemon" }
+            p { class: "muted small", "Run headless server on boot (without dashboard)" }
+
+            div { class: "daemon-section",
+                div { class: "daemon-os", "macOS (launchd)" }
+                div { class: "settings-cmd",
+                    code { "airq serve --city gazipasa --radius 15 --port 8080" }
+                }
+                div { class: "settings-cmd",
+                    code { "# Create ~/Library/LaunchAgents/com.airsignal.serve.plist" }
+                }
+                div { class: "settings-cmd",
+                    code { "launchctl load ~/Library/LaunchAgents/com.airsignal.serve.plist" }
+                }
+            }
+
+            div { class: "daemon-section",
+                div { class: "daemon-os", "Linux (systemd)" }
+                div { class: "settings-cmd",
+                    code { "# Create ~/.config/systemd/user/air-signal.service" }
+                }
+                div { class: "settings-cmd",
+                    code { "systemctl --user enable --now air-signal" }
+                }
+            }
+
+            div { class: "daemon-section",
+                div { class: "daemon-os", "Windows" }
+                div { class: "settings-cmd",
+                    code { "nssm install AirSignal airq.exe serve --city gazipasa" }
+                }
+                div { class: "settings-cmd",
+                    code { "nssm start AirSignal" }
+                }
+            }
+        }
+
         // LAN Sensors
         div { class: "card",
             div { class: "net-header-row",
@@ -1730,6 +1769,9 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .btn-stop { background: var(--red); color: #fff; }
 .btn-server:disabled { opacity: 0.4; cursor: default; }
 .btn-server:hover:not(:disabled) { opacity: 0.9; }
+
+.daemon-section { margin-bottom: 12px; }
+.daemon-os { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
 
 .form-hint { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
 .btn-save { background: var(--blue); color: #000; border: none; border-radius: 10px; padding: 10px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
