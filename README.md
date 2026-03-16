@@ -10,9 +10,11 @@ Check air quality from your terminal. Any city in the world, no API key needed. 
 
 *Pollution front analysis for Hamburg — 522 sensors, cross-correlation tracking, heatmap overlay. Generated with `airq report --city hamburg --radius 150 --pdf`*
 
-By default merges two data sources for more accurate results:
-- **Open-Meteo** — global model (PM2.5, PM10, CO, NO2, O3, SO2, UV)
-- **Sensor.Community** — citizen science sensors (15,000+ real sensors worldwide)
+Merges two data sources with dynamic weighting by divergence:
+- **Sensor.Community** — citizen science sensors (15,000+ real sensors worldwide) — **primary, ground truth**
+- **Open-Meteo** — CAMS atmospheric model (PM2.5, PM10, CO, NO2, O3, SO2, UV) — **fallback**
+
+When sources diverge (e.g. model says 130, sensors say 7), sensors win. Model weight drops to ~0% at high divergence.
 
 ## Install
 
@@ -270,10 +272,10 @@ By default (`--provider all`), airq fetches both sources in parallel and average
 PM2.5  4.9 avg  (4.2 model, 5.7 sensors) μg/m³
 ```
 
-- **model** = Open-Meteo atmospheric reanalysis (global, ~11km grid)
-- **sensors** = median of all Sensor.Community sensors within 5km (filters outliers)
+- **model** = Open-Meteo CAMS atmospheric forecast (global, ~11km grid) — can be inaccurate for some regions
+- **sensors** = median of all Sensor.Community sensors within 5km — real measurements, ground truth
 
-If no sensors nearby, falls back to model only with a note.
+When both available, dynamic merge weights sensors higher. If model diverges >5x from sensors, model is ignored. If no sensors nearby, falls back to model only.
 
 ## AQI scale
 
@@ -318,18 +320,23 @@ All free, no API keys needed:
 Cargo workspace with shared core:
 
 ```
-airq-core/     Pure calculations, no IO (AQI, comfort, fronts, CPF). WASM-ready.
-airq/          CLI + async network fetching. Depends on airq-core.
+airq-core/          Pure calculations, no IO — WASM-ready
+├── lib.rs          AQI (EPA), 14 sigmoid normalizers, ComfortScore, fronts, CPF, WASM bindings
+├── matrix.rs       SignalMatrix: macro-driven time-series, ML vector (44-dim), bincode storage
+├── event.rs        Event detection: EWMA + concordance + directional (dual PM2.5+PM10)
+└── merge.rs        Model+sensor dynamic weighting by divergence
+
+airq/               CLI + async network fetching
 ```
 
 Use `airq-core` in your own project:
 
 ```toml
 airq-core = "1.2"                                          # CLI (default)
-airq-core = { version = "1.2", default-features = false }  # minimal / iOS
+airq-core = { version = "1.2", default-features = false }  # minimal / iOS / WASM
 ```
 
-46 tests covering all core calculations.
+101 tests. 14 environmental signals with sigmoid/gaussian normalization.
 
 ## License
 
