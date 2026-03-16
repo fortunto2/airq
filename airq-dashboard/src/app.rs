@@ -565,13 +565,7 @@ fn MapView(snap: MonitorSnapshot) -> Element {
                 link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
                 document.head.appendChild(link);
             }}
-            // --- Inject pulsing animation CSS ---
-            if (!document.getElementById('airq-pulse-css')) {{
-                var style = document.createElement('style');
-                style.id = 'airq-pulse-css';
-                style.textContent = '@keyframes airq-pulse {{ 0%,100% {{ opacity:0.85; transform:scale(1); }} 50% {{ opacity:0.5; transform:scale(1.4); }} }} .airq-pulse {{ animation: airq-pulse 2s ease-in-out infinite; }}';
-                document.head.appendChild(style);
-            }}
+            // Pulsing animation removed — was too aggressive on map
             // --- Load Leaflet JS ---
             if (!window.L) {{
                 await new Promise((resolve, reject) => {{
@@ -631,7 +625,7 @@ fn MapView(snap: MonitorSnapshot) -> Element {
                     fillOpacity: 0.85,
                     color: '#333',
                     weight: 1,
-                    className: s.pm25 > 35 ? 'airq-pulse' : ''
+                    className: ''
                 }});
                 var popupHtml = '<div style="font-family:system-ui;font-size:13px;line-height:1.6">'
                     + '<b style="font-size:14px">Sensor #' + s.id + '</b><br>'
