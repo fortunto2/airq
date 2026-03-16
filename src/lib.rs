@@ -1829,7 +1829,27 @@ pub mod front {
         wind: Option<&super::WindData>,
         days: u32,
         raw_sensors: &[(u64, f64, f64)],
-        sensor_values: &[(u64, f64)], // (sensor_id, latest_pm25)
+        sensor_values: &[(u64, f64)],
+    ) -> String {
+        generate_report_full(
+            target_name, target_lat, target_lon,
+            analysis, wind, days, raw_sensors, sensor_values,
+            &[], &[],
+        )
+    }
+
+    /// Full report with fronts + blame sources + CPF.
+    pub fn generate_report_full(
+        target_name: &str,
+        target_lat: f64,
+        target_lon: f64,
+        analysis: &FrontAnalysis,
+        wind: Option<&super::WindData>,
+        days: u32,
+        raw_sensors: &[(u64, f64, f64)],
+        sensor_values: &[(u64, f64)],
+        pollution_sources: &[super::PollutionSource],
+        cpf_results: &[CpfResult],
     ) -> String {
         // Build markers JS
         let mut markers_js = String::new();
@@ -1913,6 +1933,30 @@ pub mod front {
                     tooltip,
                 ));
             }
+        }
+
+        // Pollution source markers (triangles — factories/power plants, diamonds — highways)
+        for src in pollution_sources {
+            let (icon, size) = match src.source_type.as_str() {
+                "power_plant" => ("⚡", 16),
+                "factory" | "industrial" => ("🏭", 14),
+                "highway" => ("🛣", 12),
+                _ => ("⚠", 12),
+            };
+            let cpf_info = cpf_results.iter()
+                .find(|r| r.source.name == src.name)
+                .map(|r| format!("<br>CPF: {:.0}%", r.cpf_score * 100.0))
+                .unwrap_or_default();
+            let s = size + 4;
+            let h = s / 2;
+            markers_js.push_str(&format!(
+                "L.marker([{},{}], {{icon: L.divIcon({{className:'src-icon', html:'<div style=\"font-size:{}px\">{}</div>', iconSize:[{},{}], iconAnchor:[{},{}]}}) }}).addTo(map).bindPopup('<b>{}</b><br>{} ({:.0}km){}');\n",
+                src.lat, src.lon, size, icon, s, s, h, h,
+                html_escape(&src.name),
+                src.source_type.replace('_', " "),
+                src.distance_km,
+                cpf_info,
+            ));
         }
 
         // Front polylines with arrow markers
@@ -2098,6 +2142,44 @@ pub mod front {
             format!("<ul>{}</ul>", insights.join("\n"))
         };
 
+        // CPF section (if blame data available)
+        let cpf_section = if cpf_results.is_empty() {
+            String::new()
+        } else {
+            let mut rows = String::new();
+            for r in cpf_results.iter().filter(|r| r.hours_in_sector > 0).take(15) {
+                let css = if r.cpf_score >= 0.6 { "unhealthy" }
+                    else if r.cpf_score >= 0.3 { "moderate" }
+                    else { "" };
+                let icon = match r.source.source_type.as_str() {
+                    "power_plant" => "⚡",
+                    "factory" | "industrial" => "🏭",
+                    "highway" => "🛣",
+                    _ => "📍",
+                };
+                rows.push_str(&format!(
+                    "<tr class=\"{}\"><td>{} {}</td><td>{}</td><td>{:.0}km</td><td><b>{:.0}%</b></td><td>{:.1}</td><td>{:.1}</td></tr>\n",
+                    css, icon, html_escape(&r.source.name),
+                    r.source.source_type.replace('_', " "),
+                    r.source.distance_km,
+                    r.cpf_score * 100.0,
+                    r.avg_pm25_in_sector,
+                    r.avg_pm25_other,
+                ));
+            }
+            format!(r#"
+        <h2>Source Attribution (CPF)</h2>
+        <p>Conditional Probability Function — likelihood that high PM2.5 occurs when wind blows from each source direction.</p>
+        <table>
+            <thead>
+                <tr><th>Source</th><th>Type</th><th>Distance</th><th>CPF</th><th>Avg PM2.5 (from src)</th><th>Background</th></tr>
+            </thead>
+            <tbody>
+                {}
+            </tbody>
+        </table>"#, rows)
+        };
+
         format!(r##"<!DOCTYPE html>
 <html>
 <head>
@@ -2128,6 +2210,7 @@ pub mod front {
         .very-unhealthy td {{ color: #9c27b0; }}
         .hazardous td {{ color: #795548; }}
         .arrow-icon {{ background: none !important; border: none !important; }}
+        .src-icon {{ background: none !important; border: none !important; }}
         .node-label {{ background: rgba(255,255,255,0.8) !important; border: none !important; box-shadow: none !important; font-size: 11px; font-weight: 600; padding: 1px 4px !important; }}
         .methodology {{ font-size: 13px; color: #555; line-height: 1.6; }}
         .methodology p {{ margin: 6px 0; }}
@@ -2171,6 +2254,8 @@ pub mod front {
                 {fronts_rows}
             </tbody>
         </table>
+
+        {cpf_section}
 
         <h2>Methodology</h2>
         <div class="methodology">
@@ -2221,6 +2306,7 @@ pub mod front {
             insights_html = insights_html,
             sensor_count = sensor_count,
             node_count = node_count,
+            cpf_section = cpf_section,
         )
     }
 

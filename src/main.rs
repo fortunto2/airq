@@ -499,15 +499,19 @@ async fn main() -> Result<()> {
             return Ok(());
         }
 
-        // Fetch Open-Meteo + wind + sensors in parallel
-        let (target_history, wind, dust_sensors) = tokio::join!(
+        // Fetch Open-Meteo + wind + sensors + pollution sources in parallel
+        let (target_history, wind, wind_history, dust_sensors, pollution_sources) = tokio::join!(
             fetch_history(lat, lon, *days),
             airq::fetch_wind(lat, lon),
-            airq::fetch_nearby_dust_sensors(lat, lon, *radius)
+            airq::fetch_wind_history(lat, lon, *days),
+            airq::fetch_nearby_dust_sensors(lat, lon, *radius),
+            airq::fetch_pollution_sources(lat, lon, 20.0) // 20km for sources
         );
         let target_history = target_history?;
         let wind = wind.ok();
+        let wind_history = wind_history.ok();
         let dust_sensors = dust_sensors.unwrap_or_default();
+        let pollution_sources = pollution_sources.unwrap_or_default();
 
         let mut neighbor_data = Vec::new();
         for chunk in nearby.chunks(5) {
@@ -639,7 +643,39 @@ async fn main() -> Result<()> {
             }
         }
 
-        let html = airq::front::generate_report_with_sensor_values(
+        // Calculate CPF for pollution sources (if wind history available)
+        let cpf_results = if let Some(ref wh) = wind_history {
+            // Align PM2.5 + wind
+            let mut pm_vals = Vec::new();
+            let mut w_dirs = Vec::new();
+            let mut w_spds = Vec::new();
+            let wind_map: std::collections::HashMap<&str, (f64, f64)> = wh.hourly.time.iter()
+                .enumerate()
+                .filter_map(|(i, t)| {
+                    let dir = wh.hourly.wind_direction_10m.get(i).and_then(|v| *v)?;
+                    let spd = wh.hourly.wind_speed_10m.get(i).and_then(|v| *v)?;
+                    Some((t.as_str(), (dir, spd)))
+                })
+                .collect();
+            for (i, t) in target_history.hourly.time.iter().enumerate() {
+                if let Some(pm) = target_history.hourly.pm2_5.get(i).and_then(|v| *v) {
+                    if let Some(&(dir, spd)) = wind_map.get(t.as_str()) {
+                        pm_vals.push(pm);
+                        w_dirs.push(dir);
+                        w_spds.push(spd);
+                    }
+                }
+            }
+            if !pm_vals.is_empty() && !pollution_sources.is_empty() {
+                airq::front::calculate_cpf(lat, lon, &pollution_sources, &pm_vals, &w_dirs, &w_spds, 0.75)
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        let html = airq::front::generate_report_full(
             &resolved_name,
             lat, lon,
             &analysis,
@@ -647,6 +683,8 @@ async fn main() -> Result<()> {
             *days,
             &dust_sensors,
             &sensor_values,
+            &pollution_sources,
+            &cpf_results,
         );
 
         std::fs::write(output, &html)?;
