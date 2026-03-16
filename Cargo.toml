@@ -12,7 +12,7 @@ keywords = ["air-quality", "cli", "open-meteo", "sensor-community"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-airq-core = { path = "airq-core" }
+airq-core = { version = "1.3.0", path = "airq-core" }
 anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"] }
 colored = "3.1.1"
