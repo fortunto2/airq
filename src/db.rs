@@ -7,12 +7,13 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use utoipa::ToSchema;
 
 // ---------------------------------------------------------------------------
 // Domain structs
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Reading {
     pub ts: i64,
     pub sensor: i64,
@@ -25,7 +26,7 @@ pub struct Reading {
     pub pressure: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Sensor {
     pub id: i64,
     pub lat: Option<f64>,
@@ -34,7 +35,7 @@ pub struct Sensor {
     pub source: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct City {
     pub id: i64,
     pub name: String,
@@ -43,7 +44,7 @@ pub struct City {
     pub radius: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Event {
     pub id: Option<i64>,
     pub ts: i64,

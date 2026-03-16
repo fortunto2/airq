@@ -84,6 +84,13 @@ pub async fn run_serve(config: ServeConfig) -> Result<()> {
 
 pub fn build_router(db: Arc<Db>) -> axum::Router {
     use axum::routing::{get, post};
+    use axum::Router;
+    use utoipa::OpenApi;
+    use utoipa_swagger_ui::SwaggerUi;
+
+    let swagger: Router = SwaggerUi::new("/swagger/{_:.*}")
+        .url("/api-doc/openapi.json", crate::api::ApiDoc::openapi())
+        .into();
 
     axum::Router::new()
         .route("/api/push", post(crate::push::push_handler))
@@ -94,6 +101,7 @@ pub fn build_router(db: Arc<Db>) -> axum::Router {
         .route("/api/cities", get(crate::api::cities_handler))
         .route("/", get(crate::web::dashboard_handler))
         .with_state(db)
+        .merge(swagger)
 }
 
 async fn shutdown_signal(tx: watch::Sender<bool>) {

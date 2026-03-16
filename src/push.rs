@@ -6,8 +6,10 @@ use crate::db::{Db, Reading};
 use axum::{extract::State, http::StatusCode, Json};
 use serde::Deserialize;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize)]
+/// ESP8266/ESP32 push payload (Sensor.Community format)
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PushPayload {
     pub sensordatavalues: Vec<SensorDataValue>,
     #[serde(default)]
@@ -16,13 +18,16 @@ pub struct PushPayload {
     pub software_version: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+/// Single sensor data value
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SensorDataValue {
+    /// Value type: SDS_P1 (PM10), SDS_P2 (PM2.5), BME280_temperature, etc.
     pub value_type: String,
+    /// String-encoded numeric value
     pub value: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, ToSchema)]
 pub struct PushResponse {
     pub status: &'static str,
     pub sensor_id: i64,
@@ -60,7 +65,16 @@ pub fn parse_push(payload: &PushPayload) -> (i64, Option<f64>, Option<f64>, Opti
     (sensor_id, pm25, pm10, temp, humidity, pressure)
 }
 
-/// Axum handler for POST /api/push
+/// Push sensor data from ESP8266/ESP32 (Sensor.Community JSON format)
+#[utoipa::path(
+    post, path = "/api/push",
+    tag = "push",
+    request_body = PushPayload,
+    responses(
+        (status = 200, description = "Data accepted", body = PushResponse),
+        (status = 400, description = "Missing esp8266id"),
+    )
+)]
 pub async fn push_handler(
     State(db): State<Arc<Db>>,
     Json(payload): Json<PushPayload>,

@@ -1,25 +1,61 @@
 //! REST API handlers for airq serve.
 
-use crate::db::Db;
+use crate::db::{City, Db, Event, Reading, Sensor};
+use crate::push::{PushPayload, PushResponse};
 use axum::extract::{Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, OpenApi, ToSchema};
 
-#[derive(Debug, Deserialize)]
+// ---------------------------------------------------------------------------
+// OpenAPI spec
+// ---------------------------------------------------------------------------
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Air Signal API",
+        version = "1.0.0",
+        description = "Air quality monitoring — readings, sensors, events, cities. Push endpoint for ESP8266/ESP32 sensors."
+    ),
+    paths(status_handler, readings_handler, sensors_handler, events_handler, cities_handler, crate::push::push_handler),
+    components(schemas(StatusResponse, Reading, Sensor, City, Event, PushPayload, PushResponse, crate::push::SensorDataValue)),
+    tags(
+        (name = "status", description = "Server status"),
+        (name = "data", description = "Sensor readings and events"),
+        (name = "push", description = "ESP8266/ESP32 data ingestion"),
+    )
+)]
+pub struct ApiDoc;
+
+// ---------------------------------------------------------------------------
+// Query params
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ReadingsQuery {
+    /// Sensor ID
     pub sensor: Option<i64>,
+    /// Unix timestamp (start)
     pub from: Option<i64>,
+    /// Unix timestamp (end)
     pub to: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct CityQuery {
+    /// City ID
     pub city: Option<i64>,
+    /// Unix timestamp (start)
     pub from: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct StatusResponse {
     pub uptime_secs: u64,
     pub cities: usize,
@@ -34,6 +70,16 @@ pub fn init_start_time() {
     START_TIME.get_or_init(std::time::Instant::now);
 }
 
+// ---------------------------------------------------------------------------
+// Handlers
+// ---------------------------------------------------------------------------
+
+/// Server status: uptime, counts, last poll timestamp
+#[utoipa::path(
+    get, path = "/api/status",
+    tag = "status",
+    responses((status = 200, description = "Server status", body = StatusResponse))
+)]
 pub async fn status_handler(
     State(db): State<Arc<Db>>,
 ) -> Json<StatusResponse> {
@@ -52,10 +98,17 @@ pub async fn status_handler(
     })
 }
 
+/// Query sensor readings by sensor ID and time range
+#[utoipa::path(
+    get, path = "/api/readings",
+    tag = "data",
+    params(ReadingsQuery),
+    responses((status = 200, description = "List of readings", body = Vec<Reading>))
+)]
 pub async fn readings_handler(
     State(db): State<Arc<Db>>,
     Query(q): Query<ReadingsQuery>,
-) -> Json<Vec<crate::db::Reading>> {
+) -> Json<Vec<Reading>> {
     let sensor = q.sensor.unwrap_or(0);
     let from = q.from.unwrap_or(0);
     let to = q.to.unwrap_or(i64::MAX);
@@ -63,10 +116,17 @@ pub async fn readings_handler(
     Json(readings)
 }
 
+/// List sensors, optionally filtered by city
+#[utoipa::path(
+    get, path = "/api/sensors",
+    tag = "data",
+    params(CityQuery),
+    responses((status = 200, description = "List of sensors", body = Vec<Sensor>))
+)]
 pub async fn sensors_handler(
     State(db): State<Arc<Db>>,
     Query(q): Query<CityQuery>,
-) -> Json<Vec<crate::db::Sensor>> {
+) -> Json<Vec<Sensor>> {
     if let Some(city_id) = q.city {
         Json(db.sensors_for_city(city_id).unwrap_or_default())
     } else {
@@ -74,17 +134,30 @@ pub async fn sensors_handler(
     }
 }
 
+/// Query detected pollution events by city and time
+#[utoipa::path(
+    get, path = "/api/events",
+    tag = "data",
+    params(CityQuery),
+    responses((status = 200, description = "List of events", body = Vec<Event>))
+)]
 pub async fn events_handler(
     State(db): State<Arc<Db>>,
     Query(q): Query<CityQuery>,
-) -> Json<Vec<crate::db::Event>> {
+) -> Json<Vec<Event>> {
     let city_id = q.city.unwrap_or(0);
     let from = q.from.unwrap_or(0);
     Json(db.query_events(city_id, from).unwrap_or_default())
 }
 
+/// List all configured cities
+#[utoipa::path(
+    get, path = "/api/cities",
+    tag = "status",
+    responses((status = 200, description = "List of cities", body = Vec<City>))
+)]
 pub async fn cities_handler(
     State(db): State<Arc<Db>>,
-) -> Json<Vec<crate::db::City>> {
+) -> Json<Vec<City>> {
     Json(db.all_cities().unwrap_or_default())
 }
