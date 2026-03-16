@@ -3195,4 +3195,80 @@ pub mod wasm {
     pub fn wasm_progress_bar(score: u32) -> String {
         progress_bar(score)
     }
+
+    // -- Matrix operations --
+
+    /// Push a row into matrix JSON, return updated matrix JSON.
+    /// row_json: `[80, 70, 90, ...]` (11 scores)
+    #[wasm_bindgen]
+    pub fn wasm_matrix_push(matrix_json: &str, ts: f64, row_json: &str) -> String {
+        let mut m: matrix::SignalMatrix = match serde_json::from_str(matrix_json) {
+            Ok(m) => m,
+            Err(_) => matrix::SignalMatrix::new(),
+        };
+        let scores: [f64; matrix::N_SIGNALS] = match serde_json::from_str(row_json) {
+            Ok(s) => s,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        m.push(ts, matrix::SignalRow { scores });
+        serde_json::to_string(&m).unwrap_or_default()
+    }
+
+    /// Latest row as SignalComfort JSON.
+    #[wasm_bindgen]
+    pub fn wasm_matrix_latest(json: &str) -> String {
+        let m: matrix::SignalMatrix = match serde_json::from_str(json) {
+            Ok(m) => m,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        match m.to_comfort() {
+            Some(c) => serde_json::to_string(&c).unwrap_or_default(),
+            None => serde_json::json!({"error": "empty matrix"}).to_string(),
+        }
+    }
+
+    /// Sub-matrix for last N hours.
+    #[wasm_bindgen]
+    pub fn wasm_matrix_slice(json: &str, hours: u32) -> String {
+        let m: matrix::SignalMatrix = match serde_json::from_str(json) {
+            Ok(m) => m,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        serde_json::to_string(&m.last_hours(hours)).unwrap_or_default()
+    }
+
+    /// ML feature vector (35 dimensions).
+    #[wasm_bindgen]
+    pub fn wasm_matrix_ml_vector(json: &str) -> String {
+        let m: matrix::SignalMatrix = match serde_json::from_str(json) {
+            Ok(m) => m,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        match m.to_ml_vector() {
+            Some(v) => serde_json::to_string(&v).unwrap_or_default(),
+            None => serde_json::json!({"error": "empty matrix"}).to_string(),
+        }
+    }
+
+    /// Per-column summary statistics.
+    #[wasm_bindgen]
+    pub fn wasm_matrix_summary(json: &str) -> String {
+        let m: matrix::SignalMatrix = match serde_json::from_str(json) {
+            Ok(m) => m,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+        serde_json::to_string(&m.summary()).unwrap_or_default()
+    }
+
+    /// Signal column names from macro.
+    #[wasm_bindgen]
+    pub fn wasm_signal_names() -> String {
+        serde_json::to_string(&matrix::SIGNAL_NAMES).unwrap_or_default()
+    }
+
+    /// Signal weights from macro.
+    #[wasm_bindgen]
+    pub fn wasm_signal_weights() -> String {
+        serde_json::to_string(&matrix::SIGNAL_WEIGHTS).unwrap_or_default()
+    }
 }
