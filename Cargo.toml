@@ -3,7 +3,7 @@ members = [".", "airq-core", "airq-dashboard"]
 
 [package]
 name = "airq"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
 description = "CLI air quality checker: 14-signal comfort, event detection, pollution fronts, source attribution, sensor/model merge"
 license = "MIT"
