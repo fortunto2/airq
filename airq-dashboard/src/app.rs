@@ -564,8 +564,9 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
         let lon = sr.sensor.lon?;
         let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(0.0);
         let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(0.0);
+        let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(0.0);
         let source = sr.sensor.source.as_deref().unwrap_or("unknown");
-        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},id:{},source:'{source}'}}", sr.sensor.id))
+        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},hum:{hum:.0},id:{},source:'{source}'}}", sr.sensor.id))
     }).collect();
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
@@ -586,7 +587,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
     let wind_dir = city_data.wind_dir.unwrap_or(0.0);
 
     // Run map JS on every render (props change = re-render = map updates)
-    let js = format!(r#"
+    let js = format!(r##"
         (async function() {{
             // --- Load Leaflet CSS ---
             if (!document.getElementById('leaflet-css')) {{
@@ -646,22 +647,59 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
             L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
 
-            // --- Sensor markers with proportional size and pulsing ---
+            // --- Sensor markers: aircms-style with PM value, color, wind arrow, humidity ring ---
+            // 5-level color scale
+            function pmColor(v) {{
+                if (v <= 12) return '#4ade80';   // Excellent (green)
+                if (v <= 25) return '#86efac';   // Good (light green)
+                if (v <= 35) return '#facc15';   // Satisfactory (yellow)
+                if (v <= 55) return '#fb923c';   // Unsatisfactory (orange)
+                return '#dc2626';                // Bad (dark red)
+            }}
+            function pmBg(v) {{
+                if (v <= 12) return 'rgba(74,222,128,0.15)';
+                if (v <= 25) return 'rgba(134,239,172,0.15)';
+                if (v <= 35) return 'rgba(250,204,21,0.15)';
+                if (v <= 55) return 'rgba(251,146,60,0.15)';
+                return 'rgba(220,38,38,0.2)';
+            }}
+            // Wind arrow SVG (rotated by windDir)
+            var windDeg = {wind_dir};
+            function windArrowSvg() {{
+                return '<svg width="12" height="12" viewBox="0 0 12 12" style="transform:rotate('+windDeg+'deg);opacity:0.7;position:absolute;right:-14px;top:50%;margin-top:-6px">'
+                    + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="#60a5fa"/></svg>';
+            }}
+
             sensors.forEach(function(s) {{
-                var color = s.pm25<=12?'#4ade80':s.pm25<=35?'#facc15':s.pm25<=55?'#fb923c':'#f87171';
-                var radius = Math.max(6, Math.min(14, 6 + (s.pm25 / 55.0) * 8));
-                var marker = L.circleMarker([s.lat, s.lon], {{
-                    radius: radius,
-                    fillColor: color,
-                    fillOpacity: 0.85,
-                    color: '#333',
-                    weight: 1,
-                    className: ''
+                var col = pmColor(s.pm25);
+                var bg = pmBg(s.pm25);
+                var val = Math.round(s.pm25);
+                var size = val > 99 ? 38 : val > 9 ? 32 : 28;
+                var fontSize = val > 99 ? 11 : 12;
+                var border = s.hum > 70 ? '2px solid #60a5fa' : '2px solid ' + col;
+
+                var html = '<div style="'
+                    + 'width:'+size+'px;height:'+size+'px;border-radius:50%;'
+                    + 'background:'+bg+';border:'+border+';'
+                    + 'display:flex;align-items:center;justify-content:center;'
+                    + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
+                    + 'font-family:system-ui;position:relative;'
+                    + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
+                    + '">' + val + windArrowSvg() + '</div>';
+
+                var icon = L.divIcon({{
+                    className: '',
+                    html: html,
+                    iconSize: [size, size],
+                    iconAnchor: [size/2, size/2]
                 }});
+
+                var marker = L.marker([s.lat, s.lon], {{icon: icon}});
                 var popupHtml = '<div style="font-family:system-ui;font-size:13px;line-height:1.6">'
                     + '<b style="font-size:14px">Sensor #' + s.id + '</b><br>'
-                    + '<span style="color:' + color + ';font-weight:700">PM2.5: ' + s.pm25 + '</span> \u00b5g/m\u00b3<br>'
+                    + '<span style="color:' + col + ';font-weight:700">PM2.5: ' + s.pm25 + '</span> \u00b5g/m\u00b3<br>'
                     + 'PM10: ' + s.pm10 + ' \u00b5g/m\u00b3<br>'
+                    + (s.hum > 0 ? 'Humidity: ' + s.hum + '%' + (s.hum > 70 ? ' (high)' : '') + '<br>' : '')
                     + '<span style="color:#888;font-size:11px">' + s.source + '</span>'
                     + '</div>';
                 marker.bindPopup(popupHtml);
@@ -720,7 +758,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
 
             setTimeout(function() {{ map.invalidateSize(); }}, 200);
         }})();
-    "#);
+    "##);
     // Spawn eval so it runs after DOM is ready
     spawn(async move {
         document::eval(&js);
