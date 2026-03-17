@@ -583,7 +583,8 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
     let sensors_json: Vec<String> = snap.sensors.iter().filter_map(|sr| {
         let lat = sr.sensor.lat?;
         let lon = sr.sensor.lon?;
-        let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(0.0);
+        // Skip sensors without PM data (BME280-only = temp/humidity only)
+        let pm25 = sr.latest.as_ref().and_then(|r| r.pm25)?;
         let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(0.0);
         let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(0.0);
         let wdir = sr.wind_dir.unwrap_or(0.0);
