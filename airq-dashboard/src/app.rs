@@ -691,8 +691,12 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             // Wind arrow SVG per sensor (rotated by sensor's wind direction)
             function windArrowSvg(deg, spd) {{
                 if (spd < 0.5) return '';
-                return '<svg width="12" height="12" viewBox="0 0 12 12" style="transform:rotate('+deg+'deg);opacity:0.7;position:absolute;right:-14px;top:50%;margin-top:-6px">'
-                    + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="#60a5fa"/></svg>';
+                // Size 10-20px based on wind speed (0-40 km/h range)
+                var sz = Math.max(10, Math.min(20, 10 + (spd / 40.0) * 10));
+                var op = Math.max(0.4, Math.min(0.9, 0.4 + (spd / 30.0) * 0.5));
+                var col = spd > 25 ? '#f87171' : spd > 15 ? '#facc15' : '#60a5fa';
+                return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12" style="transform:rotate('+deg+'deg);opacity:'+op+';position:absolute;right:-'+(sz+2)+'px;top:50%;margin-top:-'+(sz/2)+'px">'
+                    + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="'+col+'"/></svg>';
             }}
 
             // --- Cluster group for sensor markers ---
