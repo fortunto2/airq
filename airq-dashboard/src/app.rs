@@ -666,7 +666,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             var el = document.getElementById('airq-map');
             if (!el) return;
             if (window._airqMap) {{ window._airqMap.remove(); window._airqMap = null; }}
-            var map = L.map('airq-map', {{zoomControl: false}}).setView([{center_lat}, {center_lon}], 11);
+            var map = L.map('airq-map', {{zoomControl: false, attributionControl: false}}).setView([{center_lat}, {center_lon}], 11);
             window._airqMap = map;
 
             // --- Base layers ---
@@ -704,25 +704,8 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 if (v <= 55) return 'rgba(251,146,60,0.15)';
                 return 'rgba(220,38,38,0.2)';
             }}
-            // Wind barbs as toggleable overlay layer
-            var windLayer = L.layerGroup();
-            sensors.forEach(function(s) {{
-                if (s.wspd < 0.5) return;
-                var sz = Math.max(14, Math.min(24, 14 + (s.wspd / 30.0) * 10));
-                var col = s.wspd > 25 ? '#f87171' : s.wspd > 15 ? '#facc15' : '#60a5fa';
-                var barbIcon = L.divIcon({{
-                    className: '',
-                    html: '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12" style="transform:rotate('+s.wdir+'deg)">'
-                        + '<path d="M6 1 L8 9 L6 7 L4 9 Z" fill="'+col+'" opacity="0.7"/></svg>',
-                    iconSize: [sz, sz],
-                    iconAnchor: [sz/2, sz/2]
-                }});
-                L.marker([s.lat, s.lon], {{icon: barbIcon, interactive: false}}).addTo(windLayer);
-            }});
-            windLayer.addTo(map);
-
             // --- Layer control ---
-            var overlayMaps = {{'PM2.5 Heatmap': heatLayer, 'Wind': windLayer}};
+            var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
             L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
 
             // --- Cluster group for sensor markers ---
@@ -742,15 +725,23 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     var val = Math.round(avg);
                     return L.divIcon({{
                         className: '',
-                        html: '<div style="width:42px;height:42px;border-radius:50%;background:'+bg+';border:2px solid '+col+';display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui;box-shadow:0 2px 6px rgba(0,0,0,0.5)">'
-                            + '<div style="font-size:13px;font-weight:700;color:'+col+';line-height:1">'+val+'</div>'
-                            + '<div style="font-size:9px;color:'+col+';opacity:0.7">'+n+'</div>'
+                        html: '<div style="width:44px;height:44px;border-radius:50%;background:'+bg+';border:2px solid '+col+';display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui;box-shadow:0 2px 6px rgba(0,0,0,0.5)">'
+                            + '<div style="font-size:14px;font-weight:700;color:'+col+';line-height:1">'+avg.toFixed(1)+'</div>'
+                            + '<div style="font-size:8px;color:#888;margin-top:1px">'+n+' sens</div>'
                             + '</div>',
                         iconSize: [42, 42],
                         iconAnchor: [21, 21]
                     }});
                 }}
             }});
+
+            // Wind arrow helper for markers
+            function windSvg(deg, spd) {{
+                if (spd < 0.5) return '';
+                var c = spd > 25 ? '#f87171' : spd > 15 ? '#facc15' : '#60a5fa';
+                return '<svg width="10" height="10" viewBox="0 0 12 12" style="transform:rotate('+deg+'deg);position:absolute;right:-11px;top:50%;margin-top:-5px;opacity:0.65">'
+                    + '<path d="M6 1 L8 9 L6 7 L4 9 Z" fill="'+c+'"/></svg>';
+            }}
 
             sensors.forEach(function(s) {{
                 var col = pmColor(s.pm25);
@@ -767,7 +758,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
                     + 'font-family:system-ui;position:relative;'
                     + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
-                    + '">' + val + '</div>';
+                    + '">' + val + windSvg(s.wdir, s.wspd) + '</div>';
 
                 var icon = L.divIcon({{
                     className: '',
