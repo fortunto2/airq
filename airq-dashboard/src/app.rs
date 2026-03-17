@@ -618,6 +618,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
     let city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("Air Signal");
     let wind_speed = city_data.wind_kmh.unwrap_or(0.0) as f32;
     let wind_dir = city_data.wind_dir.unwrap_or(0.0) as f32;
+    let wind_loaded = if city_data.loaded { 1 } else { 0 };
 
     // Run map JS on every render (props change = re-render = map updates)
     let js = format!(r##"
@@ -849,6 +850,8 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             // --- Wind Rose Compass (bottom-left) ---
             var windSpeed = {wind_speed};
             var windDir = {wind_dir};
+            var windLoaded = {wind_loaded};
+            if (!windLoaded) windSpeed = 0; // don't show stale compass
             var windRoseHtml = '<div style="'
                 + 'width:80px;height:80px;border-radius:50%;'
                 + 'background:rgba(10,10,10,0.85);border:1px solid #333;'
