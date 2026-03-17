@@ -230,6 +230,14 @@ pub fn App() -> Element {
                                                     onclick: move |_| {
                                                         let city_name = c.clone();
                                                         active_city.set(city_name.clone());
+
+                                                        // Instant: rebuild snapshot from existing DB
+                                                        if let Some(ref db_handle) = (db)() {
+                                                            let mut snap = state::build_snapshot(db_handle, Some(&city_name));
+                                                            snapshot.set(snap);
+                                                        }
+
+                                                        // Background: fetch fresh data + start collector if needed
                                                         loading_city.set(Some(city_name.clone()));
                                                         let radius = (radius_input)();
                                                         let interval = (interval_input)();
@@ -421,12 +429,23 @@ async fn start_collector(
     radius: f64,
     interval: u64,
 ) -> Result<(Arc<Db>, MonitorSnapshot, tokio::sync::watch::Sender<bool>, f64, f64), String> {
-    let (lat, lon, resolved) = airq::geocode(city).await
-        .map_err(|e| format!("Geocode failed: {e}"))?;
-    tracing::info!("Resolved: {} ({:.2}, {:.2})", resolved, lat, lon);
-
     let db_handle = state::open_db()
         .map_err(|e| format!("DB error: {e}"))?;
+
+    // Try cached coords from DB first, geocode only if unknown city
+    let (lat, lon) = {
+        let cities = db_handle.all_cities().unwrap_or_default();
+        if let Some(c) = cities.iter().find(|c| c.name == city) {
+            tracing::info!("Cached: {} ({:.2}, {:.2})", city, c.lat, c.lon);
+            (c.lat, c.lon)
+        } else {
+            let (lat, lon, resolved) = airq::geocode(city).await
+                .map_err(|e| format!("Geocode failed: {e}"))?;
+            tracing::info!("Resolved: {} ({:.2}, {:.2})", resolved, lat, lon);
+            (lat, lon)
+        }
+    };
+
     let _ = db_handle.upsert_city(city, lat, lon, radius);
 
     // Do an immediate fetch before starting the loop
