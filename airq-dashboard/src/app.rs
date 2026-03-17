@@ -580,17 +580,22 @@ fn DashboardView(snap: MonitorSnapshot, is_running: bool, city_data: CityData) -
 /// Map: Leaflet via document::eval() (scripts don't run via innerHTML)
 #[component]
 fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>>>) -> Element {
+    let mut map_metric: Signal<String> = use_signal(|| "pm25".to_string());
+    let metric = (map_metric)();
+
     let sensors_json: Vec<String> = snap.sensors.iter().filter_map(|sr| {
         let lat = sr.sensor.lat?;
         let lon = sr.sensor.lon?;
-        // Skip sensors without PM data (BME280-only = temp/humidity only)
-        let pm25 = sr.latest.as_ref().and_then(|r| r.pm25)?;
-        let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(0.0);
-        let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(0.0);
+        let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(-1.0);
+        let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(-1.0);
+        let temp = sr.latest.as_ref().and_then(|r| r.temp).unwrap_or(-999.0);
+        let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(-1.0);
+        // Skip sensors with no useful data at all
+        if pm25 < 0.0 && pm10 < 0.0 && temp < -100.0 && hum < 0.0 { return None; }
         let wdir = sr.wind_dir.unwrap_or(0.0);
         let wspd = sr.wind_speed.unwrap_or(0.0);
         let source = sr.sensor.source.as_deref().unwrap_or("unknown");
-        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},hum:{hum:.0},wdir:{wdir:.0},wspd:{wspd:.1},id:{},source:'{source}'}}", sr.sensor.id))
+        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},temp:{temp:.1},hum:{hum:.0},wdir:{wdir:.0},wspd:{wspd:.1},id:{},source:'{source}'}}", sr.sensor.id))
     }).collect();
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
@@ -689,21 +694,52 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }});
             var heatLayer = L.heatLayer(heatPoints, {{radius: 25, blur: 15, maxZoom: 17, gradient: {{0.2:'#4ade80', 0.5:'#facc15', 0.7:'#fb923c', 1.0:'#f87171'}}}});
 
-            // --- Sensor markers: aircms-style with PM value, color, wind arrow, humidity ring ---
-            // 5-level color scale
+            // --- Metric-aware color + value functions ---
+            var METRIC = '{metric}';
+            function getVal(s) {{
+                if (METRIC === 'pm25') return s.pm25;
+                if (METRIC === 'pm10') return s.pm10;
+                if (METRIC === 'temp') return s.temp;
+                if (METRIC === 'hum') return s.hum;
+                return s.pm25;
+            }}
+            function hasVal(s) {{
+                var v = getVal(s);
+                return v !== undefined && v > -1 && v < 999;
+            }}
             function pmColor(v) {{
-                if (v <= 12) return '#4ade80';   // Excellent (green)
-                if (v <= 25) return '#86efac';   // Good (light green)
-                if (v <= 35) return '#facc15';   // Satisfactory (yellow)
-                if (v <= 55) return '#fb923c';   // Unsatisfactory (orange)
-                return '#dc2626';                // Bad (dark red)
+                if (METRIC === 'temp') {{
+                    if (v < 0) return '#60a5fa';     // freezing blue
+                    if (v < 15) return '#86efac';    // cool green
+                    if (v < 25) return '#4ade80';    // comfortable green
+                    if (v < 35) return '#facc15';    // warm yellow
+                    return '#f87171';                // hot red
+                }}
+                if (METRIC === 'hum') {{
+                    if (v < 30) return '#facc15';    // dry yellow
+                    if (v < 60) return '#4ade80';    // optimal green
+                    if (v < 80) return '#86efac';    // humid light green
+                    return '#60a5fa';                // very humid blue
+                }}
+                // PM2.5 / PM10
+                var lim = METRIC === 'pm10' ? [25, 50, 90, 180] : [12, 25, 35, 55];
+                if (v <= lim[0]) return '#4ade80';
+                if (v <= lim[1]) return '#86efac';
+                if (v <= lim[2]) return '#facc15';
+                if (v <= lim[3]) return '#fb923c';
+                return '#dc2626';
             }}
             function pmBg(v) {{
-                if (v <= 12) return 'rgba(74,222,128,0.15)';
-                if (v <= 25) return 'rgba(134,239,172,0.15)';
-                if (v <= 35) return 'rgba(250,204,21,0.15)';
-                if (v <= 55) return 'rgba(251,146,60,0.15)';
-                return 'rgba(220,38,38,0.2)';
+                var c = pmColor(v);
+                return c.replace(')', ',0.15)').replace('rgb', 'rgba').replace('#4ade80','rgba(74,222,128,0.15)')
+                    .replace('#86efac','rgba(134,239,172,0.15)').replace('#facc15','rgba(250,204,21,0.15)')
+                    .replace('#fb923c','rgba(251,146,60,0.15)').replace('#dc2626','rgba(220,38,38,0.2)')
+                    .replace('#60a5fa','rgba(96,165,250,0.15)').replace('#f87171','rgba(248,113,113,0.15)');
+            }}
+            function fmtVal(v) {{
+                if (METRIC === 'temp') return v.toFixed(0) + '\u00b0';
+                if (METRIC === 'hum') return v.toFixed(0) + '%';
+                return v > 99 ? Math.round(v) : v.toFixed(1);
             }}
             // --- Layer control ---
             var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
@@ -718,7 +754,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 iconCreateFunction: function(cluster) {{
                     var markers = cluster.getAllChildMarkers();
                     var total = 0, count = 0;
-                    markers.forEach(function(m) {{ if (m._pm25 !== undefined && m._pm25 > 0) {{ total += m._pm25; count++; }} }});
+                    markers.forEach(function(m) {{ if (m._val !== undefined && m._val > -1) {{ total += m._val; count++; }} }});
                     var avg = count > 0 ? total / count : 0;
                     var col = pmColor(avg);
                     var bg = pmBg(avg);
@@ -727,7 +763,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     return L.divIcon({{
                         className: '',
                         html: '<div style="width:44px;height:44px;border-radius:50%;background:'+bg+';border:2px solid '+col+';display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui;box-shadow:0 2px 6px rgba(0,0,0,0.5)">'
-                            + '<div style="font-size:14px;font-weight:700;color:'+col+';line-height:1">'+avg.toFixed(1)+'</div>'
+                            + '<div style="font-size:14px;font-weight:700;color:'+col+';line-height:1">'+fmtVal(avg)+'</div>'
                             + '<div style="font-size:8px;color:#888;margin-top:1px">'+n+' sens</div>'
                             + '</div>',
                         iconSize: [42, 42],
@@ -745,29 +781,28 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }}
 
             sensors.forEach(function(s) {{
-                var hasData = s.pm25 > 0;
-                var val = Math.round(s.pm25);
-                var html, size;
+                if (!hasVal(s)) return; // skip sensors without selected metric
 
-                if (hasData) {{
-                    var col = pmColor(s.pm25);
-                    var bg = pmBg(s.pm25);
-                    size = val > 99 ? 38 : val > 9 ? 32 : 28;
-                    var fontSize = val > 99 ? 11 : 12;
-                    var border = s.hum > 70 ? '2px solid #60a5fa' : '2px solid ' + col;
-                    html = '<div style="'
-                        + 'width:'+size+'px;height:'+size+'px;border-radius:50%;'
-                        + 'background:'+bg+';border:'+border+';'
-                        + 'display:flex;align-items:center;justify-content:center;'
-                        + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
-                        + 'font-family:system-ui;position:relative;'
-                        + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
-                        + '">' + val + windSvg(s.wdir, s.wspd) + '</div>';
-                }} else {{
-                    // No PM2.5 data — small gray dot
-                    size = 10;
-                    html = '<div style="width:10px;height:10px;border-radius:50%;background:#333;border:1px solid #555;opacity:0.5"></div>';
-                }}
+                var v = getVal(s);
+                // Filter outliers (broken sensors)
+                if (METRIC !== 'temp' && v > 500) return;
+
+                var col = pmColor(v);
+                var bg = pmBg(v);
+                var label = fmtVal(v);
+                var labelLen = label.length;
+                var size = labelLen > 4 ? 38 : labelLen > 2 ? 32 : 28;
+                var fontSize = labelLen > 4 ? 10 : labelLen > 2 ? 11 : 12;
+                var border = s.hum > 70 ? '2px solid #60a5fa' : '2px solid ' + col;
+
+                var html = '<div style="'
+                    + 'width:'+size+'px;height:'+size+'px;border-radius:50%;'
+                    + 'background:'+bg+';border:'+border+';'
+                    + 'display:flex;align-items:center;justify-content:center;'
+                    + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
+                    + 'font-family:system-ui;position:relative;'
+                    + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
+                    + '">' + label + windSvg(s.wdir, s.wspd) + '</div>';
 
                 var icon = L.divIcon({{
                     className: '',
@@ -777,7 +812,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 }});
 
                 var marker = L.marker([s.lat, s.lon], {{icon: icon}});
-                marker._pm25 = s.pm25; // for cluster average
+                marker._val = v; // for cluster average
                 var popupHtml = '<div style="font-family:system-ui;font-size:13px;line-height:1.6">'
                     + '<b style="font-size:14px">Sensor #' + s.id + '</b><br>'
                     + '<span style="color:' + col + ';font-weight:700">PM2.5: ' + s.pm25 + '</span> \u00b5g/m\u00b3<br>'
@@ -851,6 +886,28 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
         div { class: "view-header",
             h1 { "Sensor Map" }
             span { class: "view-subtitle", "{snap.sensor_count} sensors" }
+        }
+        // Metric selector
+        div { class: "metric-bar",
+            {
+                let metrics = [("pm25", "PM2.5"), ("pm10", "PM10"), ("temp", "Temp"), ("hum", "Humidity")];
+                rsx! {
+                    for (key, label) in metrics.iter() {
+                        {
+                            let k = key.to_string();
+                            let k2 = key.to_string();
+                            let is_active = metric == *key;
+                            rsx! {
+                                button {
+                                    class: if is_active { "metric-btn metric-btn-active" } else { "metric-btn" },
+                                    onclick: move |_| map_metric.set(k.clone()),
+                                    "{label}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         div { class: "map-container",
             div { id: "airq-map", style: "width:100%;height:100%;background:#0a0a0a;border-radius:12px;" }
@@ -1928,6 +1985,12 @@ h2 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-
 .btn-stop { background: var(--red); color: #fff; }
 .btn-server:disabled { opacity: 0.4; cursor: default; }
 .btn-server:hover:not(:disabled) { opacity: 0.9; }
+
+/* Metric selector */
+.metric-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+.metric-btn { padding: 5px 14px; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; font-weight: 500; }
+.metric-btn:hover { border-color: var(--blue); color: var(--text); }
+.metric-btn-active { background: rgba(96,165,250,0.15); border-color: var(--blue); color: var(--blue); font-weight: 600; }
 
 .daemon-section { margin-bottom: 12px; }
 .daemon-os { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
