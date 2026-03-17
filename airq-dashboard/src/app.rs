@@ -622,6 +622,27 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     document.head.appendChild(s);
                 }});
             }}
+            // --- Load MarkerCluster plugin ---
+            if (!document.getElementById('mc-css')) {{
+                var mcCss = document.createElement('link');
+                mcCss.id = 'mc-css';
+                mcCss.rel = 'stylesheet';
+                mcCss.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css';
+                document.head.appendChild(mcCss);
+                var mcCss2 = document.createElement('link');
+                mcCss2.rel = 'stylesheet';
+                mcCss2.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css';
+                document.head.appendChild(mcCss2);
+            }}
+            if (!window.L.MarkerClusterGroup) {{
+                await new Promise((resolve, reject) => {{
+                    var s = document.createElement('script');
+                    s.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                }});
+            }}
             await new Promise(r => setTimeout(r, 150));
             var el = document.getElementById('airq-map');
             if (!el) return;
@@ -674,6 +695,33 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="#60a5fa"/></svg>';
             }}
 
+            // --- Cluster group for sensor markers ---
+            var clusterGroup = L.markerClusterGroup({{
+                maxClusterRadius: 40,
+                disableClusteringAtZoom: 14,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                iconCreateFunction: function(cluster) {{
+                    var markers = cluster.getAllChildMarkers();
+                    var total = 0, count = 0;
+                    markers.forEach(function(m) {{ if (m._pm25 !== undefined) {{ total += m._pm25; count++; }} }});
+                    var avg = count > 0 ? total / count : 0;
+                    var col = pmColor(avg);
+                    var bg = pmBg(avg);
+                    var n = markers.length;
+                    var val = Math.round(avg);
+                    return L.divIcon({{
+                        className: '',
+                        html: '<div style="width:42px;height:42px;border-radius:50%;background:'+bg+';border:2px solid '+col+';display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui;box-shadow:0 2px 6px rgba(0,0,0,0.5)">'
+                            + '<div style="font-size:13px;font-weight:700;color:'+col+';line-height:1">'+val+'</div>'
+                            + '<div style="font-size:9px;color:'+col+';opacity:0.7">'+n+'</div>'
+                            + '</div>',
+                        iconSize: [42, 42],
+                        iconAnchor: [21, 21]
+                    }});
+                }}
+            }});
+
             sensors.forEach(function(s) {{
                 var col = pmColor(s.pm25);
                 var bg = pmBg(s.pm25);
@@ -699,16 +747,19 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 }});
 
                 var marker = L.marker([s.lat, s.lon], {{icon: icon}});
+                marker._pm25 = s.pm25; // for cluster average
                 var popupHtml = '<div style="font-family:system-ui;font-size:13px;line-height:1.6">'
                     + '<b style="font-size:14px">Sensor #' + s.id + '</b><br>'
                     + '<span style="color:' + col + ';font-weight:700">PM2.5: ' + s.pm25 + '</span> \u00b5g/m\u00b3<br>'
                     + 'PM10: ' + s.pm10 + ' \u00b5g/m\u00b3<br>'
                     + (s.hum > 0 ? 'Humidity: ' + s.hum + '%' + (s.hum > 70 ? ' (high)' : '') + '<br>' : '')
+                    + (s.wspd > 0 ? 'Wind: ' + s.wspd.toFixed(0) + ' km/h, ' + s.wdir.toFixed(0) + '\u00b0<br>' : '')
                     + '<span style="color:#888;font-size:11px">' + s.source + '</span>'
                     + '</div>';
                 marker.bindPopup(popupHtml);
-                marker.addTo(map);
+                clusterGroup.addLayer(marker);
             }});
+            map.addLayer(clusterGroup);
 
             // --- City circles ---
             cities.forEach(function(c) {{

@@ -24,7 +24,7 @@ struct WindCache {
 }
 
 const CACHE_TTL: Duration = Duration::from_secs(300); // 5 min
-const GRID_RESOLUTION: f64 = 10.0; // 0.1° ≈ 11km
+const GRID_RESOLUTION: f64 = 100.0; // 0.01° ≈ 1.1km
 
 fn grid_key(lat: f64, lon: f64) -> (i32, i32) {
     ((lat * GRID_RESOLUTION) as i32, (lon * GRID_RESOLUTION) as i32)
