@@ -586,16 +586,19 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
     let sensors_json: Vec<String> = snap.sensors.iter().filter_map(|sr| {
         let lat = sr.sensor.lat?;
         let lon = sr.sensor.lon?;
-        let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(-1.0);
-        let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(-1.0);
-        let temp = sr.latest.as_ref().and_then(|r| r.temp).unwrap_or(-999.0);
-        let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(-1.0);
-        // Skip sensors with no useful data at all
+        let r = sr.latest.as_ref()?;
+        let pm25 = r.pm25.unwrap_or(-1.0);
+        let pm10 = r.pm10.unwrap_or(-1.0);
+        let temp = r.temp.unwrap_or(-999.0);
+        let hum = r.humidity.unwrap_or(-1.0);
+        // Must have at least one useful value
         if pm25 < 0.0 && pm10 < 0.0 && temp < -100.0 && hum < 0.0 { return None; }
+        // AQI from PM2.5
+        let aqi = if pm25 >= 0.0 { airq::pm25_aqi(pm25) as f64 } else { -1.0 };
         let wdir = sr.wind_dir.unwrap_or(0.0);
         let wspd = sr.wind_speed.unwrap_or(0.0);
         let source = sr.sensor.source.as_deref().unwrap_or("unknown");
-        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},temp:{temp:.1},hum:{hum:.0},wdir:{wdir:.0},wspd:{wspd:.1},id:{},source:'{source}'}}", sr.sensor.id))
+        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},temp:{temp:.1},hum:{hum:.0},aqi:{aqi:.0},wdir:{wdir:.0},wspd:{wspd:.1},id:{},source:'{source}'}}", sr.sensor.id))
     }).collect();
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
@@ -701,25 +704,34 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 if (METRIC === 'pm10') return s.pm10;
                 if (METRIC === 'temp') return s.temp;
                 if (METRIC === 'hum') return s.hum;
+                if (METRIC === 'aqi') return s.aqi;
                 return s.pm25;
             }}
             function hasVal(s) {{
                 var v = getVal(s);
+                if (METRIC === 'temp') return v > -100;
                 return v !== undefined && v > -1 && v < 999;
             }}
             function pmColor(v) {{
+                if (METRIC === 'aqi') {{
+                    if (v <= 50) return '#4ade80';
+                    if (v <= 100) return '#facc15';
+                    if (v <= 150) return '#fb923c';
+                    if (v <= 200) return '#f87171';
+                    return '#dc2626';
+                }}
                 if (METRIC === 'temp') {{
-                    if (v < 0) return '#60a5fa';     // freezing blue
-                    if (v < 15) return '#86efac';    // cool green
-                    if (v < 25) return '#4ade80';    // comfortable green
-                    if (v < 35) return '#facc15';    // warm yellow
-                    return '#f87171';                // hot red
+                    if (v < 0) return '#60a5fa';
+                    if (v < 15) return '#86efac';
+                    if (v < 25) return '#4ade80';
+                    if (v < 35) return '#facc15';
+                    return '#f87171';
                 }}
                 if (METRIC === 'hum') {{
-                    if (v < 30) return '#facc15';    // dry yellow
-                    if (v < 60) return '#4ade80';    // optimal green
-                    if (v < 80) return '#86efac';    // humid light green
-                    return '#60a5fa';                // very humid blue
+                    if (v < 30) return '#facc15';
+                    if (v < 60) return '#4ade80';
+                    if (v < 80) return '#86efac';
+                    return '#60a5fa';
                 }}
                 // PM2.5 / PM10
                 var lim = METRIC === 'pm10' ? [25, 50, 90, 180] : [12, 25, 35, 55];
@@ -737,9 +749,9 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     .replace('#60a5fa','rgba(96,165,250,0.15)').replace('#f87171','rgba(248,113,113,0.15)');
             }}
             function fmtVal(v) {{
-                if (METRIC === 'temp') return v.toFixed(0) + '\u00b0';
-                if (METRIC === 'hum') return v.toFixed(0) + '%';
-                return v > 99 ? Math.round(v) : v.toFixed(1);
+                if (METRIC === 'temp') return Math.round(v) + '\u00b0';
+                if (METRIC === 'hum') return Math.round(v) + '%';
+                return '' + Math.round(v);
             }}
             // --- Layer control ---
             var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
@@ -890,7 +902,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
         // Metric selector
         div { class: "metric-bar",
             {
-                let metrics = [("pm25", "PM2.5"), ("pm10", "PM10"), ("temp", "Temp"), ("hum", "Humidity")];
+                let metrics = [("pm25", "PM2.5"), ("pm10", "PM10"), ("aqi", "AQI"), ("temp", "Temp"), ("hum", "Humidity")];
                 rsx! {
                     for (key, label) in metrics.iter() {
                         {
