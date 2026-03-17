@@ -147,8 +147,8 @@ pub fn App() -> Element {
                 tokio::time::sleep(Duration::from_millis(REFRESH_INTERVAL_MS)).await;
                 if let Some(ref db_handle) = (db)() {
                     let city = (active_city)();
-                    let mut snap = state::build_snapshot(db_handle, Some(&city));
-                    state::enrich_wind(&mut snap).await;
+                    let snap = state::build_snapshot(db_handle, Some(&city));
+                    // Wind enrichment only on city switch, not periodic refresh
                     snapshot.set(snap);
                 }
             }

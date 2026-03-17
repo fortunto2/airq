@@ -146,6 +146,42 @@ impl Db {
         Ok(())
     }
 
+    /// Batch insert readings in a single transaction (much faster for 100+ readings).
+    pub fn insert_readings_batch(&self, readings: &[Reading]) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction().context("begin transaction")?;
+        let mut count = 0;
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT OR REPLACE INTO readings (ts, sensor, lat, lon, pm25, pm10, temp, humidity, pressure)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            )?;
+            for r in readings {
+                stmt.execute(params![r.ts, r.sensor, r.lat, r.lon, r.pm25, r.pm10, r.temp, r.humidity, r.pressure])?;
+                count += 1;
+            }
+        }
+        tx.commit().context("commit batch")?;
+        Ok(count)
+    }
+
+    /// Batch upsert sensors in a single transaction.
+    pub fn upsert_sensors_batch(&self, sensors: &[(i64, Option<f64>, Option<f64>, Option<&str>)]) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT INTO sensors (id, lat, lon, source) VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(id) DO UPDATE SET lat=excluded.lat, lon=excluded.lon, source=COALESCE(excluded.source, sensors.source)"
+            )?;
+            for (id, lat, lon, source) in sensors {
+                stmt.execute(params![id, lat, lon, source])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn query_readings(&self, sensor: i64, from_ts: i64, to_ts: i64) -> Result<Vec<Reading>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

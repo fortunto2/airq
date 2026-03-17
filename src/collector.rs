@@ -1,4 +1,5 @@
 //! Collector: periodic poll of Sensor.Community for nearby sensors.
+//! Uses batch SQLite transactions for speed.
 
 use crate::db::{Db, Reading};
 use crate::detector::Baselines;
@@ -7,16 +8,16 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
 
-/// Fetch nearby sensors and their readings, insert into db.
+/// Fetch nearby sensors and their readings, batch insert into db.
 /// Returns number of readings inserted.
 pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_km: f64) -> Result<usize> {
-    // Fetch all sensor data in the area
     let url = format!(
         "https://data.sensor.community/airrohr/v1/filter/area={},{},{}",
         lat, lon, radius_km
     );
     let client = reqwest::Client::builder()
         .user_agent("airq-serve/1.0")
+        .timeout(Duration::from_secs(30))
         .build()
         .context("build http client")?;
 
@@ -34,7 +35,10 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
         .unwrap()
         .as_secs() as i64;
 
-    let mut count = 0;
+    // Parse all entries first, then batch insert
+    let mut readings = Vec::new();
+    let mut sensors = Vec::new();
+
     for entry in &response {
         let sensor_id = match entry
             .get("sensor")
@@ -55,10 +59,8 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<f64>().ok());
 
-        // Upsert sensor
-        let _ = db.upsert_sensor(sensor_id, slat, slon, None, Some("community"));
+        sensors.push((sensor_id, slat, slon, Some("community")));
 
-        // Parse sensor data values
         let values = entry
             .get("sensordatavalues")
             .and_then(|a| a.as_array())
@@ -87,9 +89,8 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
             }
         }
 
-        // Insert if we have any useful data (PM, temp, or humidity)
         if pm25.is_some() || pm10.is_some() || temp.is_some() || humidity.is_some() {
-            let reading = Reading {
+            readings.push(Reading {
                 ts: now,
                 sensor: sensor_id,
                 lat: slat,
@@ -99,17 +100,21 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
                 temp,
                 humidity,
                 pressure,
-            };
-            let _ = db.insert_reading(&reading);
-            count += 1;
+            });
         }
     }
 
+    // Batch insert in single transaction (100x faster than individual inserts)
+    let sensor_refs: Vec<(i64, Option<f64>, Option<f64>, Option<&str>)> = sensors
+        .iter()
+        .map(|(id, lat, lon, src)| (*id, *lat, *lon, *src))
+        .collect();
+    let _ = db.upsert_sensors_batch(&sensor_refs);
+    let count = db.insert_readings_batch(&readings).unwrap_or(0);
+
     log(&format!(
         "[collector] {} — {} readings from {} sensors",
-        city_name,
-        count,
-        response.len()
+        city_name, count, response.len()
     ));
 
     Ok(count)
@@ -118,7 +123,7 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
 /// Run collector loop: poll all cities every `interval`, then run event detection.
 pub async fn run_collector(
     db: Arc<Db>,
-    cities: Vec<(String, f64, f64, f64)>, // (name, lat, lon, radius_km)
+    cities: Vec<(String, f64, f64, f64)>,
     interval: Duration,
     mut shutdown: watch::Receiver<bool>,
 ) {
@@ -130,7 +135,6 @@ pub async fn run_collector(
         interval.as_secs()
     ));
 
-    // Collect + detect cycle
     let poll = |db: &Arc<Db>, baselines: &Baselines, cities: &[(String, f64, f64, f64)]| {
         let db = db.clone();
         let baselines = baselines.clone();
@@ -141,7 +145,6 @@ pub async fn run_collector(
                     log(&format!("[collector] error collecting {}: {}", name, e));
                     continue;
                 }
-                // Run event detection after each city poll
                 let city_id = db.upsert_city(name, *lat, *lon, *radius).unwrap_or(0);
                 if let Err(e) = crate::detector::detect_for_city(&db, &baselines, city_id, name, *lat, *lon).await {
                     log(&format!("[detector] error for {}: {}", name, e));
@@ -150,11 +153,10 @@ pub async fn run_collector(
         }
     };
 
-    // Initial poll immediately
     poll(&db, &baselines, &cities).await;
 
     let mut tick = tokio::time::interval(interval);
-    tick.tick().await; // consume first immediate tick
+    tick.tick().await;
 
     loop {
         tokio::select! {
