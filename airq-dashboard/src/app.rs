@@ -230,10 +230,11 @@ pub fn App() -> Element {
                                                     onclick: move |_| {
                                                         let city_name = c.clone();
                                                         active_city.set(city_name.clone());
+                                                        city_data.set(CityData::default()); // reset to avoid stale data
 
                                                         // Instant: rebuild snapshot from existing DB
                                                         if let Some(ref db_handle) = (db)() {
-                                                            let mut snap = state::build_snapshot(db_handle, Some(&city_name));
+                                                            let snap = state::build_snapshot(db_handle, Some(&city_name));
                                                             snapshot.set(snap);
                                                         }
 
@@ -843,14 +844,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 L.circle([c.lat, c.lon], {{radius:c.radius*1000, color:'#60a5fa', fillOpacity:0.05, weight:1, dashArray:'4'}}).addTo(map);
             }});
 
-            // --- City label ---
-            var cityLabel = L.divIcon({{
-                className: 'airq-city-label',
-                html: '<div style="color:#60a5fa;font-size:16px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.8);white-space:nowrap">{city_name}</div>',
-                iconSize: [0, 0],
-                iconAnchor: [-10, 30]
-            }});
-            L.marker([{center_lat}, {center_lon}], {{icon: cityLabel, interactive: false}}).addTo(map);
+            // City label removed — map tiles already show city name
 
             // --- Wind Rose Compass (bottom-left) ---
             var windSpeed = {wind_speed};
