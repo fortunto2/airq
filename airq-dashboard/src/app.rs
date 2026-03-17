@@ -606,8 +606,8 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
         (36.27, 32.30)
     };
     let city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("Air Signal");
-    let wind_speed = city_data.wind_kmh.unwrap_or(0.0);
-    let wind_dir = city_data.wind_dir.unwrap_or(0.0);
+    let wind_speed = city_data.wind_kmh.unwrap_or(0.0) as f32;
+    let wind_dir = city_data.wind_dir.unwrap_or(0.0) as f32;
 
     // Run map JS on every render (props change = re-render = map updates)
     let js = format!(r##"
@@ -707,16 +707,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 if (v <= 55) return 'rgba(251,146,60,0.15)';
                 return 'rgba(220,38,38,0.2)';
             }}
-            // Wind arrow SVG per sensor (rotated by sensor's wind direction)
-            function windArrowSvg(deg, spd) {{
-                if (spd < 0.5) return '';
-                // Size 10-20px based on wind speed (0-40 km/h range)
-                var sz = Math.max(10, Math.min(20, 10 + (spd / 40.0) * 10));
-                var op = Math.max(0.4, Math.min(0.9, 0.4 + (spd / 30.0) * 0.5));
-                var col = spd > 25 ? '#f87171' : spd > 15 ? '#facc15' : '#60a5fa';
-                return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12" style="transform:rotate('+deg+'deg);opacity:'+op+';position:absolute;right:-'+(sz+2)+'px;top:50%;margin-top:-'+(sz/2)+'px">'
-                    + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="'+col+'"/></svg>';
-            }}
+            // No per-sensor wind arrows — wind rose widget shown instead
 
             // --- Cluster group for sensor markers ---
             var clusterGroup = L.markerClusterGroup({{
@@ -760,7 +751,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
                     + 'font-family:system-ui;position:relative;'
                     + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
-                    + '">' + val + windArrowSvg(s.wdir, s.wspd) + '</div>';
+                    + '">' + val + '</div>';
 
                 var icon = L.divIcon({{
                     className: '',
@@ -798,7 +789,39 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }});
             L.marker([{center_lat}, {center_lon}], {{icon: cityLabel, interactive: false}}).addTo(map);
 
-            // City wind arrow removed — per-sensor arrows are shown instead
+            // --- Wind Rose Compass (bottom-left) ---
+            var windSpeed = {wind_speed};
+            var windDir = {wind_dir};
+            var windRoseHtml = '<div style="'
+                + 'width:80px;height:80px;border-radius:50%;'
+                + 'background:rgba(10,10,10,0.85);border:1px solid #333;'
+                + 'position:relative;display:flex;align-items:center;justify-content:center;'
+                + '">'
+                // Compass labels
+                + '<span style="position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:9px;color:#666">N</span>'
+                + '<span style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:9px;color:#666">S</span>'
+                + '<span style="position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:9px;color:#666">W</span>'
+                + '<span style="position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:9px;color:#666">E</span>'
+                // Wind arrow (points where wind goes TO = windDir + 180)
+                + '<svg width="50" height="50" viewBox="0 0 50 50" style="transform:rotate('+(windDir)+'deg)">'
+                + '<path d="M25 5 L30 35 L25 28 L20 35 Z" fill="'+(windSpeed > 25 ? '#f87171' : windSpeed > 15 ? '#facc15' : '#60a5fa')+'" opacity="0.9"/>'
+                + '</svg>'
+                // Speed text
+                + '<div style="position:absolute;bottom:-18px;width:100%;text-align:center;font-size:10px;color:#aaa;font-weight:600;white-space:nowrap">'
+                + windSpeed.toFixed(0) + ' km/h'
+                + '</div>'
+                + '</div>';
+
+            var WindRoseControl = L.Control.extend({{
+                options: {{ position: 'bottomleft' }},
+                onAdd: function() {{
+                    var div = L.DomUtil.create('div', 'airq-wind-rose');
+                    div.innerHTML = windRoseHtml;
+                    div.style.marginBottom = '20px';
+                    return div;
+                }}
+            }});
+            new WindRoseControl().addTo(map);
 
             setTimeout(function() {{ map.invalidateSize(); }}, 200);
         }})();
