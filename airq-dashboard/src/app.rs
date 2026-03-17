@@ -688,10 +688,6 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }});
             var heatLayer = L.heatLayer(heatPoints, {{radius: 25, blur: 15, maxZoom: 17, gradient: {{0.2:'#4ade80', 0.5:'#facc15', 0.7:'#fb923c', 1.0:'#f87171'}}}});
 
-            var overlayMaps = {{'PM2.5 Heatmap': heatLayer, 'Wind': windLayer}};
-            L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
-            windLayer.addTo(map); // on by default
-
             // --- Sensor markers: aircms-style with PM value, color, wind arrow, humidity ring ---
             // 5-level color scale
             function pmColor(v) {{
@@ -723,6 +719,11 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 }});
                 L.marker([s.lat, s.lon], {{icon: barbIcon, interactive: false}}).addTo(windLayer);
             }});
+            windLayer.addTo(map);
+
+            // --- Layer control ---
+            var overlayMaps = {{'PM2.5 Heatmap': heatLayer, 'Wind': windLayer}};
+            L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
 
             // --- Cluster group for sensor markers ---
             var clusterGroup = L.markerClusterGroup({{
