@@ -717,7 +717,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 iconCreateFunction: function(cluster) {{
                     var markers = cluster.getAllChildMarkers();
                     var total = 0, count = 0;
-                    markers.forEach(function(m) {{ if (m._pm25 !== undefined) {{ total += m._pm25; count++; }} }});
+                    markers.forEach(function(m) {{ if (m._pm25 !== undefined && m._pm25 > 0) {{ total += m._pm25; count++; }} }});
                     var avg = count > 0 ? total / count : 0;
                     var col = pmColor(avg);
                     var bg = pmBg(avg);
@@ -744,21 +744,29 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }}
 
             sensors.forEach(function(s) {{
-                var col = pmColor(s.pm25);
-                var bg = pmBg(s.pm25);
+                var hasData = s.pm25 > 0;
                 var val = Math.round(s.pm25);
-                var size = val > 99 ? 38 : val > 9 ? 32 : 28;
-                var fontSize = val > 99 ? 11 : 12;
-                var border = s.hum > 70 ? '2px solid #60a5fa' : '2px solid ' + col;
+                var html, size;
 
-                var html = '<div style="'
-                    + 'width:'+size+'px;height:'+size+'px;border-radius:50%;'
-                    + 'background:'+bg+';border:'+border+';'
-                    + 'display:flex;align-items:center;justify-content:center;'
-                    + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
-                    + 'font-family:system-ui;position:relative;'
-                    + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
-                    + '">' + val + windSvg(s.wdir, s.wspd) + '</div>';
+                if (hasData) {{
+                    var col = pmColor(s.pm25);
+                    var bg = pmBg(s.pm25);
+                    size = val > 99 ? 38 : val > 9 ? 32 : 28;
+                    var fontSize = val > 99 ? 11 : 12;
+                    var border = s.hum > 70 ? '2px solid #60a5fa' : '2px solid ' + col;
+                    html = '<div style="'
+                        + 'width:'+size+'px;height:'+size+'px;border-radius:50%;'
+                        + 'background:'+bg+';border:'+border+';'
+                        + 'display:flex;align-items:center;justify-content:center;'
+                        + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
+                        + 'font-family:system-ui;position:relative;'
+                        + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
+                        + '">' + val + windSvg(s.wdir, s.wspd) + '</div>';
+                }} else {{
+                    // No PM2.5 data — small gray dot
+                    size = 10;
+                    html = '<div style="width:10px;height:10px;border-radius:50%;background:#333;border:1px solid #555;opacity:0.5"></div>';
+                }}
 
                 var icon = L.divIcon({{
                     className: '',
