@@ -87,8 +87,8 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
             }
         }
 
-        // Only insert if we have at least PM data
-        if pm25.is_some() || pm10.is_some() {
+        // Insert if we have any useful data (PM, temp, or humidity)
+        if pm25.is_some() || pm10.is_some() || temp.is_some() || humidity.is_some() {
             let reading = Reading {
                 ts: now,
                 sensor: sensor_id,
