@@ -779,41 +779,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }});
             L.marker([{center_lat}, {center_lon}], {{icon: cityLabel, interactive: false}}).addTo(map);
 
-            // --- Wind arrow ---
-            var windSpeed = {wind_speed};
-            var windDir = {wind_dir}; // degrees, where wind comes FROM
-            if (windSpeed > 0) {{
-                // Arrow shows where wind GOES TO (opposite of "from" direction)
-                var toRad = Math.PI / 180;
-                var arrowDir = windDir; // Leaflet bearing = direction FROM
-                var len = 0.02 + windSpeed * 0.002; // arrow length proportional to speed
-                var endLat = {center_lat} + len * Math.cos(arrowDir * toRad);
-                var endLon = {center_lon} + len * Math.sin(arrowDir * toRad);
-
-                // Arrow line
-                var arrow = L.polyline(
-                    [[{center_lat}, {center_lon}], [endLat, endLon]],
-                    {{color: '#60a5fa', weight: 3, opacity: 0.8, dashArray: '8,4'}}
-                ).addTo(map);
-
-                // Arrowhead
-                var headSize = len * 0.3;
-                var headAngle1 = (arrowDir + 150) * toRad;
-                var headAngle2 = (arrowDir - 150) * toRad;
-                L.polyline([
-                    [endLat + headSize * Math.cos(headAngle1), endLon + headSize * Math.sin(headAngle1)],
-                    [endLat, endLon],
-                    [endLat + headSize * Math.cos(headAngle2), endLon + headSize * Math.sin(headAngle2)]
-                ], {{color: '#60a5fa', weight: 3, opacity: 0.8}}).addTo(map);
-
-                // Wind label
-                var windLabel = L.divIcon({{
-                    className: '',
-                    html: '<div style="color:#60a5fa;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap">' + windSpeed.toFixed(0) + ' km/h</div>',
-                    iconSize: [0, 0], iconAnchor: [-12, 12]
-                }});
-                L.marker([endLat, endLon], {{icon: windLabel, interactive: false}}).addTo(map);
-            }}
+            // City wind arrow removed — per-sensor arrows are shown instead
 
             setTimeout(function() {{ map.invalidateSize(); }}, 200);
         }})();
