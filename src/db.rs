@@ -381,6 +381,38 @@ impl Db {
         conn.query_row("SELECT MAX(ts) FROM readings", [], |row| row.get(0))
             .context("last reading ts")
     }
+
+    /// Get distinct timestamps in range (for history playback).
+    pub fn reading_timestamps(&self, from_ts: i64, to_ts: i64) -> Result<Vec<i64>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT ts FROM readings WHERE ts >= ?1 AND ts <= ?2 ORDER BY ts"
+        )?;
+        let rows = stmt.query_map(params![from_ts, to_ts], |row| row.get(0))?;
+        let mut result = Vec::new();
+        for row in rows { result.push(row?); }
+        Ok(result)
+    }
+
+    /// Get all readings at a specific timestamp.
+    pub fn readings_at(&self, ts: i64) -> Result<Vec<Reading>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT ts, sensor, lat, lon, pm25, pm10, temp, humidity, pressure
+             FROM readings WHERE ts = ?1"
+        )?;
+        let rows = stmt.query_map(params![ts], |row| {
+            Ok(Reading {
+                ts: row.get(0)?, sensor: row.get(1)?,
+                lat: row.get(2)?, lon: row.get(3)?,
+                pm25: row.get(4)?, pm10: row.get(5)?,
+                temp: row.get(6)?, humidity: row.get(7)?, pressure: row.get(8)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows { result.push(row?); }
+        Ok(result)
+    }
 }
 
 // ---------------------------------------------------------------------------

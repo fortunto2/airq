@@ -25,6 +25,7 @@ pub struct CityData {
     pub aqi: u32,
     pub temperature_c: Option<f64>,
     pub wind_kmh: Option<f64>,
+    pub wind_dir: Option<f64>,  // degrees, 0=N, 90=E
     pub uv_index: Option<f64>,
     pub pressure_hpa: Option<f64>,
     pub humidity_pct: Option<f64>,
@@ -77,6 +78,7 @@ pub async fn fetch_city_data(lat: f64, lon: f64) -> CityData {
         aqi,
         temperature_c: w.apparent_temp_c,
         wind_kmh: wi.wind_speed_10m,
+        wind_dir: wi.wind_direction_10m,
         uv_index: current.uv_index,
         pressure_hpa: w.pressure_hpa,
         humidity_pct: w.humidity_pct,
