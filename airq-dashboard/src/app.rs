@@ -688,8 +688,9 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
             }});
             var heatLayer = L.heatLayer(heatPoints, {{radius: 25, blur: 15, maxZoom: 17, gradient: {{0.2:'#4ade80', 0.5:'#facc15', 0.7:'#fb923c', 1.0:'#f87171'}}}});
 
-            var overlayMaps = {{'PM2.5 Heatmap': heatLayer}};
+            var overlayMaps = {{'PM2.5 Heatmap': heatLayer, 'Wind': windLayer}};
             L.control.layers(baseMaps, overlayMaps, {{position: 'topright'}}).addTo(map);
+            windLayer.addTo(map); // on by default
 
             // --- Sensor markers: aircms-style with PM value, color, wind arrow, humidity ring ---
             // 5-level color scale
@@ -707,7 +708,21 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 if (v <= 55) return 'rgba(251,146,60,0.15)';
                 return 'rgba(220,38,38,0.2)';
             }}
-            // No per-sensor wind arrows — wind rose widget shown instead
+            // Wind barbs as toggleable overlay layer
+            var windLayer = L.layerGroup();
+            sensors.forEach(function(s) {{
+                if (s.wspd < 0.5) return;
+                var sz = Math.max(14, Math.min(24, 14 + (s.wspd / 30.0) * 10));
+                var col = s.wspd > 25 ? '#f87171' : s.wspd > 15 ? '#facc15' : '#60a5fa';
+                var barbIcon = L.divIcon({{
+                    className: '',
+                    html: '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12" style="transform:rotate('+s.wdir+'deg)">'
+                        + '<path d="M6 1 L8 9 L6 7 L4 9 Z" fill="'+col+'" opacity="0.7"/></svg>',
+                    iconSize: [sz, sz],
+                    iconAnchor: [sz/2, sz/2]
+                }});
+                L.marker([s.lat, s.lon], {{icon: barbIcon, interactive: false}}).addTo(windLayer);
+            }});
 
             // --- Cluster group for sensor markers ---
             var clusterGroup = L.markerClusterGroup({{
