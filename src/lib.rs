@@ -7,6 +7,7 @@ pub mod db;
 pub mod detector;
 pub mod push;
 pub mod serve;
+pub mod weather;
 pub mod web;
 
 use anyhow::{Context, Result};

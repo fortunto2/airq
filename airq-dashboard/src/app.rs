@@ -147,7 +147,8 @@ pub fn App() -> Element {
                 tokio::time::sleep(Duration::from_millis(REFRESH_INTERVAL_MS)).await;
                 if let Some(ref db_handle) = (db)() {
                     let city = (active_city)();
-                    let snap = state::build_snapshot(db_handle, Some(&city));
+                    let mut snap = state::build_snapshot(db_handle, Some(&city));
+                    state::enrich_wind(&mut snap).await;
                     snapshot.set(snap);
                 }
             }
@@ -444,7 +445,8 @@ async fn start_collector(
         shutdown_rx,
     ));
 
-    let snap = state::build_snapshot(&db_handle, Some(city));
+    let mut snap = state::build_snapshot(&db_handle, Some(city));
+    state::enrich_wind(&mut snap).await;
     Ok((db_handle, snap, shutdown_tx, lat, lon))
 }
 
@@ -565,8 +567,10 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
         let pm25 = sr.latest.as_ref().and_then(|r| r.pm25).unwrap_or(0.0);
         let pm10 = sr.latest.as_ref().and_then(|r| r.pm10).unwrap_or(0.0);
         let hum = sr.latest.as_ref().and_then(|r| r.humidity).unwrap_or(0.0);
+        let wdir = sr.wind_dir.unwrap_or(0.0);
+        let wspd = sr.wind_speed.unwrap_or(0.0);
         let source = sr.sensor.source.as_deref().unwrap_or("unknown");
-        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},hum:{hum:.0},id:{},source:'{source}'}}", sr.sensor.id))
+        Some(format!("{{lat:{lat},lon:{lon},pm25:{pm25:.1},pm10:{pm10:.1},hum:{hum:.0},wdir:{wdir:.0},wspd:{wspd:.1},id:{},source:'{source}'}}", sr.sensor.id))
     }).collect();
     let sensors_data = format!("[{}]", sensors_json.join(","));
 
@@ -663,10 +667,10 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                 if (v <= 55) return 'rgba(251,146,60,0.15)';
                 return 'rgba(220,38,38,0.2)';
             }}
-            // Wind arrow SVG (rotated by windDir)
-            var windDeg = {wind_dir};
-            function windArrowSvg() {{
-                return '<svg width="12" height="12" viewBox="0 0 12 12" style="transform:rotate('+windDeg+'deg);opacity:0.7;position:absolute;right:-14px;top:50%;margin-top:-6px">'
+            // Wind arrow SVG per sensor (rotated by sensor's wind direction)
+            function windArrowSvg(deg, spd) {{
+                if (spd < 0.5) return '';
+                return '<svg width="12" height="12" viewBox="0 0 12 12" style="transform:rotate('+deg+'deg);opacity:0.7;position:absolute;right:-14px;top:50%;margin-top:-6px">'
                     + '<path d="M6 0 L8 10 L6 7 L4 10 Z" fill="#60a5fa"/></svg>';
             }}
 
@@ -685,7 +689,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     + 'font-size:'+fontSize+'px;font-weight:700;color:'+col+';'
                     + 'font-family:system-ui;position:relative;'
                     + 'box-shadow:0 1px 4px rgba(0,0,0,0.5);'
-                    + '">' + val + windArrowSvg() + '</div>';
+                    + '">' + val + windArrowSvg(s.wdir, s.wspd) + '</div>';
 
                 var icon = L.divIcon({{
                     className: '',

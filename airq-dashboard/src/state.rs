@@ -112,6 +112,8 @@ pub struct MonitorSnapshot {
 pub struct SensorWithReading {
     pub sensor: Sensor,
     pub latest: Option<Reading>,
+    pub wind_speed: Option<f64>,
+    pub wind_dir: Option<f64>,
 }
 
 /// Open the shared database (singleton path).
@@ -173,7 +175,7 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
             }
         }
 
-        sensors_with_readings.push(SensorWithReading { sensor: s, latest });
+        sensors_with_readings.push(SensorWithReading { sensor: s, latest, wind_speed: None, wind_dir: None });
     }
 
     // Events for active city (last 24h) or all cities
@@ -212,6 +214,30 @@ pub fn build_snapshot(db: &Db, city_name: Option<&str>) -> MonitorSnapshot {
         avg_pm25: if pm_count > 0 { Some(total_pm25 / pm_count as f64) } else { None },
         avg_pm10: if pm_count > 0 { Some(total_pm10 / pm_count as f64) } else { None },
         total_reading_count,
+    }
+}
+
+/// Enrich snapshot sensors with per-sensor wind data (grid-cached).
+pub async fn enrich_wind(snap: &mut MonitorSnapshot) {
+    let sensors: Vec<(i64, f64, f64)> = snap.sensors.iter()
+        .filter_map(|sr| {
+            let lat = sr.sensor.lat?;
+            let lon = sr.sensor.lon?;
+            Some((sr.sensor.id, lat, lon))
+        })
+        .collect();
+
+    if sensors.is_empty() {
+        return;
+    }
+
+    let wind_map = airq::weather::get_wind_batch(&sensors).await;
+
+    for sr in &mut snap.sensors {
+        if let Some(wp) = wind_map.get(&sr.sensor.id) {
+            sr.wind_speed = Some(wp.speed_kmh);
+            sr.wind_dir = Some(wp.direction_deg);
+        }
     }
 }
 
