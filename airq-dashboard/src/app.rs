@@ -93,15 +93,15 @@ pub fn App() -> Element {
     // Network state
     let local_ip = state::get_local_ip().unwrap_or_else(|| "unknown".to_string());
     let all_ips = state::get_all_local_ips();
-    let mut lan_sensors: Signal<Vec<state::LanSensor>> = use_signal(Vec::new);
-    let mut scanning: Signal<bool> = use_signal(|| false);
-    let mut server_running: Signal<bool> = use_signal(|| false);
-    let mut server_shutdown: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
+    let lan_sensors: Signal<Vec<state::LanSensor>> = use_signal(Vec::new);
+    let scanning: Signal<bool> = use_signal(|| false);
+    let server_running: Signal<bool> = use_signal(|| false);
+    let server_shutdown: Signal<Option<tokio::sync::watch::Sender<bool>>> = use_signal(|| None);
 
     // Settings state
-    let mut city_input: Signal<String> = use_signal(move || default_city2.clone());
-    let mut radius_input: Signal<f64> = use_signal(move || default_radius);
-    let mut interval_input: Signal<u64> = use_signal(|| POLL_INTERVAL_SECS);
+    let city_input: Signal<String> = use_signal(move || default_city2.clone());
+    let radius_input: Signal<f64> = use_signal(move || default_radius);
+    let interval_input: Signal<u64> = use_signal(|| POLL_INTERVAL_SECS);
 
     // Auto-start on launch if config has a city
     use_effect(move || {
@@ -615,7 +615,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
     } else {
         (36.27, 32.30)
     };
-    let city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("Air Signal");
+    let _city_name = snap.active_city.as_ref().map(|c| c.name.as_str()).unwrap_or("Air Signal");
     let wind_speed = city_data.wind_kmh.unwrap_or(0.0) as f32;
     let wind_dir = city_data.wind_dir.unwrap_or(0.0) as f32;
     let wind_loaded = if city_data.loaded { 1 } else { 0 };
@@ -904,7 +904,7 @@ fn MapView(snap: MonitorSnapshot, city_data: CityData, db: Signal<Option<Arc<Db>
                     for (key, label) in metrics.iter() {
                         {
                             let k = key.to_string();
-                            let k2 = key.to_string();
+                            let _k2 = key.to_string();
                             let is_active = metric == *key;
                             rsx! {
                                 button {
@@ -1250,25 +1250,25 @@ fn SourcesView(snap: MonitorSnapshot, city_data: CityData) -> Element {
                         // CO
                         let co_val = fmt_opt(city_data.co, 0);
                         let co_unit = "\u{00b5}g/m\u{00b3}".to_string();
-                        let co_status = city_data.co.map(|v| airq_core::get_co_status(v));
+                        let co_status = city_data.co.map(airq_core::get_co_status);
                         let co_label = co_status.as_ref().map(|s| s.label()).unwrap_or("--");
                         let co_color = co_status.map(pollutant_color).unwrap_or("normal");
                         // NO2
                         let no2_val = fmt_opt(city_data.no2, 1);
                         let no2_unit = "\u{00b5}g/m\u{00b3}".to_string();
-                        let no2_status = city_data.no2.map(|v| airq_core::get_no2_status(v));
+                        let no2_status = city_data.no2.map(airq_core::get_no2_status);
                         let no2_label = no2_status.as_ref().map(|s| s.label()).unwrap_or("--");
                         let no2_color = no2_status.map(pollutant_color).unwrap_or("normal");
                         // SO2
                         let so2_val = fmt_opt(city_data.so2, 1);
                         let so2_unit = "\u{00b5}g/m\u{00b3}".to_string();
-                        let so2_status = city_data.so2.map(|v| airq_core::get_so2_status(v));
+                        let so2_status = city_data.so2.map(airq_core::get_so2_status);
                         let so2_label = so2_status.as_ref().map(|s| s.label()).unwrap_or("--");
                         let so2_color = so2_status.map(pollutant_color).unwrap_or("normal");
                         // O3
                         let o3_val = fmt_opt(city_data.o3, 1);
                         let o3_unit = "\u{00b5}g/m\u{00b3}".to_string();
-                        let o3_status = city_data.o3.map(|v| airq_core::get_o3_status(v));
+                        let o3_status = city_data.o3.map(airq_core::get_o3_status);
                         let o3_label = o3_status.as_ref().map(|s| s.label()).unwrap_or("--");
                         let o3_color = o3_status.map(pollutant_color).unwrap_or("normal");
 
@@ -1821,14 +1821,6 @@ fn pm25_color(val: Option<f64>) -> &'static str {
     }
 }
 
-fn aqi_color(aqi: u32) -> &'static str {
-    match aqi {
-        0..=50 => "good",
-        51..=100 => "moderate",
-        101..=150 => "unhealthy-sg",
-        _ => "unhealthy",
-    }
-}
 
 fn pollutant_color(cat: airq_core::AqiCategory) -> &'static str {
     match cat {

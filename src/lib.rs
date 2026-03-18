@@ -257,8 +257,8 @@ pub async fn fetch_area_average(lat: f64, lon: f64, radius_km: f64) -> Result<Ar
                 .get("value")
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse::<f64>().ok());
-            if let Some(val) = val {
-                if val > 0.0 && val < 500.0 {
+            if let Some(val) = val
+                && val > 0.0 && val < 500.0 {
                     // filter obvious outliers
                     match vtype {
                         "P2" => pm25_vals.push(val),
@@ -266,7 +266,6 @@ pub async fn fetch_area_average(lat: f64, lon: f64, radius_km: f64) -> Result<Ar
                         _ => {}
                     }
                 }
-            }
         }
     }
 
@@ -338,17 +337,15 @@ pub async fn fetch_sensor_archive(
             date, date, sensor_id
         );
         let resp = client.get(&url).send().await;
-        if let Ok(r) = resp {
-            if r.status().is_success() {
-                if let Ok(text) = r.text().await {
+        if let Ok(r) = resp
+            && r.status().is_success()
+                && let Ok(text) = r.text().await {
                     // Cache if not today (today's data is still updating)
                     if d > 0 {
                         let _ = std::fs::write(&cache_file, &text);
                     }
                     parse_sensor_csv(&text, &mut all_readings);
                 }
-            }
-        }
     }
 
     // Aggregate to hourly medians
@@ -439,19 +436,14 @@ fn urlencoding(s: &str) -> String {
 pub async fn fetch_pollution_sources(lat: f64, lon: f64, radius_km: f64) -> Result<Vec<PollutionSource>> {
     // Check cache first (valid for 7 days)
     let cache_path = overpass_cache_path(lat, lon, radius_km);
-    if let Ok(meta) = std::fs::metadata(&cache_path) {
-        if let Ok(modified) = meta.modified() {
-            if let Ok(age) = modified.elapsed() {
-                if age.as_secs() < 7 * 86400 {
-                    if let Ok(text) = std::fs::read_to_string(&cache_path) {
-                        if let Ok(cached) = serde_json::from_str::<Vec<PollutionSource>>(&text) {
+    if let Ok(meta) = std::fs::metadata(&cache_path)
+        && let Ok(modified) = meta.modified()
+            && let Ok(age) = modified.elapsed()
+                && age.as_secs() < 7 * 86400
+                    && let Ok(text) = std::fs::read_to_string(&cache_path)
+                        && let Ok(cached) = serde_json::from_str::<Vec<PollutionSource>>(&text) {
                             return Ok(cached);
                         }
-                    }
-                }
-            }
-        }
-    }
 
     let radius_m = (radius_km * 1000.0) as u32;
     let query = format!(
@@ -489,14 +481,12 @@ out center tags 50;"#,
             .body(format!("data={}", urlencoding(&query)))
             .send()
             .await;
-        if let Ok(r) = result {
-            if let Ok(t) = r.text().await {
-                if t.starts_with('{') {
+        if let Ok(r) = result
+            && let Ok(t) = r.text().await
+                && t.starts_with('{') {
                     text = t;
                     break;
                 }
-            }
-        }
     }
     if text.is_empty() {
         anyhow::bail!("All Overpass API servers busy or unavailable. Try again later.");

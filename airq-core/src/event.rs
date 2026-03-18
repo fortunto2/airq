@@ -102,6 +102,12 @@ pub struct DualBaseline {
     pub pm10: EwmaBaseline,
 }
 
+impl Default for DualBaseline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DualBaseline {
     pub fn new() -> Self {
         Self { pm25: EwmaBaseline::default_hourly(), pm10: EwmaBaseline::default_hourly() }
@@ -190,11 +196,10 @@ pub fn concordance(
     let mut anomaly_ids = Vec::new();
 
     for r in readings {
-        if let Some(bl) = baselines.get(&r.sensor_id) {
-            if bl.is_anomaly(r, k) {
+        if let Some(bl) = baselines.get(&r.sensor_id)
+            && bl.is_anomaly(r, k) {
                 anomaly_ids.push(r.sensor_id);
             }
-        }
     }
 
     let total = readings.len();
@@ -408,7 +413,7 @@ pub fn classify_source(ratio: f64, pm25: f64, pm10: f64) -> SourceClassification
     }
 
     // Combustion (traffic, heating)
-    if ratio >= 0.9 && ratio <= 1.8 && pm25 >= 35.0 {
+    if (0.9..=1.8).contains(&ratio) && pm25 >= 35.0 {
         return SourceClassification {
             category: SourceCategory::Combustion,
             label: "combustion (traffic/heating)",

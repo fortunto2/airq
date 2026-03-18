@@ -33,8 +33,11 @@ pub struct PushResponse {
     pub sensor_id: i64,
 }
 
+/// Parsed sensor reading: (sensor_id, pm25, pm10, temp, humidity, pressure).
+pub type ParsedReading = (i64, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>);
+
 /// Parse ESP8266 push payload into a Reading.
-pub fn parse_push(payload: &PushPayload) -> (i64, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>) {
+pub fn parse_push(payload: &PushPayload) -> ParsedReading {
     let sensor_id = payload
         .esp8266id
         .as_deref()

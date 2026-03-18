@@ -461,13 +461,12 @@ async fn main() -> Result<()> {
         }
 
         // Display wind context
-        if let Some(ref w) = wind {
-            if let Some(speed) = w.wind_speed_10m {
+        if let Some(ref w) = wind
+            && let Some(speed) = w.wind_speed_10m {
                 let arrow = w.direction_arrow().unwrap_or("");
                 let dir = w.direction_label().unwrap_or("");
                 println!("\nCurrent wind: {:.1} km/h {} {}", speed, arrow, dir);
             }
-        }
 
         // Display spikes
         let mut has_spikes = false;
@@ -743,13 +742,12 @@ async fn main() -> Result<()> {
                 })
                 .collect();
             for (i, t) in target_history.hourly.time.iter().enumerate() {
-                if let Some(pm) = target_history.hourly.pm2_5.get(i).and_then(|v| *v) {
-                    if let Some(&(dir, spd)) = wind_map.get(t.as_str()) {
+                if let Some(pm) = target_history.hourly.pm2_5.get(i).and_then(|v| *v)
+                    && let Some(&(dir, spd)) = wind_map.get(t.as_str()) {
                         pm_vals.push(pm);
                         w_dirs.push(dir);
                         w_spds.push(spd);
                     }
-                }
             }
             if !pm_vals.is_empty() && !pollution_sources.is_empty() {
                 airq::front::calculate_cpf(lat, lon, &pollution_sources, &pm_vals, &w_dirs, &w_spds, 0.75)
@@ -798,13 +796,12 @@ async fn main() -> Result<()> {
                         &format!("file://{}", html_path.display()),
                     ])
                     .output();
-                if let Ok(out) = result {
-                    if out.status.success() {
+                if let Ok(out) = result
+                    && out.status.success() {
                         println!("PDF saved to: {}", pdf_path);
                         converted = true;
                         break;
                     }
-                }
             }
 
             if !converted {
@@ -839,7 +836,7 @@ async fn main() -> Result<()> {
                         "date": d.date,
                         "pm2_5": d.pm2_5,
                         "pm10": d.pm10,
-                        "aqi": d.us_aqi.map(|v| v.round() as u32).or_else(|| d.pm2_5.map(|v| pm25_aqi(v))),
+                        "aqi": d.us_aqi.map(|v| v.round() as u32).or_else(|| d.pm2_5.map(pm25_aqi)),
                     })
                 })
                 .collect();
@@ -907,12 +904,12 @@ async fn main() -> Result<()> {
                 _ => (None, None, "No sensors".into(), String::new(), 0u32),
             }
         };
-        let sc_aqi = sc_pm25.map(|v| pm25_aqi(v));
+        let sc_aqi = sc_pm25.map(pm25_aqi);
 
         let merged = airq_core::merge::merge(om_pm25, om_pm10, sc_pm25, sc_pm10, sc_count);
         let avg_pm25 = if merged.pm25 > 0.0 { Some(merged.pm25) } else { None };
         let avg_pm10 = if merged.pm10 > 0.0 { Some(merged.pm10) } else { None };
-        let avg_aqi = avg_pm25.map(|v| pm25_aqi(v));
+        let avg_aqi = avg_pm25.map(pm25_aqi);
 
         if *json {
             let data = serde_json::json!({
@@ -965,7 +962,7 @@ async fn main() -> Result<()> {
         }
 
         // Fetch more cities than requested to rank properly, but cap at 15 to avoid rate limits
-        let fetch_count = (*count).max(5).min(15) * 2;
+        let fetch_count = (*count).clamp(5, 15) * 2;
         let cities = get_major_cities(country, fetch_count);
         if cities.is_empty() {
             println!("No cities found for country: {}", country);
@@ -1273,13 +1270,12 @@ async fn main() -> Result<()> {
         }
 
         let futures = cities.iter().map(|city| async move {
-            if let Ok((lat, lon, resolved_name)) = geocode(city).await {
-                if let Ok(data) = fetch_open_meteo(lat, lon).await {
+            if let Ok((lat, lon, resolved_name)) = geocode(city).await
+                && let Ok(data) = fetch_open_meteo(lat, lon).await {
                     let pm25 = data.current.pm2_5.unwrap_or(0.0);
                     let aqi = overall_aqi(&data.current).unwrap_or(0);
                     return Some((resolved_name, aqi, pm25));
                 }
-            }
             None
         });
 
@@ -1359,8 +1355,8 @@ async fn main() -> Result<()> {
             let mut sensor_count = 0;
             let mut msg = "Open-Meteo only (no nearby sensors)".to_string();
 
-            if let Ok(sc_data) = sc_res {
-                if sc_data.sensor_count > 0 {
+            if let Ok(sc_data) = sc_res
+                && sc_data.sensor_count > 0 {
                     sensor_count = sc_data.sensor_count;
                     sc_pm25 = sc_data.pm2_5_median;
                     sc_pm10 = sc_data.pm10_median;
@@ -1375,7 +1371,6 @@ async fn main() -> Result<()> {
                     data.current.pm10 = Some(merged.pm10);
                     data.current.us_aqi = overall_aqi(&data.current).map(|v| v as f64);
                 }
-            }
             let bd = SourceBreakdown { om_pm25, om_pm10, sc_pm25, sc_pm10, sensor_count };
 
             // Fetch extended data in parallel if --full
@@ -1537,8 +1532,8 @@ async fn main() -> Result<()> {
     }
 
     // Wind
-    if let Some(ref w) = wind {
-        if let Some(speed) = w.wind_speed_10m {
+    if let Some(ref w) = wind
+        && let Some(speed) = w.wind_speed_10m {
             let arrow = w.direction_arrow().unwrap_or("");
             let dir = w.direction_label().unwrap_or("");
             let gusts = w.wind_gusts_10m
@@ -1546,7 +1541,6 @@ async fn main() -> Result<()> {
                 .unwrap_or_default();
             println!("Wind:   {:.1} km/h {} {}{}", speed, arrow, dir, gusts);
         }
-    }
 
     // Comfort score (always shown, one line)
     {
@@ -1591,22 +1585,20 @@ async fn main() -> Result<()> {
     // Extended data (--full flag)
     if cli.full {
         // Pollen
-        if let Some(ref pollen) = extended.pollen {
-            if pollen.is_significant() {
+        if let Some(ref pollen) = extended.pollen
+            && pollen.is_significant() {
                 println!("\n\u{1f33e} Pollen levels:");
                 let show_pollen = |name: &str, val: Option<f64>| {
-                    if let Some(v) = val {
-                        if v > 10.0 {
+                    if let Some(v) = val
+                        && v > 10.0 {
                             println!("  {}: {:.0} grains/m\u{00b3} ({})", name, v, airq::PollenData::pollen_label(v));
                         }
-                    }
                 };
                 show_pollen("Grass", pollen.grass_pollen);
                 show_pollen("Birch", pollen.birch_pollen);
                 show_pollen("Alder", pollen.alder_pollen);
                 show_pollen("Ragweed", pollen.ragweed_pollen);
             }
-        }
 
         // Earthquakes (only M3+ within 200km in last 7 days)
         if let Some(ref quakes) = extended.earthquakes {
@@ -1620,12 +1612,11 @@ async fn main() -> Result<()> {
         }
 
         // Geomagnetic (only if Kp >= 3)
-        if let Some(ref geo) = extended.geomagnetic {
-            if geo.kp_index >= 3.0 {
+        if let Some(ref geo) = extended.geomagnetic
+            && geo.kp_index >= 3.0 {
                 let emoji = if geo.kp_index >= 5.0 { "\u{26a1}" } else { "\u{1f9f2}" };
                 println!("\n{} Geomagnetic: Kp {:.1} ({})", emoji, geo.kp_index, geo.label);
             }
-        }
     }
 
     Ok(())

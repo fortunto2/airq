@@ -255,7 +255,7 @@ impl PollenData {
     pub fn is_significant(&self) -> bool {
         [self.grass_pollen, self.birch_pollen, self.alder_pollen, self.ragweed_pollen]
             .iter()
-            .any(|v| v.map_or(false, |x| x > 10.0))
+            .any(|v| v.is_some_and(|x| x > 10.0))
     }
 
     /// Label for a pollen level.
@@ -521,12 +521,11 @@ pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
             entry.2 += pm10;
             entry.3 += 1;
         }
-        if let Some(us_aqi_vec) = &hourly.us_aqi {
-            if let Some(us_aqi) = us_aqi_vec.get(i).and_then(|v| *v) {
+        if let Some(us_aqi_vec) = &hourly.us_aqi
+            && let Some(us_aqi) = us_aqi_vec.get(i).and_then(|v| *v) {
                 entry.4 += us_aqi;
                 entry.5 += 1;
             }
-        }
     }
 
     daily_map
@@ -554,13 +553,13 @@ pub fn aggregate_history(hourly: &HourlyData) -> Vec<DailyAverage> {
         .collect()
 }
 
-pub fn median(vals: &mut Vec<f64>) -> Option<f64> {
+pub fn median(vals: &mut [f64]) -> Option<f64> {
     if vals.is_empty() {
         return None;
     }
     vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let mid = vals.len() / 2;
-    if vals.len() % 2 == 0 {
+    if vals.len().is_multiple_of(2) {
         Some((vals[mid - 1] + vals[mid]) / 2.0)
     } else {
         Some(vals[mid])
@@ -685,8 +684,8 @@ pub fn date_minus_days(date: &str, days: u32) -> String {
     } else {
         [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     };
-    for i in 0..(m - 1) as usize {
-        epoch_days += dims[i];
+    for d_val in &dims[..(m - 1) as usize] {
+        epoch_days += d_val;
     }
     epoch_days += d - 1;
     epoch_days_to_date(epoch_days.saturating_sub(days as u64))
@@ -703,11 +702,10 @@ pub fn parse_sensor_csv(text: &str, out: &mut Vec<(String, f64)>) {
         if cols.len() >= 10 {
             let timestamp = cols[5]; // e.g. 2026-03-14T00:02:12
             let p2 = cols[9]; // PM2.5
-            if let Ok(val) = p2.parse::<f64>() {
-                if val > 0.0 && val < 500.0 {
+            if let Ok(val) = p2.parse::<f64>()
+                && val > 0.0 && val < 500.0 {
                     out.push((timestamp.to_string(), val));
                 }
-            }
         }
     }
 }
@@ -846,7 +844,7 @@ pub fn calculate_comfort(
     let humidity_score = if let Some(h) = weather.humidity_pct {
         if (30.0..=60.0).contains(&h) {
             100
-        } else if h < 20.0 || h > 80.0 {
+        } else if !(20.0..=80.0).contains(&h) {
             50
         } else {
             75
@@ -938,8 +936,8 @@ pub mod front {
     pub fn cluster_sensors(sensors: &[(u64, f64, f64)], cell_km: f64) -> Vec<SensorCluster> {
         // Grid-based clustering: round lat/lon to grid cells
         let cell_lat = cell_km / 111.0; // ~111km per degree latitude
-        let mut grid: std::collections::HashMap<(i32, i32), Vec<(u64, f64, f64)>> =
-            std::collections::HashMap::new();
+        type GridMap = std::collections::HashMap<(i32, i32), Vec<(u64, f64, f64)>>;
+        let mut grid: GridMap = GridMap::new();
 
         for &(id, lat, lon) in sensors {
             let cell_lon = cell_km / (111.0 * lat.to_radians().cos().max(0.01));
@@ -1114,14 +1112,13 @@ pub mod front {
             let mut sum = 0.0;
             let mut count = 0;
 
-            for i in 0..n {
+            for (i, a_opt) in series_a.iter().enumerate() {
                 let j = i as i32 + lag;
-                if j >= 0 && (j as usize) < n {
-                    if let (Some(a), Some(b)) = (series_a[i], series_b[j as usize]) {
+                if j >= 0 && (j as usize) < n
+                    && let (Some(a), Some(b)) = (a_opt, series_b[j as usize]) {
                         sum += (a - mean_a) * (b - mean_b);
                         count += 1;
                     }
-                }
             }
 
             if count > 3 {
@@ -1191,13 +1188,16 @@ pub mod front {
     /// Key = hour timestamp ("2026-03-14T10:00"), Value = median PM2.5.
     pub type SensorHourlyData = std::collections::BTreeMap<String, f64>;
 
+    /// Neighbor city data: (name, lat, lon, distance_km, hourly_times, hourly_pm25).
+    pub type NeighborData = (String, f64, f64, f64, Vec<String>, Vec<Option<f64>>);
+
     /// Build propagation graph with dual-source analysis.
     /// `sensor_data`: optional map of node_name -> hourly sensor readings.
     pub fn build_graph(
         target_name: &str,
         target_lat: f64,
         target_lon: f64,
-        neighbors: Vec<(String, f64, f64, f64, Vec<String>, Vec<Option<f64>>)>,
+        neighbors: Vec<NeighborData>,
         target_times: &[String],
         target_pm25: &[Option<f64>],
     ) -> FrontAnalysis {
@@ -1213,7 +1213,7 @@ pub mod front {
         target_name: &str,
         target_lat: f64,
         target_lon: f64,
-        neighbors: Vec<(String, f64, f64, f64, Vec<String>, Vec<Option<f64>>)>,
+        neighbors: Vec<NeighborData>,
         target_times: &[String],
         target_pm25: &[Option<f64>],
         sensor_data: &std::collections::HashMap<String, SensorHourlyData>,
@@ -1322,8 +1322,8 @@ pub mod front {
                     // Find matching spikes
                     let from_spikes = all_spikes.iter().find(|(n, _)| *n == from);
                     let to_spikes = all_spikes.iter().find(|(n, _)| *n == to);
-                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes) {
-                        if let (Some(f), Some(t)) = (fs.first(), ts.first()) {
+                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes)
+                        && let (Some(f), Some(t)) = (fs.first(), ts.first()) {
                             fronts.push(FrontEvent {
                                 from_city: graph[from].name.clone(),
                                 to_city: graph[to].name.clone(),
@@ -1335,7 +1335,6 @@ pub mod front {
                                 to_spike_time: t.time.clone(),
                             });
                         }
-                    }
                 }
             }
         }
@@ -1380,7 +1379,6 @@ pub mod front {
         // Add cluster nodes + their hourly data
         struct NodeData {
             idx: NodeIndex,
-            times: Vec<String>,
             pm25: Vec<Option<f64>>,
         }
 
@@ -1398,7 +1396,7 @@ pub mod front {
                 (Vec::new(), Vec::new())
             };
         all_spikes.push((target_node, detect_spikes(&target_times, &target_pm25, 2.0)));
-        nodes.push(NodeData { idx: target_node, times: target_times, pm25: target_pm25 });
+        nodes.push(NodeData { idx: target_node, pm25: target_pm25 });
 
         for cluster in clusters {
             // Skip target cluster (already added)
@@ -1425,7 +1423,7 @@ pub mod front {
                     (Vec::new(), Vec::new())
                 };
             all_spikes.push((node, detect_spikes(&times, &pm25, 2.0)));
-            nodes.push(NodeData { idx: node, times, pm25 });
+            nodes.push(NodeData { idx: node, pm25 });
         }
 
         // Pairwise cross-correlation (only between nearby clusters, <80km)
@@ -1465,8 +1463,8 @@ pub mod front {
 
                     let from_spikes = all_spikes.iter().find(|(n, _)| *n == from);
                     let to_spikes = all_spikes.iter().find(|(n, _)| *n == to);
-                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes) {
-                        if let (Some(f), Some(t)) = (fs.first(), ts.first()) {
+                    if let (Some((_, fs)), Some((_, ts))) = (from_spikes, to_spikes)
+                        && let (Some(f), Some(t)) = (fs.first(), ts.first()) {
                             fronts.push(FrontEvent {
                                 from_city: graph[from].name.clone(),
                                 to_city: graph[to].name.clone(),
@@ -1478,7 +1476,6 @@ pub mod front {
                                 to_spike_time: t.time.clone(),
                             });
                         }
-                    }
                 }
             }
         }
@@ -1524,6 +1521,7 @@ pub mod front {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_report_with_sensor_values(
         target_name: &str,
         target_lat: f64,
@@ -1542,6 +1540,7 @@ pub mod front {
     }
 
     /// Full report with fronts + blame sources + CPF.
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_report_full(
         target_name: &str,
         target_lat: f64,
@@ -1804,8 +1803,8 @@ pub mod front {
         }
 
         // Wind context
-        if let Some(w) = wind {
-            if let (Some(speed), Some(dir)) = (w.wind_speed_10m, w.direction_label()) {
+        if let Some(w) = wind
+            && let (Some(speed), Some(dir)) = (w.wind_speed_10m, w.direction_label()) {
                 let condition = if speed < 5.0 {
                     "calm \u{2014} pollutants tend to accumulate locally"
                 } else if speed < 15.0 {
@@ -1818,7 +1817,6 @@ pub mod front {
                     speed, dir, condition,
                 ));
             }
-        }
 
         // Overall assessment
         let all_pm25: Vec<f64> = analysis.spikes.iter()

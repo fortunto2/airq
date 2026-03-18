@@ -42,11 +42,10 @@ pub async fn get_wind(lat: f64, lon: f64) -> Result<WindPoint> {
     {
         let mut guard = CACHE.lock().unwrap();
         let cache = guard.get_or_insert_with(|| WindCache { entries: HashMap::new() });
-        if let Some((ts, point)) = cache.entries.get(&key) {
-            if ts.elapsed() < CACHE_TTL {
+        if let Some((ts, point)) = cache.entries.get(&key)
+            && ts.elapsed() < CACHE_TTL {
                 return Ok(point.clone());
             }
-        }
     }
 
     // Fetch from Open-Meteo

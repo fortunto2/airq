@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 /// - `SIGNAL_WEIGHTS: [f64; N]` — comfort index weights
 /// - `SignalRow` — single measurement (`scores: [f64; N]`)
 /// - `SignalMatrix` — time-series storage
+///
 /// Helper: generate index constants for each column.
 macro_rules! signal_idx {
     ( $i:expr, ) => {};
@@ -112,8 +113,7 @@ impl SignalRow {
     pub fn weighted_score(&self) -> f64 {
         let mut sum = 0.0;
         let mut total_w = 0.0;
-        for i in 0..N_SIGNALS {
-            let w = SIGNAL_WEIGHTS[i];
+        for (i, &w) in SIGNAL_WEIGHTS.iter().enumerate() {
             if w > 0.0 && !self.scores[i].is_nan() {
                 sum += self.scores[i] * w;
                 total_w += w;
@@ -334,7 +334,7 @@ impl Serialize for MlVector {
         use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("MlVector", 4)?;
         s.serialize_field("features", &self.features.as_slice())?;
-        let names_vec: Vec<&str> = self.names.iter().copied().collect();
+        let names_vec: Vec<&str> = self.names.to_vec();
         s.serialize_field("names", &names_vec)?;
         s.serialize_field("comfort", &self.comfort)?;
         s.serialize_field("label", &self.label)?;
@@ -367,7 +367,7 @@ impl SignalMatrix {
         if n < 2 {
             return result;
         }
-        let start = if n > window { n - window } else { 0 };
+        let start = n.saturating_sub(window);
         for col in 0..N_SIGNALS {
             let values: Vec<f64> = self.data[start..n].iter().map(|r| r[col]).collect();
             let slope = ols_slope(&values);

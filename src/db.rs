@@ -166,6 +166,7 @@ impl Db {
     }
 
     /// Batch upsert sensors in a single transaction.
+    #[allow(clippy::type_complexity)]
     pub fn upsert_sensors_batch(&self, sensors: &[(i64, Option<f64>, Option<f64>, Option<&str>)]) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let tx = conn.unchecked_transaction()?;

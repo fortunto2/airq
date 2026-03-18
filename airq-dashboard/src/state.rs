@@ -252,16 +252,14 @@ pub fn get_local_ip() -> Option<String> {
 
     // Method 1: enumerate interfaces via multiple UDP binds
     for target in &["192.168.1.1:53", "10.0.0.1:53", "172.16.0.1:53", "8.8.8.8:53"] {
-        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-            if socket.connect(target).is_ok() {
-                if let Ok(addr) = socket.local_addr() {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0")
+            && socket.connect(target).is_ok()
+                && let Ok(addr) = socket.local_addr() {
                     let ip = addr.ip().to_string();
                     if !candidates.contains(&ip) {
                         candidates.push(ip);
                     }
                 }
-            }
-        }
     }
 
     // Prefer 192.168.x.x (typical WiFi), then 10.x.x.x, then anything non-100.x (Tailscale)
@@ -282,21 +280,18 @@ pub fn get_all_local_ips() -> Vec<(String, &'static str)> {
     let mut seen = std::collections::HashSet::new();
 
     for target in &["192.168.1.1:53", "10.0.0.1:53", "172.16.0.1:53", "8.8.8.8:53"] {
-        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-            if socket.connect(target).is_ok() {
-                if let Ok(addr) = socket.local_addr() {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0")
+            && socket.connect(target).is_ok()
+                && let Ok(addr) = socket.local_addr() {
                     let ip = addr.ip().to_string();
                     if seen.insert(ip.clone()) {
                         let label = if ip.starts_with("192.168.") { "WiFi" }
-                            else if ip.starts_with("10.") { "LAN" }
-                            else if ip.starts_with("172.") { "LAN" }
+                            else if ip.starts_with("10.") || ip.starts_with("172.") { "LAN" }
                             else if ip.starts_with("100.") { "VPN/ZeroTrust" }
                             else { "Other" };
                         result.push((ip, label));
                     }
                 }
-            }
-        }
     }
 
     // Sort: WiFi first

@@ -105,7 +105,8 @@ pub async fn collect_once(db: &Db, city_name: &str, lat: f64, lon: f64, radius_k
     }
 
     // Batch insert in single transaction (100x faster than individual inserts)
-    let sensor_refs: Vec<(i64, Option<f64>, Option<f64>, Option<&str>)> = sensors
+    type SensorRef<'a> = (i64, Option<f64>, Option<f64>, Option<&'a str>);
+    let sensor_refs: Vec<SensorRef<'_>> = sensors
         .iter()
         .map(|(id, lat, lon, src)| (*id, *lat, *lon, *src))
         .collect();
