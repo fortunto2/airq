@@ -11,18 +11,26 @@ categories = ["science", "algorithms"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# `cities` and `front` are split out so a WASM consumer can take the maths without the payload.
+# The `cities` crate embeds ~40K city records and `petgraph` is a graph library; neither is needed
+# to normalize fourteen signals, and together they are most of the 1.4 MB the browser used to pay.
+#
+#   wasm            maths + merge + matrix          → the browser and the SSR worker
+#   wasm + cities   the above plus the cities DB    → build-time tooling, run under Node
 [features]
 default = ["cli"]
-cli = ["colored", "dirs", "toml"]
+cli = ["colored", "dirs", "toml", "cities", "front"]
 wasm = ["wasm-bindgen"]
+cities = ["dep:cities"]
+front = ["dep:petgraph", "cities"]
 storage = ["bincode"]
 
 [dependencies]
 anyhow = "1.0.102"
-cities = "0.2.0"
+cities = { version = "0.2.0", optional = true }
 colored = { version = "3.1.1", optional = true }
 dirs = { version = "6.0.0", optional = true }
-petgraph = "0.8.3"
+petgraph = { version = "0.8.3", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = { version = "1.0.6", optional = true }
@@ -30,4 +38,6 @@ wasm-bindgen = { version = "0.2", optional = true }
 bincode = { version = "2", features = ["serde"], optional = true }
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+# Was `false`, which shipped an unoptimized 1.42 MB binary. `-Oz` is the right setting for a module
+# whose cost is measured in download time on a page that promises the number is already on screen.
+wasm-opt = ["-Oz"]

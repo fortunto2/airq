@@ -8,6 +8,7 @@ use wasm_bindgen::prelude::*;
 pub mod matrix;
 pub mod event;
 pub mod merge;
+pub mod geo;
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -220,7 +221,7 @@ impl PollutionSource {
             lat: src.lat,
             lon: src.lon,
             source_type: src.source_type.clone(),
-            distance_km: front::haversine(ref_lat, ref_lon, src.lat, src.lon),
+            distance_km: geo::haversine(ref_lat, ref_lon, src.lat, src.lon),
         }
     }
 }
@@ -581,6 +582,7 @@ pub struct CityInfo {
 
 /// Get major cities for any country. Returns up to `limit` cities.
 /// Country name is case-insensitive, supports common aliases (e.g., "usa" -> "United States").
+#[cfg(feature = "cities")]
 pub fn get_major_cities(country: &str, limit: usize) -> Vec<CityInfo> {
     let normalized = normalize_country(country);
     cities::all()
@@ -597,6 +599,7 @@ pub fn get_major_cities(country: &str, limit: usize) -> Vec<CityInfo> {
 }
 
 /// List all available countries.
+#[cfg(feature = "cities")]
 pub fn list_countries() -> Vec<&'static str> {
     let mut countries: Vec<&str> = cities::all()
         .iter()
@@ -884,42 +887,13 @@ pub fn progress_bar(score: u32) -> String {
 // Front analysis -- pollution front detection and tracking
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "front")]
 pub mod front {
     use petgraph::graph::{Graph, NodeIndex};
 
-    /// Haversine distance in km between two points.
-    pub fn haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-        let r = 6371.0;
-        let dlat = (lat2 - lat1).to_radians();
-        let dlon = (lon2 - lon1).to_radians();
-        let a = (dlat / 2.0).sin().powi(2)
-            + lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
-        r * 2.0 * a.sqrt().asin()
-    }
-
-    /// Bearing in degrees (clockwise from N) from point A to point B.
-    pub fn bearing(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-        let lat1 = lat1.to_radians();
-        let lat2 = lat2.to_radians();
-        let dlon = (lon2 - lon1).to_radians();
-        let y = dlon.sin() * lat2.cos();
-        let x = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
-        (y.atan2(x).to_degrees() + 360.0) % 360.0
-    }
-
-    /// Compass label from bearing degrees.
-    pub fn bearing_label(deg: f64) -> &'static str {
-        let dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-        let idx = ((deg + 22.5) % 360.0 / 45.0) as usize;
-        dirs[idx.min(7)]
-    }
-
-    /// Arrow from bearing degrees (direction pollution is moving TO).
-    pub fn bearing_arrow(deg: f64) -> &'static str {
-        let arrows = ["\u{2191}", "\u{2197}", "\u{2192}", "\u{2198}", "\u{2193}", "\u{2199}", "\u{2190}", "\u{2196}"];
-        let idx = ((deg + 22.5) % 360.0 / 45.0) as usize;
-        arrows[idx.min(7)]
-    }
+    // The geometry moved to `crate::geo` so a WASM build can measure a distance without linking
+    // petgraph. Re-exported here because every existing caller says `front::haversine`.
+    pub use crate::geo::{bearing, bearing_arrow, bearing_label, haversine};
 
     /// A sensor cluster -- group of nearby sensors aggregated into one node.
     #[derive(Debug, Clone)]
@@ -2347,6 +2321,51 @@ mod tests {
         assert!(countries.contains(&"Japan"));
     }
 
+    /// The documented input to `from_json_scores` is a bare map of signal scores. It has no
+    /// `total` — computing the total is the entire job. This went uncovered, and the struct
+    /// doubling as both input and output shape meant the documented call failed to deserialize.
+    #[test]
+    fn signal_comfort_accepts_scores_without_a_total() {
+        let json = r#"{"air":22,"temperature":85,"uv":70,"sea":90}"#;
+        let c = signal::SignalComfort::from_json_scores(json).expect("documented input must parse");
+
+        assert_eq!(c.get("air"), Some(22));
+        assert_eq!(c.get("sea"), Some(90));
+        // Weighted over the four supplied signals only — NaN columns are excluded from the
+        // denominator, so a partial reading is scored on what it actually knows.
+        // 0.20·22 + 0.16·85 + 0.08·70 + 0.10·90 = 32.6 over a weight of 0.54 → 60.
+        assert_eq!(c.total, 60);
+
+        // Signals we never supplied must be absent, not zero. Zero is a measurement.
+        assert_eq!(c.get("noise"), None);
+        assert_eq!(c.get("pollen"), None);
+        assert_eq!(c.scores.len(), 4);
+    }
+
+    /// `sea` is the column name; `marine` is only the name of the normalize function. Passing the
+    /// wrong one is silently dropped by `SignalRow::from_pairs`, which is the kind of bug that
+    /// ships a plausible number.
+    #[test]
+    fn signal_comfort_ignores_unknown_keys() {
+        let known = signal::SignalComfort::from_json_scores(r#"{"air":40,"sea":80}"#).unwrap();
+        let typo = signal::SignalComfort::from_json_scores(r#"{"air":40,"marine":80}"#).unwrap();
+
+        assert_eq!(typo.get("marine"), None);
+        assert_ne!(known.total, typo.total, "a dropped key must not score the same");
+    }
+
+    /// Moscow, 2026-03: the model said 130 µg/m³, ten sensors agreed on 6.7, and every other air
+    /// map plotted the 130. `merge` is what makes the station page say by how much they disagree.
+    #[test]
+    fn merge_downweights_a_model_that_disagrees_with_ten_sensors() {
+        let m = merge::merge(Some(130.0), Some(160.0), Some(6.7), Some(10.0), 10);
+
+        assert!(m.divergence > 10.0, "divergence was {}", m.divergence);
+        assert!(m.model_weight < 0.05, "model weight was {}", m.model_weight);
+        assert!(m.pm25 < 15.0, "merged pm25 was {}", m.pm25);
+        assert_eq!(m.source, "sensors+model");
+    }
+
     // --- CPF tests ---
 
     #[test]
@@ -3007,6 +3026,11 @@ pub mod signal {
     /// Comfort snapshot. Named fields for JSON, backed by matrix::SignalRow.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct SignalComfort {
+        /// `default` because this struct is both the output *and* the input shape:
+        /// `from_json_scores` deserializes into it, and the documented input is a bare map of
+        /// scores with no `total` — the whole point being that `total` is what we compute.
+        /// Without this, the documented call fails with `missing field 'total'`.
+        #[serde(default)]
         pub total: u32,
         #[serde(flatten)]
         pub scores: std::collections::HashMap<String, u32>,
@@ -3017,6 +3041,13 @@ pub mod signal {
         pub fn from_row(row: &super::matrix::SignalRow) -> Self {
             let mut scores = std::collections::HashMap::new();
             for (i, &name) in super::matrix::SIGNAL_NAMES.iter().enumerate() {
+                // A NaN column means "we have no reading for this signal", and it is already
+                // excluded from `weighted_score`'s denominator. Emitting it as 0 would tell a
+                // consumer the opposite — that we measured, and the answer was as bad as possible.
+                // A renderer would draw a full-height red bar for a sensor that does not exist.
+                if row.scores[i].is_nan() {
+                    continue;
+                }
                 scores.insert(name.to_string(), row.scores[i] as u32);
             }
             Self {
@@ -3273,7 +3304,59 @@ pub mod wasm {
 
     #[wasm_bindgen]
     pub fn wasm_haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-        front::haversine(lat1, lon1, lat2, lon2)
+        geo::haversine(lat1, lon1, lat2, lon2)
+    }
+
+    // -- Sensor/model merge --
+
+    /// Merge a model forecast with a sensor median, weighting the model down as it diverges.
+    ///
+    /// This is the calculation behind the claim no other air map makes: a cheap sensor indoors or
+    /// next to a road reads several times high, and the merge says by how much instead of plotting
+    /// it at face value. Moscow, 2026-03: model 130 µg/m³ against a sensor median of 6.7 with ten
+    /// sensors agreeing → divergence > 10, model weight < 0.05, merged 6.2.
+    ///
+    /// Input JSON — every field optional except `sensor_count`:
+    /// `{"model_pm25":130,"model_pm10":160,"sensor_pm25":6.7,"sensor_pm10":10,"sensor_count":10}`
+    ///
+    /// Returns the serialized `MergedReading`: final `pm25`/`pm10`, both inputs, `model_weight`,
+    /// `divergence` and a `source` string ("sensors+model" | "sensors" | "model-only" | "no-data").
+    #[wasm_bindgen]
+    pub fn wasm_merge(json: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Input {
+            model_pm25: Option<f64>,
+            model_pm10: Option<f64>,
+            sensor_pm25: Option<f64>,
+            sensor_pm10: Option<f64>,
+            #[serde(default)]
+            sensor_count: u32,
+        }
+
+        let input: Input = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(e) => return serde_json::json!({ "error": e.to_string() }).to_string(),
+        };
+
+        let merged = merge::merge(
+            input.model_pm25,
+            input.model_pm10,
+            input.sensor_pm25,
+            input.sensor_pm10,
+            input.sensor_count,
+        );
+        serde_json::to_string(&merged).unwrap_or_default()
+    }
+
+    /// Classify what a PM10/PM2.5 ratio is telling you — dust, combustion, mixed traffic.
+    ///
+    /// Returns `{"category","label","confidence"}`. Cheap enough to run on every station page,
+    /// and it turns two numbers into the sentence a reader actually wanted.
+    #[wasm_bindgen]
+    pub fn wasm_classify_source(pm25: f64, pm10: f64) -> String {
+        let ratio = if pm25 > 0.0 { pm10 / pm25 } else { 0.0 };
+        let cat = event::classify_source(ratio, pm25, pm10);
+        serde_json::to_string(&cat).unwrap_or_default()
     }
 
     #[wasm_bindgen]
@@ -3372,9 +3455,14 @@ pub mod wasm {
     }
 
     // -- Cities database --
+    //
+    // Behind the `cities` feature: these three are the only reason the crate is linked, and it is
+    // ~40K embedded records. Build with `--features "wasm,cities"` for tooling that needs to
+    // resolve a coordinate to a place name; omit it for anything shipped to a browser.
 
     /// Search cities by name prefix. Returns JSON array of {name, country, lat, lon}.
     /// Max 10 results.
+    #[cfg(feature = "cities")]
     #[wasm_bindgen]
     pub fn wasm_search_cities(query: &str) -> String {
         let q = query.to_lowercase();
@@ -3393,6 +3481,7 @@ pub mod wasm {
     }
 
     /// Get major cities for a country. Returns JSON array.
+    #[cfg(feature = "cities")]
     #[wasm_bindgen]
     pub fn wasm_major_cities(country: &str, limit: u32) -> String {
         let cities = get_major_cities(country, limit as usize);
@@ -3400,6 +3489,7 @@ pub mod wasm {
     }
 
     /// List all countries. Returns JSON array of strings.
+    #[cfg(feature = "cities")]
     #[wasm_bindgen]
     pub fn wasm_list_countries() -> String {
         serde_json::to_string(&list_countries()).unwrap_or_default()

@@ -257,7 +257,7 @@ pub fn directional_cluster(
     // Compute bearing from center to each anomaly sensor
     let bearings: Vec<f64> = anomaly_readings
         .iter()
-        .map(|r| super::front::bearing(center_lat, center_lon, r.lat, r.lon))
+        .map(|r| crate::geo::bearing(center_lat, center_lon, r.lat, r.lon))
         .collect();
 
     // Circular mean bearing
@@ -293,7 +293,7 @@ pub fn directional_cluster(
 
     Some(DirectionalResult {
         bearing_deg: mean_bearing,
-        bearing_label: super::front::bearing_label(mean_bearing).to_string(),
+        bearing_label: crate::geo::bearing_label(mean_bearing).to_string(),
         spread_deg: max_spread,
         is_directional,
         sensors_in_sector,
