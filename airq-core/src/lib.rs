@@ -9,6 +9,7 @@ pub mod matrix;
 pub mod event;
 pub mod merge;
 pub mod geo;
+pub mod cpf;
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -893,6 +894,7 @@ pub mod front {
 
     // The geometry moved to `crate::geo` so a WASM build can measure a distance without linking
     // petgraph. Re-exported here because every existing caller says `front::haversine`.
+    pub use crate::cpf::{calculate_cpf, CpfResult};
     pub use crate::geo::{bearing, bearing_arrow, bearing_label, haversine};
 
     /// A sensor cluster -- group of nearby sensors aggregated into one node.
@@ -1989,116 +1991,6 @@ pub mod front {
     // -----------------------------------------------------------------------
     // CPF (Conditional Probability Function) for blame analysis
     // -----------------------------------------------------------------------
-
-    /// CPF result for a single pollution source.
-    #[derive(Debug, serde::Serialize)]
-    pub struct CpfResult {
-        pub source: super::PollutionSource,
-        /// CPF score 0.0-1.0
-        pub cpf_score: f64,
-        /// Bearing from sensor to source (degrees)
-        pub bearing_deg: f64,
-        /// Total hours where wind came from source sector (and speed > threshold)
-        pub hours_in_sector: usize,
-        /// Hours in sector where PM2.5 exceeded threshold
-        pub high_hours_in_sector: usize,
-        /// Average PM2.5 when wind is from source direction
-        pub avg_pm25_in_sector: f64,
-        /// Average PM2.5 from other directions (background)
-        pub avg_pm25_other: f64,
-    }
-
-    /// Calculate CPF for each source given hourly observations.
-    ///
-    /// `wind_dirs` and `wind_speeds` must be same length as `pm25_values`.
-    /// `percentile` -- fraction (0.75 or 0.90) to compute the high-pollution threshold.
-    pub fn calculate_cpf(
-        sensor_lat: f64,
-        sensor_lon: f64,
-        sources: &[super::PollutionSource],
-        pm25_values: &[f64],
-        wind_dirs: &[f64],
-        wind_speeds: &[f64],
-        percentile: f64,
-    ) -> Vec<CpfResult> {
-        if pm25_values.is_empty() {
-            return Vec::new();
-        }
-
-        // 1. Calculate threshold = percentile of pm25_values
-        let mut sorted_pm = pm25_values.to_vec();
-        sorted_pm.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let idx = ((sorted_pm.len() as f64 * percentile) as usize).min(sorted_pm.len() - 1);
-        let threshold = sorted_pm[idx];
-
-        let half_sector = 15.0_f64; // +/-15 degree sector width
-        let min_wind_speed = 5.0; // km/h -- filter calm winds
-
-        let mut results: Vec<CpfResult> = Vec::new();
-
-        for source in sources {
-            let brng = bearing(sensor_lat, sensor_lon, source.lat, source.lon);
-
-            let mut sector_count = 0usize;
-            let mut high_count = 0usize;
-            let mut sector_pm_sum = 0.0;
-            let mut other_pm_sum = 0.0;
-            let mut other_count = 0usize;
-
-            for i in 0..pm25_values.len() {
-                if wind_speeds[i] < min_wind_speed {
-                    continue; // calm wind -- unreliable direction
-                }
-
-                // Angular difference (wind comes FROM wind_dir, source is at brng)
-                let diff = ((wind_dirs[i] - brng + 540.0) % 360.0) - 180.0;
-                let in_sector = diff.abs() <= half_sector;
-
-                if in_sector {
-                    sector_count += 1;
-                    sector_pm_sum += pm25_values[i];
-                    if pm25_values[i] > threshold {
-                        high_count += 1;
-                    }
-                } else {
-                    other_pm_sum += pm25_values[i];
-                    other_count += 1;
-                }
-            }
-
-            let cpf = if sector_count > 0 {
-                high_count as f64 / sector_count as f64
-            } else {
-                0.0
-            };
-
-            let avg_in = if sector_count > 0 {
-                sector_pm_sum / sector_count as f64
-            } else {
-                0.0
-            };
-
-            let avg_other = if other_count > 0 {
-                other_pm_sum / other_count as f64
-            } else {
-                0.0
-            };
-
-            results.push(CpfResult {
-                source: source.clone(),
-                cpf_score: cpf,
-                bearing_deg: brng,
-                hours_in_sector: sector_count,
-                high_hours_in_sector: high_count,
-                avg_pm25_in_sector: avg_in,
-                avg_pm25_other: avg_other,
-            });
-        }
-
-        // Sort by CPF descending
-        results.sort_by(|a, b| b.cpf_score.partial_cmp(&a.cpf_score).unwrap());
-        results
-    }
 
     /// Minimal HTML escaping for user-provided strings.
     pub fn html_escape(s: &str) -> String {
@@ -3350,13 +3242,177 @@ pub mod wasm {
 
     /// Classify what a PM10/PM2.5 ratio is telling you — dust, combustion, mixed traffic.
     ///
-    /// Returns `{"category","label","confidence"}`. Cheap enough to run on every station page,
+    /// Returns the full `SourceClassification`: category, label, confidence, a reason with the
+    /// numbers in it, the typical sources, and advice. Cheap enough to run on every station page,
     /// and it turns two numbers into the sentence a reader actually wanted.
     #[wasm_bindgen]
     pub fn wasm_classify_source(pm25: f64, pm10: f64) -> String {
         let ratio = if pm25 > 0.0 { pm10 / pm25 } else { 0.0 };
         let cat = event::classify_source(ratio, pm25, pm10);
         serde_json::to_string(&cat).unwrap_or_default()
+    }
+
+    /// Is this a real event, or one sensor having a bad day?
+    ///
+    /// The question every air map gets wrong. A single device reading high is noise; seven devices
+    /// reading high *on the same side of town* is something arriving, and the difference is the
+    /// whole value of having a network rather than a sensor.
+    ///
+    /// Input JSON:
+    /// ```json
+    /// { "lat": 48.78, "lon": 9.18, "k": 2.0,
+    ///   "readings": [{ "sensor_id": 1, "lat": 48.8, "lon": 9.2, "pm25": 31.0, "pm10": 44.0 }],
+    ///   "baseline": { "pm25": 8.0, "pm25_var": 9.0, "pm10": 14.0, "pm10_var": 20.0 } }
+    /// ```
+    ///
+    /// `baseline` is supplied rather than accumulated, which is what lets this run without a
+    /// database: hand it the median and variance of the readings themselves and the comparison
+    /// becomes spatial — this sensor against its neighbours right now — instead of temporal.
+    ///
+    /// Returns the whole `EventAnalysis`: concordance and event type, the direction the anomaly
+    /// sits in with its angular spread, medians, the PM ratio and its source classification,
+    /// a confidence, and a composed summary sentence.
+    #[wasm_bindgen]
+    pub fn wasm_detect_event(json: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Reading {
+            sensor_id: u64,
+            lat: f64,
+            lon: f64,
+            pm25: f64,
+            #[serde(default)]
+            pm10: f64,
+        }
+        #[derive(serde::Deserialize)]
+        struct Baseline {
+            pm25: f64,
+            pm25_var: f64,
+            #[serde(default)]
+            pm10: f64,
+            #[serde(default)]
+            pm10_var: f64,
+        }
+        #[derive(serde::Deserialize)]
+        struct Input {
+            lat: f64,
+            lon: f64,
+            readings: Vec<Reading>,
+            baseline: Baseline,
+            #[serde(default = "default_k")]
+            k: f64,
+        }
+        fn default_k() -> f64 {
+            2.0
+        }
+
+        let input: Input = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(e) => return serde_json::json!({ "error": e.to_string() }).to_string(),
+        };
+
+        let readings: Vec<event::SensorReading> = input
+            .readings
+            .iter()
+            .map(|r| event::SensorReading {
+                sensor_id: r.sensor_id,
+                lat: r.lat,
+                lon: r.lon,
+                pm25: r.pm25,
+                pm10: r.pm10,
+            })
+            .collect();
+
+        let baselines: std::collections::HashMap<u64, event::DualBaseline> = readings
+            .iter()
+            .map(|r| {
+                (
+                    r.sensor_id,
+                    event::DualBaseline::with_baselines(
+                        input.baseline.pm25,
+                        input.baseline.pm25_var,
+                        input.baseline.pm10,
+                        input.baseline.pm10_var,
+                    ),
+                )
+            })
+            .collect();
+
+        let analysis = event::detect_event(input.lat, input.lon, &readings, &baselines, input.k);
+        serde_json::to_string(&analysis).unwrap_or_default()
+    }
+
+    /// Which neighbour is making the air bad — the conditional probability function.
+    ///
+    /// Given a month of hourly PM2.5 alongside the wind that blew during each of those hours, and
+    /// a list of nearby sources, this scores each source by *the fraction of hours with wind from
+    /// its direction that landed in the worst quarter of readings*. A works that only matters on a
+    /// northerly scores high; a motorway that is always there scores flat.
+    ///
+    /// The reportable number is not the score, though — it is `avg_pm25_in_sector` against
+    /// `avg_pm25_other`: "when the wind is off the port you breathe 31 µg/m³, otherwise 12".
+    ///
+    /// Input JSON:
+    /// ```json
+    /// { "lat": 48.78, "lon": 9.18, "percentile": 0.75,
+    ///   "sources": [{ "name": "Cement works", "lat": 48.9, "lon": 9.3,
+    ///                 "source_type": "factory", "distance_km": 14.2 }],
+    ///   "pm25": [12.0, 31.0, ...], "wind_dirs": [210.0, ...], "wind_speeds": [8.0, ...] }
+    /// ```
+    /// The three arrays are parallel and hourly; hours with wind under 5 km/h are ignored, because
+    /// calm air carries nothing from anywhere.
+    #[wasm_bindgen]
+    pub fn wasm_calculate_cpf(json: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Source {
+            name: String,
+            lat: f64,
+            lon: f64,
+            source_type: String,
+            #[serde(default)]
+            distance_km: f64,
+        }
+        #[derive(serde::Deserialize)]
+        struct Input {
+            lat: f64,
+            lon: f64,
+            sources: Vec<Source>,
+            pm25: Vec<f64>,
+            wind_dirs: Vec<f64>,
+            wind_speeds: Vec<f64>,
+            #[serde(default = "default_percentile")]
+            percentile: f64,
+        }
+        fn default_percentile() -> f64 {
+            0.75
+        }
+
+        let input: Input = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(e) => return serde_json::json!({ "error": e.to_string() }).to_string(),
+        };
+
+        let sources: Vec<PollutionSource> = input
+            .sources
+            .into_iter()
+            .map(|s| PollutionSource {
+                name: s.name,
+                lat: s.lat,
+                lon: s.lon,
+                source_type: s.source_type,
+                distance_km: s.distance_km,
+            })
+            .collect();
+
+        let results = cpf::calculate_cpf(
+            input.lat,
+            input.lon,
+            &sources,
+            &input.pm25,
+            &input.wind_dirs,
+            &input.wind_speeds,
+            input.percentile,
+        );
+        serde_json::to_string(&results).unwrap_or_default()
     }
 
     #[wasm_bindgen]
