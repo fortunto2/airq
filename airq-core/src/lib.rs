@@ -317,13 +317,23 @@ impl GeomagneticData {
 // ---------------------------------------------------------------------------
 
 /// AQI breakpoints: (C_low, C_high, AQI_low, AQI_high)
+///
+/// The PM2.5 table is the EPA's 2024 revision, effective 6 May 2024, which accompanied the annual
+/// standard moving from 12.0 to 9.0 ug/m3. Three brackets changed, not one: the Good ceiling fell
+/// from 12.0 to 9.0, and the top of the scale came down hard, with Hazardous starting at 225.5
+/// instead of 250.5 and topping out at 325.4 instead of 500.4.
+///
+/// This matters more than a table edit sounds. AQI is the number every other site prints, so ours
+/// has to mean the same thing theirs does; on the old table a city reading 10 ug/m3 was "Good" and
+/// on the current one it is "Moderate". It also feeds normalize_air, which is a fifth of the
+/// comfort score.
 const PM25_BREAKPOINTS: &[(f64, f64, u32, u32)] = &[
-    (0.0, 12.0, 0, 50),       // Good
-    (12.1, 35.4, 51, 100),    // Moderate
+    (0.0, 9.0, 0, 50),        // Good
+    (9.1, 35.4, 51, 100),     // Moderate
     (35.5, 55.4, 101, 150),   // Unhealthy for Sensitive
-    (55.5, 150.4, 151, 200),  // Unhealthy
-    (150.5, 250.4, 201, 300), // Very Unhealthy
-    (250.5, 500.4, 301, 500), // Hazardous
+    (55.5, 125.4, 151, 200),  // Unhealthy
+    (125.5, 225.4, 201, 300), // Very Unhealthy
+    (225.5, 325.4, 301, 500), // Hazardous
 ];
 
 const PM10_BREAKPOINTS: &[(f64, f64, u32, u32)] = &[
@@ -787,8 +797,9 @@ pub fn calculate_comfort(
     // Air: based on AQI
     let aqi = overall_aqi(air).unwrap_or(0);
     let air_score = match aqi {
-        0..=25 => 100,
-        26..=50 => 80,
+        // 28 is the AQI of 5 ug/m3, the WHO 2021 annual guideline, on the current EPA scale.
+        0..=28 => 100,
+        29..=50 => 80,
         51..=100 => 50,
         101..=200 => 20,
         _ => 0,
@@ -1800,7 +1811,7 @@ pub mod front {
             .collect();
         if !all_pm25.is_empty() {
             let max_pm = all_pm25.iter().cloned().fold(0.0_f64, f64::max);
-            let assessment = if max_pm < 12.0 {
+            let assessment = if max_pm < 9.0 {
                 "Excellent air quality across the region. Safe for all outdoor activities."
             } else if max_pm < 35.5 {
                 "Moderate air quality. Generally safe, sensitive individuals may want to limit prolonged outdoor exertion."
@@ -2015,19 +2026,19 @@ mod tests {
     #[test]
     fn test_pm25_aqi_good() {
         assert_eq!(pm25_aqi(0.0), 0);
-        assert_eq!(pm25_aqi(12.0), 50);
+        assert_eq!(pm25_aqi(9.0), 50);
     }
 
     #[test]
     fn test_pm25_aqi_moderate() {
-        assert_eq!(pm25_aqi(12.1), 51);
+        assert_eq!(pm25_aqi(9.1), 51);
         assert_eq!(pm25_aqi(35.4), 100);
     }
 
     #[test]
     fn test_pm25_aqi_unhealthy() {
         assert_eq!(pm25_aqi(55.5), 151);
-        assert!(pm25_aqi(150.4) <= 200);
+        assert!(pm25_aqi(125.4) <= 200);
     }
 
     #[test]
@@ -2094,7 +2105,8 @@ mod tests {
 
     #[test]
     fn test_pm25_status() {
-        assert!(matches!(get_pm25_status(10.0), AqiCategory::Good));
+        assert!(matches!(get_pm25_status(8.0), AqiCategory::Good));
+        assert!(matches!(get_pm25_status(10.0), AqiCategory::Moderate));
         assert!(matches!(get_pm25_status(20.0), AqiCategory::Moderate));
         assert!(matches!(
             get_pm25_status(40.0),
