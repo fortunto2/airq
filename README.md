@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/airq)](https://crates.io/crates/airq)
 [![airq-core](https://img.shields.io/crates/v/airq-core?label=airq-core)](https://crates.io/crates/airq-core)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 Check air quality from your terminal. Any city in the world, no API key needed. Detects pollution fronts, generates visual reports with maps and heatmaps.
 
@@ -425,4 +425,10 @@ airq-core = { version = "2.0", default-features = false }  # minimal / iOS / WAS
 
 ## License
 
-MIT
+AGPL-3.0. You may use, study, modify and redistribute this, including
+commercially. If you run a modified version somewhere other people can reach it
+over a network, you owe them the source — that is section 13, and it is the
+reason for the licence.
+
+Releases up to v2.1.0 were MIT and stay MIT. See NOTICE for the reasoning and for
+the data licences, which travel separately from the code.
