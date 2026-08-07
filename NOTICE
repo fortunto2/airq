@@ -1,0 +1,46 @@
+airq — fourteen environmental signals, scored.
+Copyright (C) 2024-2026 Rustam Gilfanov
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE. See the GNU Affero General Public License for more details. You should
+have received a copy of it along with this program; if not, see
+<https://www.gnu.org/licenses/>.
+
+-------------------------------------------------------------------------------
+
+Why AGPL and not MIT
+
+Releases up to and including v2.1.0 were published under the MIT licence, and
+those releases stay MIT: a licence already granted cannot be withdrawn, and
+anyone holding that code keeps those terms. Everything from here is AGPL-3.0.
+
+The change is about one specific thing. MIT lets someone take this, improve it,
+run it as a service and never show the improvements to anyone. The scoring
+curves, the sensor/model merge and the source attribution in this repository are
+the parts worth having, and they were derived from measurements that volunteers
+give away for free. AGPL's section 13 closes that: run a modified version where
+other people can reach it over a network, and you owe them the source.
+
+It does not stop anyone using this commercially, and it is not meant to. That is
+what makes it an open source licence rather than a restriction dressed as one.
+
+-------------------------------------------------------------------------------
+
+Data, which carries its own terms and is not covered by the licence above
+
+  Sensor.Community   ODbL 1.0     https://sensor.community/
+  Open-Meteo         CC BY 4.0    https://open-meteo.com/
+  USGS earthquakes   public domain
+  NOAA SWPC          public domain
+  GeoNames           CC BY 4.0    https://www.geonames.org/
+  OpenStreetMap      ODbL 1.0     https://www.openstreetmap.org/copyright
+
+ODbL is share-alike on derived databases. If you publicly use a database built
+from these, you owe it under ODbL too — that obligation travels with the data
+and applies whatever licence the code carries.
