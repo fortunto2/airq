@@ -3206,6 +3206,16 @@ pub mod wasm {
         .to_string()
     }
 
+    /// Initial bearing from the first point to the second, in degrees clockwise from north.
+    ///
+    /// Exported because the source pass needs it and `directional_cluster` already uses it: which
+    /// side of town a factory is on and which side the anomalous sensors are on have to be measured
+    /// the same way, or comparing them is meaningless.
+    #[wasm_bindgen]
+    pub fn wasm_bearing(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+        crate::geo::bearing(lat1, lon1, lat2, lon2)
+    }
+
     #[wasm_bindgen]
     pub fn wasm_haversine(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
         geo::haversine(lat1, lon1, lat2, lon2)
