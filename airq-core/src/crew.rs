@@ -74,7 +74,67 @@ pub struct ShiftPlan {
     pub peak_aqi: Option<u32>,
     pub peak_temp_f: Option<f64>,
     pub bms: BmsSignal,
+    pub confidence: Confidence,
 }
+
+/// What the plan can be checked against: satellite fire detections and a ground monitor.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Context {
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+    /// VIIRS detections, `[lat, lon]`, last 24 h.
+    #[serde(default)]
+    pub fires: Vec<[f64; 2]>,
+    pub ground: Option<Ground>,
+}
+
+/// The latest hourly PM2.5 from regulatory monitors near the place (AirNow).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Ground {
+    /// Local hour of the reading, same format as the forecast's.
+    pub time: String,
+    /// Median of the nearest monitors, µg/m³.
+    pub pm25: f64,
+    pub stations: u32,
+    pub nearest: String,
+    pub nearest_km: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FireNote {
+    pub nearest_km: f64,
+    pub direction: &'static str,
+    pub within_50km: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GroundNote {
+    #[serde(flatten)]
+    pub reading: Ground,
+    pub model_pm25: f64,
+    pub divergence: f64,
+    /// How the forecast was scaled at the reading's hour; fades to 1 over ~12 h either side.
+    pub factor: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Confidence {
+    /// `sensor-confirmed` | `model-adjusted` | `model-only`.
+    pub level: &'static str,
+    pub fire: Option<FireNote>,
+    pub ground: Option<GroundNote>,
+    pub notes: Vec<String>,
+}
+
+/// A fire this close is where a 40 km smoke model reads lowest.
+pub const FIRE_WARN_KM: f64 = 50.0;
+/// Model and monitor within 1.5× of each other count as agreeing.
+pub const AGREE_DIVERGENCE: f64 = 1.5;
+/// Bounds of a ground correction: a low monitor may halve the forecast, a high one triple it.
+pub const MIN_FACTOR: f64 = 0.5;
+pub const MAX_FACTOR: f64 = 3.0;
+/// e-folding time of a ground correction, hours.
+pub const CORRECTION_HOURS: f64 = 12.0;
 
 pub const METRICS: [&str; 5] = ["us_aqi_pm25", "pm25_nowcast_ugm3", "pm25_ugm3", "temp_f", "temp_c"];
 
@@ -223,10 +283,104 @@ pub fn bms(day: &[Hour], threshold_aqi: u32) -> BmsSignal {
     }
 }
 
+pub fn fire_note(lat: f64, lon: f64, fires: &[[f64; 2]]) -> Option<FireNote> {
+    let near: Vec<(f64, [f64; 2])> = fires
+        .iter()
+        .filter(|f| (f[0] - lat).abs() < 2.0 && (f[1] - lon).abs() < 2.5)
+        .map(|f| (crate::geo::haversine(lat, lon, f[0], f[1]), *f))
+        .collect();
+    let (km, f) = near.iter().cloned().min_by(|a, b| a.0.total_cmp(&b.0))?;
+    Some(FireNote {
+        nearest_km: (km * 10.0).round() / 10.0,
+        direction: crate::geo::bearing_label(crate::geo::bearing(lat, lon, f[0], f[1])),
+        within_50km: near.iter().filter(|(d, _)| *d <= FIRE_WARN_KM).count() as u32,
+    })
+}
+
+/// Scale the forecast PM2.5 by what a ground monitor saw, strongest at the reading's hour.
+///
+/// The factor is `merge::merge`'s answer over the model's, clamped to [0.5, 3]. Asymmetric on
+/// purpose: this is a safety tool, so one monitor reading low may halve the forecast but no more,
+/// and one reading high cannot invent more than a tripling. It decays as exp(-|Δh| / 12): a monitor at 05:00 says a lot
+/// about 08:00 and little about tomorrow afternoon.
+pub fn ground_adjust(raw: &[RawHour], g: &Ground) -> (Vec<RawHour>, Option<GroundNote>) {
+    let Some(at) = raw.iter().position(|h| h.time == g.time) else { return (raw.to_vec(), None) };
+    let Some(model) = raw[at].pm25 else { return (raw.to_vec(), None) };
+    let merged = crate::merge::merge(Some(model), None, Some(g.pm25), None, g.stations);
+    // Agreement leaves the forecast alone, so "they agree" on the page means the numbers are the model's.
+    let factor = if model > 0.5 && merged.divergence >= AGREE_DIVERGENCE {
+        (merged.pm25 / model).clamp(MIN_FACTOR, MAX_FACTOR)
+    } else {
+        1.0
+    };
+    let out = raw
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let k = 1.0 + (factor - 1.0) * (-(i as f64 - at as f64).abs() / CORRECTION_HOURS).exp();
+            RawHour { pm25: h.pm25.map(|v| v * k), ..h.clone() }
+        })
+        .collect();
+    let note = GroundNote {
+        reading: g.clone(),
+        model_pm25: (model * 10.0).round() / 10.0,
+        divergence: (merged.divergence * 100.0).round() / 100.0,
+        factor: (factor * 100.0).round() / 100.0,
+    };
+    (out, Some(note))
+}
+
+fn confidence(fire: Option<FireNote>, ground: Option<GroundNote>) -> Confidence {
+    let mut notes = Vec::new();
+    if let Some(f) = fire.as_ref().filter(|f| f.nearest_km <= FIRE_WARN_KM) {
+        notes.push(format!(
+            "Active fire {:.0} km {} ({} VIIRS detections within 50 km, last 24 h). Smoke models read low this close: check the sky and a local sensor.",
+            f.nearest_km, f.direction, f.within_50km
+        ));
+    }
+    let level = match &ground {
+        Some(g) => {
+            let agree = g.divergence < AGREE_DIVERGENCE;
+            notes.push(format!(
+                "AirNow monitor {}, {:.0} km away, read {:.1} µg/m³ at {}; the model had {:.1}.{}",
+                g.reading.nearest,
+                g.reading.nearest_km,
+                g.reading.pm25,
+                clock(&g.reading.time),
+                g.model_pm25,
+                if agree {
+                    " They agree.".to_string()
+                } else {
+                    format!(" Forecast scaled ×{:.2} around that hour, fading over 12 hours.", g.factor)
+                }
+            ));
+            if agree { "sensor-confirmed" } else { "model-adjusted" }
+        }
+        None => {
+            notes.push("No AirNow monitor within 25 km to check the model against.".into());
+            "model-only"
+        }
+    };
+    Confidence { level, fire, ground, notes }
+}
+
 /// The whole answer for one day and shift. `raw` should start a day early so the first shift hour
 /// has its 12 hours of NowCast history.
 pub fn shift_plan(raw: &[RawHour], date: &str, start: u32, end: u32, book: &Rulebook) -> ShiftPlan {
-    let all = metrics(raw);
+    shift_plan_with(raw, date, start, end, book, &Context::default())
+}
+
+/// `shift_plan`, checked against satellite fires and a ground monitor first.
+pub fn shift_plan_with(raw: &[RawHour], date: &str, start: u32, end: u32, book: &Rulebook, ctx: &Context) -> ShiftPlan {
+    let (raw, ground) = match &ctx.ground {
+        Some(g) => ground_adjust(raw, g),
+        None => (raw.to_vec(), None),
+    };
+    let fire = match (ctx.lat, ctx.lon) {
+        (Some(lat), Some(lon)) => fire_note(lat, lon, &ctx.fires),
+        _ => None,
+    };
+    let all = metrics(&raw);
     let day: Vec<Hour> = all.iter().filter(|h| h.time.starts_with(date)).cloned().collect();
     let shift: Vec<Hour> = day
         .iter()
@@ -240,6 +394,7 @@ pub fn shift_plan(raw: &[RawHour], date: &str, start: u32, end: u32, book: &Rule
         peak_temp_f: shift.iter().filter_map(|h| h.metrics.get("temp_f").copied()).reduce(f64::max),
         bms: bms(&day, 101),
         hours: shift,
+        confidence: confidence(fire, ground),
     }
 }
 
@@ -306,6 +461,63 @@ mod tests {
         assert_eq!(p.hours.len(), 10);
         assert_eq!(p.bms.recirculate_at.as_deref(), Some("2026-10-24T13:00"));
         assert_eq!(p.bms.resume_at, None);
+    }
+
+    fn ground(time: &str, pm25: f64) -> Ground {
+        Ground { time: time.into(), pm25, stations: 3, nearest: "Fresno-Garland".into(), nearest_km: 4.2 }
+    }
+
+    #[test]
+    fn a_monitor_reading_three_times_the_model_raises_the_forecast_and_fades() {
+        let raw: Vec<RawHour> = (0..24).map(|h| raw(h, 20.0, 18.0)).collect();
+        let (out, note) = ground_adjust(&raw, &ground("2026-10-24T06:00", 60.0));
+        let note = note.unwrap();
+        // merge with 3 monitors at divergence 3: model weight ≈ 0.3·0.5/(1+e⁴) ≈ 0.003 → ~59.9.
+        assert!((note.factor - 3.0).abs() < 0.01, "{note:?}");
+        assert!((out[6].pm25.unwrap() - 59.9).abs() < 0.2);
+        // 12 h later the correction is down to 1 + 2/e.
+        assert!((out[18].pm25.unwrap() - 20.0 * (1.0 + 2.0 / std::f64::consts::E)).abs() < 0.3);
+        let c = confidence(None, Some(note));
+        assert_eq!(c.level, "model-adjusted");
+    }
+
+    #[test]
+    fn a_low_monitor_can_halve_the_forecast_but_no_more() {
+        let raw: Vec<RawHour> = (0..24).map(|h| raw(h, 20.0, 18.0)).collect();
+        let (out, note) = ground_adjust(&raw, &ground("2026-10-24T06:00", 2.0));
+        assert_eq!(note.unwrap().factor, 0.5);
+        assert!((out[6].pm25.unwrap() - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_monitor_that_agrees_confirms_and_barely_moves_anything() {
+        let raw: Vec<RawHour> = (0..24).map(|h| raw(h, 20.0, 18.0)).collect();
+        let (out, note) = ground_adjust(&raw, &ground("2026-10-24T06:00", 26.0));
+        assert_eq!(out[6].pm25, Some(20.0));
+        assert_eq!(confidence(None, note).level, "sensor-confirmed");
+        assert_eq!(confidence(None, None).level, "model-only");
+    }
+
+    #[test]
+    fn ground_correction_can_flip_the_plan_to_n95s() {
+        // Model says 25 µg/m³ all day (AQI 81); the monitor at 06:00 says 75 (AQI 161).
+        let raw: Vec<RawHour> = (0..24).map(|h| raw(h, 25.0, 18.0)).collect();
+        let plain = shift_plan(&raw, "2026-10-24", 7, 17, &us_ca());
+        assert!(plain.actions.is_empty());
+        let ctx = Context { ground: Some(ground("2026-10-24T06:00", 75.0)), ..Default::default() };
+        let checked = shift_plan_with(&raw, "2026-10-24", 7, 17, &us_ca(), &ctx);
+        assert!(checked.actions.iter().any(|a| a.rule == "smoke-n95"), "{:?}", checked.actions);
+    }
+
+    #[test]
+    fn a_fire_within_50_km_is_reported_with_its_direction() {
+        // Fresno, and a detection ~0.3° north (~33 km).
+        let f = fire_note(36.75, -119.77, &[[37.05, -119.77], [40.0, -120.0]]).unwrap();
+        assert!((f.nearest_km - 33.4).abs() < 0.5, "{f:?}");
+        assert_eq!((f.direction, f.within_50km), ("N", 1));
+        let c = confidence(Some(f), None);
+        assert!(c.notes[0].starts_with("Active fire 33 km N"), "{}", c.notes[0]);
+        assert!(fire_note(36.75, -119.77, &[]).is_none());
     }
 
     #[test]

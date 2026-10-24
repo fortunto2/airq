@@ -3267,8 +3267,9 @@ pub mod wasm {
     /// the clear window for heavy work, and the BMS signal for the same day.
     ///
     /// Input: `{"hours":[{"time":"2026-10-24T13:00","pm25":80,"temp_c":28}],"date":"2026-10-24",
-    /// "start":7,"end":17}`, optionally `"rulebook":{...}`; California's is the default. Hours
-    /// should start a day early so the NowCast has its history. Returns `crew::ShiftPlan`.
+    /// "start":7,"end":17}`, optionally `"rulebook":{...}` (California's is the default) and the
+    /// checks: `"lat","lon","fires":[[lat,lon]],"ground":{time,pm25,stations,nearest,nearest_km}`.
+    /// Hours should start a day early so the NowCast has its history. Returns `crew::ShiftPlan`.
     #[wasm_bindgen]
     pub fn wasm_crew_plan(json: &str) -> String {
         #[derive(serde::Deserialize)]
@@ -3278,6 +3279,8 @@ pub mod wasm {
             start: u32,
             end: u32,
             rulebook: Option<crew::Rulebook>,
+            #[serde(flatten)]
+            context: crew::Context,
         }
 
         let input: Input = match serde_json::from_str(json) {
@@ -3285,7 +3288,7 @@ pub mod wasm {
             Err(e) => return serde_json::json!({ "error": e.to_string() }).to_string(),
         };
         let book = input.rulebook.unwrap_or_else(crew::us_ca);
-        let plan = crew::shift_plan(&input.hours, &input.date, input.start, input.end, &book);
+        let plan = crew::shift_plan_with(&input.hours, &input.date, input.start, input.end, &book, &input.context);
         serde_json::to_string(&plan).unwrap_or_default()
     }
 
