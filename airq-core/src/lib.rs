@@ -10,6 +10,7 @@ pub mod event;
 pub mod merge;
 pub mod geo;
 pub mod cpf;
+pub mod crew;
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -3260,6 +3261,32 @@ pub mod wasm {
             input.sensor_count,
         );
         serde_json::to_string(&merged).unwrap_or_default()
+    }
+
+    /// A crew's shift plan from an hourly forecast: the rulebook's actions at the hour each starts,
+    /// the clear window for heavy work, and the BMS signal for the same day.
+    ///
+    /// Input: `{"hours":[{"time":"2026-10-24T13:00","pm25":80,"temp_c":28}],"date":"2026-10-24",
+    /// "start":7,"end":17}`, optionally `"rulebook":{...}`; California's is the default. Hours
+    /// should start a day early so the NowCast has its history. Returns `crew::ShiftPlan`.
+    #[wasm_bindgen]
+    pub fn wasm_crew_plan(json: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Input {
+            hours: Vec<crew::RawHour>,
+            date: String,
+            start: u32,
+            end: u32,
+            rulebook: Option<crew::Rulebook>,
+        }
+
+        let input: Input = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(e) => return serde_json::json!({ "error": e.to_string() }).to_string(),
+        };
+        let book = input.rulebook.unwrap_or_else(crew::us_ca);
+        let plan = crew::shift_plan(&input.hours, &input.date, input.start, input.end, &book);
+        serde_json::to_string(&plan).unwrap_or_default()
     }
 
     /// Classify what a PM10/PM2.5 ratio is telling you — dust, combustion, mixed traffic.

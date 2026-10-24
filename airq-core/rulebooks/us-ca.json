@@ -1,0 +1,40 @@
+{
+  "jurisdiction": "US-CA",
+  "name": "California (Cal/OSHA)",
+  "source": "https://github.com/fortunto2/stanford-cleantech-2026/blob/main/rulebooks/us-ca.yaml",
+  "rules": [
+    {
+      "id": "smoke-respirators",
+      "group": "smoke",
+      "metric": "pm25_nowcast_ugm3",
+      "gte": 500.5,
+      "action": "PM2.5 {value} µg/m³ (AQI over 500): respirators mandatory, move work to filtered indoor air if possible",
+      "cite": "Cal/OSHA T8 §5141.1, App. A"
+    },
+    {
+      "id": "smoke-n95",
+      "group": "smoke",
+      "metric": "pm25_nowcast_ugm3",
+      "gte": 55.5,
+      "action": "AQI {aqi}: hand out N95s, tell the crew, cut exposure",
+      "cite": "Cal/OSHA T8 §5141.1, App. A"
+    },
+    {
+      "id": "heat-high",
+      "group": "heat",
+      "metric": "temp_f",
+      "gte": 95,
+      "action": "{value}°F: high-heat procedures, pre-shift meeting, watch the crew",
+      "cite": "Cal/OSHA T8 §3395"
+    },
+    {
+      "id": "heat-shade",
+      "group": "heat",
+      "metric": "temp_f",
+      "gte": 80,
+      "action": "{value}°F: shade up, water at hand",
+      "cite": "Cal/OSHA T8 §3395"
+    }
+  ],
+  "note": "Smoke rules use the PM2.5 NowCast concentration, as §5141.1 Appendix A does: AQI 151 = 55.5 µg/m³, AQI >500 = 500.5 µg/m³. An AQI threshold of 501 can never trip, because the AQI scale stops at 500."
+}
