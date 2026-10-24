@@ -109,6 +109,8 @@ pub struct Ground {
 pub struct FireNote {
     pub nearest_km: f64,
     pub direction: &'static str,
+    /// The exact bearing to the nearest detection, degrees from north; `direction` is its 8-point label.
+    pub bearing_deg: f64,
     pub within_50km: u32,
 }
 
@@ -295,9 +297,11 @@ pub fn fire_note(lat: f64, lon: f64, fires: &[[f64; 2]]) -> Option<FireNote> {
         .map(|f| (crate::geo::haversine(lat, lon, f[0], f[1]), *f))
         .collect();
     let (km, f) = near.iter().cloned().min_by(|a, b| a.0.total_cmp(&b.0))?;
+    let bearing = crate::geo::bearing(lat, lon, f[0], f[1]);
     Some(FireNote {
         nearest_km: (km * 10.0).round() / 10.0,
-        direction: crate::geo::bearing_label(crate::geo::bearing(lat, lon, f[0], f[1])),
+        direction: crate::geo::bearing_label(bearing),
+        bearing_deg: bearing.round(),
         within_50km: near.iter().filter(|(d, _)| *d <= FIRE_WARN_KM).count() as u32,
     })
 }
@@ -528,6 +532,7 @@ mod tests {
         let f = fire_note(36.75, -119.77, &[[37.05, -119.77], [40.0, -120.0]]).unwrap();
         assert!((f.nearest_km - 33.4).abs() < 0.5, "{f:?}");
         assert_eq!((f.direction, f.within_50km), ("N", 1));
+        assert!(f.bearing_deg <= 1.0 || f.bearing_deg >= 359.0, "{f:?}");
         let c = confidence(Some(f), None);
         assert!(c.notes[0].starts_with("Active fire 33 km N"), "{}", c.notes[0]);
         assert!(fire_note(36.75, -119.77, &[]).is_none());
