@@ -98,6 +98,11 @@ pub struct Ground {
     pub stations: u32,
     pub nearest: String,
     pub nearest_km: f64,
+    /// Where the nearest monitor stands, so a camera view can pin it on the horizon.
+    #[serde(default)]
+    pub nearest_lat: Option<f64>,
+    #[serde(default)]
+    pub nearest_lon: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -464,7 +469,15 @@ mod tests {
     }
 
     fn ground(time: &str, pm25: f64) -> Ground {
-        Ground { time: time.into(), pm25, stations: 3, nearest: "Fresno-Garland".into(), nearest_km: 4.2 }
+        Ground {
+            time: time.into(),
+            pm25,
+            stations: 3,
+            nearest: "Fresno-Garland".into(),
+            nearest_km: 4.2,
+            nearest_lat: Some(36.785),
+            nearest_lon: Some(-119.773),
+        }
     }
 
     #[test]
