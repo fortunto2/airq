@@ -16,6 +16,14 @@ Merges two data sources with dynamic weighting by divergence:
 
 When sources diverge (e.g. model says 130, sensors say 7), sensors win. Model weight drops to ~0% at high divergence.
 
+## Used by
+
+`airq-core` is one engine behind several surfaces, so they all give the same number:
+
+- [airsignal.app](https://airsignal.app) runs it as WASM (merge, events, CPF, comfort) — source: [air-signal-web](https://github.com/fortunto2/air-signal-web)
+- [airsignal.app/crew](https://airsignal.app/crew) — **Crew Air**, wildfire-smoke and heat shift plans for outdoor crews under Cal/OSHA §5141.1 and §3395 (`crew.rs`, `wasm_crew_plan`)
+- the Air Signal and Crew Air iPhone apps, through the site's API
+
 ## Install
 
 ```bash
@@ -362,7 +370,7 @@ When both available, dynamic merge weights sensors higher. If model diverges >5x
 | 201–300 | Very Unhealthy | 🟣 |
 | 301–500 | Hazardous | 🟤 |
 
-US AQI from Open-Meteo API. EU AQI also shown. For sensor-only data, AQI calculated using EPA formula.
+US AQI from Open-Meteo API. EU AQI also shown. For sensor-only data, AQI calculated using EPA formula, with the PM2.5 breakpoints of the EPA's 2024 revision (Good ends at 9.0 µg/m³).
 
 ## Front detection methodology
 
@@ -398,7 +406,9 @@ airq-core/           Pure calculations, no IO — WASM-ready
 ├── lib.rs           AQI (EPA), 14 sigmoid normalizers, ComfortScore, fronts, CPF
 ├── matrix.rs        SignalMatrix: macro-driven time-series, ML vector (44-dim)
 ├── event.rs         Event detection: EWMA + concordance + directional
-└── merge.rs         Model+sensor dynamic weighting by divergence
+├── merge.rs         Model+sensor dynamic weighting by divergence
+└── crew.rs          Crew shift plans: EPA NowCast, rulebooks as data (rulebooks/us-ca.json),
+                     ground-monitor correction, satellite fires with bearing, heat rule
 
 airq/                CLI + async network + serve daemon
 ├── main.rs          CLI (clap): city, comfort, front, blame, report, top, serve
@@ -417,11 +427,11 @@ airq-dashboard/      Dioxus 0.7 desktop app (Air Signal)
 Use `airq-core` in your own project:
 
 ```toml
-airq-core = "2.0"                                          # CLI (default)
-airq-core = { version = "2.0", default-features = false }  # minimal / iOS / WASM
+airq-core = "2.1"                                          # CLI (default)
+airq-core = { version = "2.1", default-features = false }  # minimal / iOS / WASM
 ```
 
-130 tests. 14 environmental signals with sigmoid/gaussian normalization.
+148 unit tests (126 in the core). 14 environmental signals with sigmoid/gaussian normalization.
 
 ## License
 

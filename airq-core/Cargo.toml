@@ -1,9 +1,9 @@
 [package]
 name = "airq-core"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
-description = "Air quality core: AQI, 14-signal comfort (sigmoid), event detection (EWMA+concordance), source classification, time-series matrix, sensor/model merge"
-license = "MIT"
+description = "Air quality core: AQI, 14-signal comfort (sigmoid), event detection (EWMA+concordance), source classification, time-series matrix, sensor/model merge, EPA NowCast and rulebook-driven crew shift plans"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/fortunto2/airq"
 keywords = ["air-quality", "aqi", "comfort-index", "pollution", "sensor-community"]
 categories = ["science", "algorithms"]
