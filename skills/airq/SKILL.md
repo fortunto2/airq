@@ -166,3 +166,13 @@ WASM-ready: `wasm-pack build --target web --features wasm --no-default-features`
 ## How it works
 
 Sensor.Community (real sensors, ground truth) → primary. Open-Meteo CAMS model → fallback with dynamic weight. When sources diverge (model says 130, sensors say 7), sensors win.
+
+## Crew shift plan (California, web API)
+
+For an outdoor crew in California the same core answers Cal/OSHA §5141.1 (wildfire smoke) and §3395 (heat) hour by hour: EPA NowCast, nearest AirNow monitor, satellite fires within 50 km. Not in the CLI yet; use the site's API:
+
+```bash
+curl -s "https://airsignal.app/api/crew?place=Fresno&shift=07-17" | jq '.plan.hours[] | {time, aqi: .metrics.us_aqi_pm25, pm25: .metrics.pm25_nowcast_ugm3}'
+```
+
+Page for people: https://airsignal.app/crew
